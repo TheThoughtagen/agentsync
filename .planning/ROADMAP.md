@@ -45,13 +45,13 @@ Plans:
   3. User can run `aisync sync --dry-run` and see what would change without any files being modified
   4. User can run `aisync status` and see per-tool sync state including symlink validation and drift detection
   5. Running `aisync sync` twice in a row produces identical results (idempotent)
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
-- [ ] 02-01: TBD
-- [ ] 02-02: TBD
-- [ ] 02-03: TBD
-- [ ] 02-04: TBD
+- [ ] 02-01-PLAN.md — Workspace deps, sync types/errors, ToolAdapter extension, gitignore module
+- [ ] 02-02-PLAN.md — Adapter sync implementations (read/write/status), sync engine
+- [ ] 02-03-PLAN.md — Init engine and aisync init CLI command
+- [ ] 02-04-PLAN.md — Clap CLI wiring, sync and status CLI commands
 
 ### Phase 3: Memory and Hooks
 **Goal**: Users can sync memory files and hook definitions across all Tier 1 tools, with CLI subcommands for managing both
