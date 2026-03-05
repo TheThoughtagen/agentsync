@@ -2,6 +2,14 @@ use std::fmt;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+
+/// Compute a hex-encoded SHA-256 hash of content bytes.
+pub fn content_hash(content: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(content);
+    hex::encode(hasher.finalize())
+}
 
 /// Identifies which AI coding tool is being managed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

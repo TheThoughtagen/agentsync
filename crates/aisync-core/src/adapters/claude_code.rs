@@ -1,8 +1,14 @@
 use std::path::Path;
 
 use crate::adapter::{ClaudeCodeAdapter, DetectionResult, ToolAdapter};
+use crate::config::SyncStrategy;
 use crate::error::AisyncError;
-use crate::types::{Confidence, ToolKind};
+use crate::types::{content_hash, Confidence, DriftState, SyncAction, ToolKind, ToolSyncStatus};
+
+/// The relative symlink target path from project root to canonical instructions.
+const CANONICAL_REL: &str = ".ai/instructions.md";
+/// The tool-specific file name at project root.
+const TOOL_FILE: &str = "CLAUDE.md";
 
 impl ToolAdapter for ClaudeCodeAdapter {
     fn name(&self) -> ToolKind {
@@ -11,7 +17,7 @@ impl ToolAdapter for ClaudeCodeAdapter {
 
     fn detect(&self, project_root: &Path) -> Result<DetectionResult, AisyncError> {
         let mut markers = Vec::new();
-        let claude_md = project_root.join("CLAUDE.md");
+        let claude_md = project_root.join(TOOL_FILE);
         let claude_dir = project_root.join(".claude");
 
         if claude_md.exists() {
@@ -28,6 +34,158 @@ impl ToolAdapter for ClaudeCodeAdapter {
             confidence: Confidence::High,
             markers_found: markers,
             version_hint: None,
+        })
+    }
+
+    fn read_instructions(&self, project_root: &Path) -> Result<Option<String>, AisyncError> {
+        let path = project_root.join(TOOL_FILE);
+        if !path.exists() {
+            return Ok(None);
+        }
+        let content = std::fs::read_to_string(&path).map_err(|e| AisyncError::Adapter {
+            tool: "claude-code".to_string(),
+            source: crate::error::AdapterError::DetectionFailed(format!(
+                "failed to read {}: {e}",
+                path.display()
+            )),
+        })?;
+        Ok(Some(content))
+    }
+
+    fn plan_sync(
+        &self,
+        project_root: &Path,
+        _canonical_content: &str,
+        _strategy: SyncStrategy,
+    ) -> Result<Vec<SyncAction>, AisyncError> {
+        let link_path = project_root.join(TOOL_FILE);
+        let target_rel = Path::new(CANONICAL_REL);
+
+        // On Windows, always use Copy strategy (INST-04) -- handled by caller.
+        // Here we handle symlink logic for Unix.
+
+        if link_path.exists() || link_path.symlink_metadata().is_ok() {
+            // File or symlink exists
+            if let Ok(meta) = link_path.symlink_metadata() {
+                if meta.file_type().is_symlink() {
+                    // Check where the symlink points
+                    let current_target = std::fs::read_link(&link_path).map_err(|e| {
+                        AisyncError::Adapter {
+                            tool: "claude-code".to_string(),
+                            source: crate::error::AdapterError::DetectionFailed(format!(
+                                "failed to read symlink: {e}"
+                            )),
+                        }
+                    })?;
+                    if current_target == target_rel {
+                        // Already correct symlink -- idempotent, no action needed
+                        return Ok(vec![]);
+                    }
+                    // Symlink points elsewhere -- remove and relink
+                    return Ok(vec![SyncAction::RemoveAndRelink {
+                        link: link_path,
+                        target: target_rel.to_path_buf(),
+                    }]);
+                }
+                // Regular file -- skip (user must decide interactively)
+                return Ok(vec![SyncAction::SkipExistingFile {
+                    path: link_path,
+                    reason: format!(
+                        "{} is a regular file, not managed by aisync",
+                        TOOL_FILE
+                    ),
+                }]);
+            }
+        }
+
+        // File doesn't exist -- create symlink
+        Ok(vec![SyncAction::CreateSymlink {
+            link: link_path,
+            target: target_rel.to_path_buf(),
+        }])
+    }
+
+    fn sync_status(
+        &self,
+        project_root: &Path,
+        canonical_hash: &str,
+    ) -> Result<ToolSyncStatus, AisyncError> {
+        let path = project_root.join(TOOL_FILE);
+
+        // Check symlink metadata (doesn't follow symlinks)
+        let meta = match path.symlink_metadata() {
+            Ok(m) => m,
+            Err(_) => {
+                return Ok(ToolSyncStatus {
+                    tool: ToolKind::ClaudeCode,
+                    strategy: SyncStrategy::Symlink,
+                    drift: DriftState::Missing,
+                    details: None,
+                });
+            }
+        };
+
+        if meta.file_type().is_symlink() {
+            // Check if target exists (follow the symlink)
+            if !path.exists() {
+                return Ok(ToolSyncStatus {
+                    tool: ToolKind::ClaudeCode,
+                    strategy: SyncStrategy::Symlink,
+                    drift: DriftState::DanglingSymlink,
+                    details: Some("symlink target does not exist".to_string()),
+                });
+            }
+
+            // Read content via symlink and hash
+            let content = std::fs::read(&path).map_err(|e| AisyncError::Adapter {
+                tool: "claude-code".to_string(),
+                source: crate::error::AdapterError::DetectionFailed(format!(
+                    "failed to read {}: {e}",
+                    path.display()
+                )),
+            })?;
+            let hash = content_hash(&content);
+            if hash == canonical_hash {
+                return Ok(ToolSyncStatus {
+                    tool: ToolKind::ClaudeCode,
+                    strategy: SyncStrategy::Symlink,
+                    drift: DriftState::InSync,
+                    details: None,
+                });
+            }
+            return Ok(ToolSyncStatus {
+                tool: ToolKind::ClaudeCode,
+                strategy: SyncStrategy::Symlink,
+                drift: DriftState::Drifted {
+                    reason: "content hash mismatch".to_string(),
+                },
+                details: Some(format!("expected {canonical_hash}, got {hash}")),
+            });
+        }
+
+        // Regular file -- hash and compare
+        let content = std::fs::read(&path).map_err(|e| AisyncError::Adapter {
+            tool: "claude-code".to_string(),
+            source: crate::error::AdapterError::DetectionFailed(format!(
+                "failed to read {}: {e}",
+                path.display()
+            )),
+        })?;
+        let hash = content_hash(&content);
+        let drift = if hash == canonical_hash {
+            DriftState::Drifted {
+                reason: "file is not a symlink (wrong strategy)".to_string(),
+            }
+        } else {
+            DriftState::Drifted {
+                reason: "content hash mismatch and not a symlink".to_string(),
+            }
+        };
+        Ok(ToolSyncStatus {
+            tool: ToolKind::ClaudeCode,
+            strategy: SyncStrategy::Symlink,
+            drift,
+            details: Some(format!("regular file, hash: {hash}")),
         })
     }
 }
@@ -84,5 +242,190 @@ mod tests {
         let result = ClaudeCodeAdapter.detect(dir.path()).unwrap();
         assert!(!result.detected);
         assert!(result.markers_found.is_empty());
+    }
+
+    // --- read_instructions tests ---
+
+    #[test]
+    fn test_read_instructions_reads_content() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(dir.path().join("CLAUDE.md"), "# My Instructions").unwrap();
+
+        let content = ClaudeCodeAdapter.read_instructions(dir.path()).unwrap();
+        assert_eq!(content, Some("# My Instructions".to_string()));
+    }
+
+    #[test]
+    fn test_read_instructions_follows_symlinks() {
+        let dir = TempDir::new().unwrap();
+        let ai_dir = dir.path().join(".ai");
+        std::fs::create_dir(&ai_dir).unwrap();
+        std::fs::write(ai_dir.join("instructions.md"), "canonical content").unwrap();
+
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(
+                Path::new(".ai/instructions.md"),
+                dir.path().join("CLAUDE.md"),
+            )
+            .unwrap();
+        }
+
+        let content = ClaudeCodeAdapter.read_instructions(dir.path()).unwrap();
+        assert_eq!(content, Some("canonical content".to_string()));
+    }
+
+    #[test]
+    fn test_read_instructions_returns_none_when_missing() {
+        let dir = TempDir::new().unwrap();
+
+        let content = ClaudeCodeAdapter.read_instructions(dir.path()).unwrap();
+        assert_eq!(content, None);
+    }
+
+    // --- plan_sync tests ---
+
+    #[test]
+    fn test_plan_sync_creates_symlink_when_missing() {
+        let dir = TempDir::new().unwrap();
+
+        let actions = ClaudeCodeAdapter
+            .plan_sync(dir.path(), "content", SyncStrategy::Symlink)
+            .unwrap();
+        assert_eq!(actions.len(), 1);
+        match &actions[0] {
+            SyncAction::CreateSymlink { link, target } => {
+                assert_eq!(link, &dir.path().join("CLAUDE.md"));
+                assert_eq!(target, Path::new(".ai/instructions.md"));
+            }
+            other => panic!("expected CreateSymlink, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_plan_sync_correct_symlink_returns_empty() {
+        let dir = TempDir::new().unwrap();
+        let ai_dir = dir.path().join(".ai");
+        std::fs::create_dir(&ai_dir).unwrap();
+        std::fs::write(ai_dir.join("instructions.md"), "content").unwrap();
+
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(
+                Path::new(".ai/instructions.md"),
+                dir.path().join("CLAUDE.md"),
+            )
+            .unwrap();
+        }
+
+        let actions = ClaudeCodeAdapter
+            .plan_sync(dir.path(), "content", SyncStrategy::Symlink)
+            .unwrap();
+        assert!(actions.is_empty(), "expected no actions for correct symlink");
+    }
+
+    #[test]
+    fn test_plan_sync_regular_file_returns_skip() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(dir.path().join("CLAUDE.md"), "user content").unwrap();
+
+        let actions = ClaudeCodeAdapter
+            .plan_sync(dir.path(), "content", SyncStrategy::Symlink)
+            .unwrap();
+        assert_eq!(actions.len(), 1);
+        assert!(matches!(&actions[0], SyncAction::SkipExistingFile { .. }));
+    }
+
+    #[test]
+    fn test_plan_sync_wrong_symlink_returns_relink() {
+        let dir = TempDir::new().unwrap();
+
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(
+                Path::new("wrong/target.md"),
+                dir.path().join("CLAUDE.md"),
+            )
+            .unwrap();
+        }
+
+        let actions = ClaudeCodeAdapter
+            .plan_sync(dir.path(), "content", SyncStrategy::Symlink)
+            .unwrap();
+        assert_eq!(actions.len(), 1);
+        assert!(matches!(&actions[0], SyncAction::RemoveAndRelink { .. }));
+    }
+
+    // --- sync_status tests ---
+
+    #[test]
+    fn test_sync_status_missing() {
+        let dir = TempDir::new().unwrap();
+
+        let status = ClaudeCodeAdapter.sync_status(dir.path(), "abc123").unwrap();
+        assert_eq!(status.tool, ToolKind::ClaudeCode);
+        assert_eq!(status.drift, DriftState::Missing);
+    }
+
+    #[test]
+    fn test_sync_status_in_sync() {
+        let dir = TempDir::new().unwrap();
+        let ai_dir = dir.path().join(".ai");
+        std::fs::create_dir(&ai_dir).unwrap();
+        let content = "canonical content";
+        std::fs::write(ai_dir.join("instructions.md"), content).unwrap();
+
+        let hash = content_hash(content.as_bytes());
+
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(
+                Path::new(".ai/instructions.md"),
+                dir.path().join("CLAUDE.md"),
+            )
+            .unwrap();
+        }
+
+        let status = ClaudeCodeAdapter.sync_status(dir.path(), &hash).unwrap();
+        assert_eq!(status.drift, DriftState::InSync);
+    }
+
+    #[test]
+    fn test_sync_status_dangling_symlink() {
+        let dir = TempDir::new().unwrap();
+
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(
+                Path::new(".ai/instructions.md"),
+                dir.path().join("CLAUDE.md"),
+            )
+            .unwrap();
+        }
+
+        let status = ClaudeCodeAdapter.sync_status(dir.path(), "abc123").unwrap();
+        assert_eq!(status.drift, DriftState::DanglingSymlink);
+    }
+
+    #[test]
+    fn test_sync_status_drifted() {
+        let dir = TempDir::new().unwrap();
+        let ai_dir = dir.path().join(".ai");
+        std::fs::create_dir(&ai_dir).unwrap();
+        std::fs::write(ai_dir.join("instructions.md"), "different content").unwrap();
+
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(
+                Path::new(".ai/instructions.md"),
+                dir.path().join("CLAUDE.md"),
+            )
+            .unwrap();
+        }
+
+        let status = ClaudeCodeAdapter
+            .sync_status(dir.path(), "wrong_hash_value")
+            .unwrap();
+        assert!(matches!(status.drift, DriftState::Drifted { .. }));
     }
 }
