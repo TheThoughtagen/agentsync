@@ -9,13 +9,24 @@ impl ToolAdapter for ClaudeCodeAdapter {
         ToolKind::ClaudeCode
     }
 
-    fn detect(&self, _project_root: &Path) -> Result<DetectionResult, AisyncError> {
-        // Stub: always returns not detected (RED phase)
+    fn detect(&self, project_root: &Path) -> Result<DetectionResult, AisyncError> {
+        let mut markers = Vec::new();
+        let claude_md = project_root.join("CLAUDE.md");
+        let claude_dir = project_root.join(".claude");
+
+        if claude_md.exists() {
+            markers.push(claude_md);
+        }
+        if claude_dir.is_dir() {
+            markers.push(claude_dir);
+        }
+
+        let detected = !markers.is_empty();
         Ok(DetectionResult {
             tool: ToolKind::ClaudeCode,
-            detected: false,
+            detected,
             confidence: Confidence::High,
-            markers_found: Vec::new(),
+            markers_found: markers,
             version_hint: None,
         })
     }

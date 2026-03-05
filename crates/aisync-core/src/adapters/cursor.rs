@@ -9,14 +9,29 @@ impl ToolAdapter for CursorAdapter {
         ToolKind::Cursor
     }
 
-    fn detect(&self, _project_root: &Path) -> Result<DetectionResult, AisyncError> {
-        // Stub: always returns not detected (RED phase)
+    fn detect(&self, project_root: &Path) -> Result<DetectionResult, AisyncError> {
+        let mut markers = Vec::new();
+        let mut version_hint = None;
+        let cursor_rules_dir = project_root.join(".cursor").join("rules");
+        let cursorrules_file = project_root.join(".cursorrules");
+
+        if cursor_rules_dir.is_dir() {
+            markers.push(cursor_rules_dir);
+        }
+        if cursorrules_file.exists() {
+            markers.push(cursorrules_file);
+            version_hint = Some(
+                "legacy format (.cursorrules) — consider migrating to .cursor/rules/".into(),
+            );
+        }
+
+        let detected = !markers.is_empty();
         Ok(DetectionResult {
             tool: ToolKind::Cursor,
-            detected: false,
+            detected,
             confidence: Confidence::High,
-            markers_found: Vec::new(),
-            version_hint: None,
+            markers_found: markers,
+            version_hint,
         })
     }
 }
