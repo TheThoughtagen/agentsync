@@ -17,28 +17,28 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **CLI-06**: User can run `aisync diff` to compare canonical `.ai/` content vs tool-native files
 - [ ] **CLI-07**: User can run `aisync check` to validate sync state in CI (exit non-zero on drift)
 - [x] **CLI-08**: `aisync.toml` config file with `schema_version`, per-tool settings, sync strategy
-- [ ] **CLI-09**: All sync operations are idempotent — running twice produces the same result
+- [x] **CLI-09**: All sync operations are idempotent — running twice produces the same result
 - [ ] **CLI-10**: Shell completions generated for bash, zsh, and fish
 - [x] **CLI-11**: Clear error messages with `--verbose` flag for debugging
 
 ### Instructions Sync
 
-- [ ] **INST-01**: `.ai/instructions.md` syncs to CLAUDE.md via symlink or copy
-- [ ] **INST-02**: `.ai/instructions.md` syncs to AGENTS.md via symlink or copy
-- [ ] **INST-03**: `.ai/instructions.md` generates `.cursor/rules/project.mdc` with YAML frontmatter
+- [x] **INST-01**: `.ai/instructions.md` syncs to CLAUDE.md via symlink or copy
+- [x] **INST-02**: `.ai/instructions.md` syncs to AGENTS.md via symlink or copy
+- [x] **INST-03**: `.ai/instructions.md` generates `.cursor/rules/project.mdc` with YAML frontmatter
 - [x] **INST-04**: Symlink-based sync by default on macOS/Linux, copy fallback on Windows
 - [ ] **INST-05**: `aisync init` imports existing CLAUDE.md/AGENTS.md/.mdc as `.ai/instructions.md`
 - [ ] **INST-06**: Import prompts user when multiple existing configs conflict
-- [ ] **INST-07**: `.gitignore` entries suggested/managed for tool-generated files
+- [x] **INST-07**: `.gitignore` entries suggested/managed for tool-generated files
 - [ ] **INST-08**: Bidirectional sync detects external edits to tool-native files and reverse-syncs to `.ai/`
 - [ ] **INST-09**: Conditional sections (`<!-- aisync:tool-only -->`) include/exclude content per tool
-- [ ] **INST-10**: Symlink targets validated in `aisync status` (detect dangling symlinks)
+- [x] **INST-10**: Symlink targets validated in `aisync status` (detect dangling symlinks)
 
 ### Tool Adapters
 
-- [ ] **ADPT-01**: Claude Code adapter — instructions, memory symlink, hooks translation
-- [ ] **ADPT-02**: OpenCode adapter — AGENTS.md, memory references, hook plugin stubs
-- [ ] **ADPT-03**: Cursor adapter — .mdc generation with frontmatter, memory references
+- [x] **ADPT-01**: Claude Code adapter — instructions, memory symlink, hooks translation
+- [x] **ADPT-02**: OpenCode adapter — AGENTS.md, memory references, hook plugin stubs
+- [x] **ADPT-03**: Cursor adapter — .mdc generation with frontmatter, memory references
 - [x] **ADPT-04**: Tool detection engine scans project root for AI tool config markers
 - [x] **ADPT-05**: Adapter trait with detect, read, write, sync_memory, translate_hook, watch_paths
 
@@ -128,22 +128,22 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CLI-06 | Phase 4 | Pending |
 | CLI-07 | Phase 4 | Pending |
 | CLI-08 | Phase 1 | Complete |
-| CLI-09 | Phase 2 | Pending |
+| CLI-09 | Phase 2 | Complete |
 | CLI-10 | Phase 5 | Pending |
 | CLI-11 | Phase 2 | Complete |
-| INST-01 | Phase 2 | Pending |
-| INST-02 | Phase 2 | Pending |
-| INST-03 | Phase 2 | Pending |
+| INST-01 | Phase 2 | Complete |
+| INST-02 | Phase 2 | Complete |
+| INST-03 | Phase 2 | Complete |
 | INST-04 | Phase 2 | Complete |
 | INST-05 | Phase 2 | Pending |
 | INST-06 | Phase 2 | Pending |
-| INST-07 | Phase 2 | Pending |
+| INST-07 | Phase 2 | Complete |
 | INST-08 | Phase 4 | Pending |
 | INST-09 | Phase 4 | Pending |
-| INST-10 | Phase 2 | Pending |
-| ADPT-01 | Phase 2 | Pending |
-| ADPT-02 | Phase 2 | Pending |
-| ADPT-03 | Phase 2 | Pending |
+| INST-10 | Phase 2 | Complete |
+| ADPT-01 | Phase 2 | Complete |
+| ADPT-02 | Phase 2 | Complete |
+| ADPT-03 | Phase 2 | Complete |
 | ADPT-04 | Phase 1 | Complete |
 | ADPT-05 | Phase 1 | Complete |
 | MEM-01 | Phase 3 | Pending |
