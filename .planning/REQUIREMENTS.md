@@ -19,14 +19,14 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **CLI-08**: `aisync.toml` config file with `schema_version`, per-tool settings, sync strategy
 - [ ] **CLI-09**: All sync operations are idempotent — running twice produces the same result
 - [ ] **CLI-10**: Shell completions generated for bash, zsh, and fish
-- [ ] **CLI-11**: Clear error messages with `--verbose` flag for debugging
+- [x] **CLI-11**: Clear error messages with `--verbose` flag for debugging
 
 ### Instructions Sync
 
 - [ ] **INST-01**: `.ai/instructions.md` syncs to CLAUDE.md via symlink or copy
 - [ ] **INST-02**: `.ai/instructions.md` syncs to AGENTS.md via symlink or copy
 - [ ] **INST-03**: `.ai/instructions.md` generates `.cursor/rules/project.mdc` with YAML frontmatter
-- [ ] **INST-04**: Symlink-based sync by default on macOS/Linux, copy fallback on Windows
+- [x] **INST-04**: Symlink-based sync by default on macOS/Linux, copy fallback on Windows
 - [ ] **INST-05**: `aisync init` imports existing CLAUDE.md/AGENTS.md/.mdc as `.ai/instructions.md`
 - [ ] **INST-06**: Import prompts user when multiple existing configs conflict
 - [ ] **INST-07**: `.gitignore` entries suggested/managed for tool-generated files
@@ -130,11 +130,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CLI-08 | Phase 1 | Complete |
 | CLI-09 | Phase 2 | Pending |
 | CLI-10 | Phase 5 | Pending |
-| CLI-11 | Phase 2 | Pending |
+| CLI-11 | Phase 2 | Complete |
 | INST-01 | Phase 2 | Pending |
 | INST-02 | Phase 2 | Pending |
 | INST-03 | Phase 2 | Pending |
-| INST-04 | Phase 2 | Pending |
+| INST-04 | Phase 2 | Complete |
 | INST-05 | Phase 2 | Pending |
 | INST-06 | Phase 2 | Pending |
 | INST-07 | Phase 2 | Pending |
