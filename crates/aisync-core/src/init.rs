@@ -41,12 +41,12 @@ pub struct InitEngine;
 impl InitEngine {
     /// Check if already initialized (.ai/ directory exists).
     pub fn is_initialized(project_root: &Path) -> bool {
-        todo!()
+        project_root.join(".ai").is_dir()
     }
 
     /// Detect tools in the project (delegates to DetectionEngine).
     pub fn detect_tools(project_root: &Path) -> Result<Vec<DetectionResult>, AisyncError> {
-        todo!()
+        Ok(DetectionEngine::scan(project_root)?)
     }
 
     /// Find existing instruction sources from detected tools.
@@ -55,7 +55,26 @@ impl InitEngine {
         project_root: &Path,
         detected: &[DetectionResult],
     ) -> Vec<ImportSource> {
-        todo!()
+        let mut sources = Vec::new();
+
+        for result in detected {
+            let adapter = Self::adapter_for_tool(result.tool);
+            if let Ok(Some(content)) = adapter.read_instructions(project_root) {
+                // Determine the source path based on tool kind
+                let source_path = match result.tool {
+                    ToolKind::ClaudeCode => project_root.join("CLAUDE.md"),
+                    ToolKind::Cursor => project_root.join(".cursor/rules/project.mdc"),
+                    ToolKind::OpenCode => project_root.join("AGENTS.md"),
+                };
+                sources.push(ImportSource {
+                    tool: result.tool,
+                    content,
+                    source_path,
+                });
+            }
+        }
+
+        sources
     }
 
     /// Scaffold the .ai/ directory structure.
@@ -69,7 +88,81 @@ impl InitEngine {
         import_content: Option<&str>,
         options: &InitOptions,
     ) -> Result<(), AisyncError> {
-        todo!()
+        let ai_dir = project_root.join(".ai");
+
+        // Check for existing initialization
+        if ai_dir.is_dir() && !options.force {
+            return Err(InitError::AlreadyInitialized.into());
+        }
+
+        // Create directory structure
+        let dirs = [
+            ai_dir.clone(),
+            ai_dir.join("memory"),
+            ai_dir.join("hooks"),
+            ai_dir.join("commands"),
+        ];
+        for dir in &dirs {
+            std::fs::create_dir_all(dir).map_err(InitError::ScaffoldFailed)?;
+        }
+
+        // Write instructions.md
+        let instructions_content = import_content.unwrap_or("");
+        std::fs::write(ai_dir.join("instructions.md"), instructions_content)
+            .map_err(InitError::ScaffoldFailed)?;
+
+        // Build aisync.toml config from detected tools
+        let config = Self::build_config(detected_tools);
+        let toml_str = config
+            .to_string_pretty()
+            .map_err(|e| InitError::ImportFailed(format!("failed to serialize config: {e}")))?;
+        std::fs::write(project_root.join("aisync.toml"), toml_str)
+            .map_err(InitError::ScaffoldFailed)?;
+
+        Ok(())
+    }
+
+    /// Get the appropriate adapter for a tool kind.
+    fn adapter_for_tool(tool: ToolKind) -> AnyAdapter {
+        match tool {
+            ToolKind::ClaudeCode => {
+                AnyAdapter::ClaudeCode(crate::adapter::ClaudeCodeAdapter)
+            }
+            ToolKind::Cursor => AnyAdapter::Cursor(crate::adapter::CursorAdapter),
+            ToolKind::OpenCode => AnyAdapter::OpenCode(crate::adapter::OpenCodeAdapter),
+        }
+    }
+
+    /// Build an AisyncConfig from detected tools.
+    fn build_config(detected_tools: &[DetectionResult]) -> AisyncConfig {
+        let mut tools = ToolsConfig::default();
+
+        for result in detected_tools {
+            let tool_config = match result.tool {
+                ToolKind::Cursor => ToolConfig {
+                    enabled: true,
+                    sync_strategy: Some(SyncStrategy::Generate),
+                },
+                _ => ToolConfig {
+                    enabled: true,
+                    sync_strategy: None,
+                },
+            };
+
+            match result.tool {
+                ToolKind::ClaudeCode => tools.claude_code = Some(tool_config),
+                ToolKind::Cursor => tools.cursor = Some(tool_config),
+                ToolKind::OpenCode => tools.opencode = Some(tool_config),
+            }
+        }
+
+        AisyncConfig {
+            schema_version: 1,
+            defaults: DefaultsConfig {
+                sync_strategy: SyncStrategy::Symlink,
+            },
+            tools,
+        }
     }
 }
 
