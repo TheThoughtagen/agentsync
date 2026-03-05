@@ -9,7 +9,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### CLI Core
 
-- [ ] **CLI-01**: User can run `aisync init` to scaffold `.ai/` directory with interactive detection and import
+- [x] **CLI-01**: User can run `aisync init` to scaffold `.ai/` directory with interactive detection and import
 - [x] **CLI-02**: User can run `aisync sync` to one-shot sync from `.ai/` to all configured tools
 - [x] **CLI-03**: User can run `aisync sync --dry-run` to preview changes without applying them
 - [x] **CLI-04**: User can run `aisync status` to see per-tool sync state and drift detection
@@ -27,8 +27,8 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **INST-02**: `.ai/instructions.md` syncs to AGENTS.md via symlink or copy
 - [x] **INST-03**: `.ai/instructions.md` generates `.cursor/rules/project.mdc` with YAML frontmatter
 - [x] **INST-04**: Symlink-based sync by default on macOS/Linux, copy fallback on Windows
-- [ ] **INST-05**: `aisync init` imports existing CLAUDE.md/AGENTS.md/.mdc as `.ai/instructions.md`
-- [ ] **INST-06**: Import prompts user when multiple existing configs conflict
+- [x] **INST-05**: `aisync init` imports existing CLAUDE.md/AGENTS.md/.mdc as `.ai/instructions.md`
+- [x] **INST-06**: Import prompts user when multiple existing configs conflict
 - [x] **INST-07**: `.gitignore` entries suggested/managed for tool-generated files
 - [ ] **INST-08**: Bidirectional sync detects external edits to tool-native files and reverse-syncs to `.ai/`
 - [ ] **INST-09**: Conditional sections (`<!-- aisync:tool-only -->`) include/exclude content per tool
@@ -120,7 +120,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CLI-01 | Phase 2 | Pending |
+| CLI-01 | Phase 2 | Complete |
 | CLI-02 | Phase 2 | Complete |
 | CLI-03 | Phase 2 | Complete |
 | CLI-04 | Phase 2 | Complete |
@@ -135,8 +135,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INST-02 | Phase 2 | Complete |
 | INST-03 | Phase 2 | Complete |
 | INST-04 | Phase 2 | Complete |
-| INST-05 | Phase 2 | Pending |
-| INST-06 | Phase 2 | Pending |
+| INST-05 | Phase 2 | Complete |
+| INST-06 | Phase 2 | Complete |
 | INST-07 | Phase 2 | Complete |
 | INST-08 | Phase 4 | Pending |
 | INST-09 | Phase 4 | Pending |
