@@ -1,0 +1,8 @@
+[package]
+name = "aisync"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+aisync-core = { path = "../aisync-core" }
