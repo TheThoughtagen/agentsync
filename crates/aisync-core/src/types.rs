@@ -1,3 +1,6 @@
+use std::fmt;
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
 
 /// Identifies which AI coding tool is being managed.
@@ -13,6 +16,101 @@ pub enum ToolKind {
 pub enum Confidence {
     High,
     Medium,
+}
+
+/// A planned sync action that can be displayed (dry-run) or executed.
+#[derive(Debug, Clone, Serialize)]
+pub enum SyncAction {
+    CreateSymlink { link: PathBuf, target: PathBuf },
+    RemoveAndRelink { link: PathBuf, target: PathBuf },
+    GenerateMdc { output: PathBuf, content: String },
+    UpdateGitignore { path: PathBuf, entries: Vec<String> },
+    CreateDirectory { path: PathBuf },
+    CreateFile { path: PathBuf, content: String },
+    SkipExistingFile { path: PathBuf, reason: String },
+}
+
+impl fmt::Display for SyncAction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SyncAction::CreateSymlink { link, target } => {
+                write!(f, "Would create symlink: {} -> {}", link.display(), target.display())
+            }
+            SyncAction::RemoveAndRelink { link, target } => {
+                write!(f, "Would remove and relink: {} -> {}", link.display(), target.display())
+            }
+            SyncAction::GenerateMdc { output, .. } => {
+                write!(f, "Would generate MDC file: {}", output.display())
+            }
+            SyncAction::UpdateGitignore { path, entries } => {
+                write!(f, "Would update .gitignore at {} with {} entries", path.display(), entries.len())
+            }
+            SyncAction::CreateDirectory { path } => {
+                write!(f, "Would create directory: {}", path.display())
+            }
+            SyncAction::CreateFile { path, .. } => {
+                write!(f, "Would create file: {}", path.display())
+            }
+            SyncAction::SkipExistingFile { path, reason } => {
+                write!(f, "Would skip {}: {}", path.display(), reason)
+            }
+        }
+    }
+}
+
+/// Result of syncing a single tool.
+#[derive(Debug, Clone, Serialize)]
+pub struct ToolSyncResult {
+    pub tool: ToolKind,
+    pub actions: Vec<SyncAction>,
+    pub error: Option<String>,
+}
+
+/// Overall sync report collecting results from all tools.
+#[derive(Debug, Clone, Serialize)]
+pub struct SyncReport {
+    pub results: Vec<ToolSyncResult>,
+}
+
+impl SyncReport {
+    pub fn has_errors(&self) -> bool {
+        self.results.iter().any(|r| r.error.is_some())
+    }
+
+    pub fn exit_code(&self) -> i32 {
+        if self.has_errors() { 1 } else { 0 }
+    }
+}
+
+/// Drift state for a single tool's sync status.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub enum DriftState {
+    InSync,
+    Drifted { reason: String },
+    Missing,
+    DanglingSymlink,
+    NotConfigured,
+}
+
+/// Status of a single tool's sync state.
+#[derive(Debug, Clone, Serialize)]
+pub struct ToolSyncStatus {
+    pub tool: ToolKind,
+    pub strategy: crate::config::SyncStrategy,
+    pub drift: DriftState,
+    pub details: Option<String>,
+}
+
+/// Overall status report.
+#[derive(Debug, Clone, Serialize)]
+pub struct StatusReport {
+    pub tools: Vec<ToolSyncStatus>,
+}
+
+impl StatusReport {
+    pub fn all_in_sync(&self) -> bool {
+        self.tools.iter().all(|t| t.drift == DriftState::InSync || t.drift == DriftState::NotConfigured)
+    }
 }
 
 #[cfg(test)]

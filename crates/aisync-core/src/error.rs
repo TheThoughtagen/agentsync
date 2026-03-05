@@ -14,6 +14,12 @@ pub enum AisyncError {
         tool: String,
         source: AdapterError,
     },
+
+    #[error("sync error: {0}")]
+    Sync(#[from] SyncError),
+
+    #[error("init error: {0}")]
+    Init(#[from] InitError),
 }
 
 /// Errors related to configuration parsing and validation.
@@ -44,6 +50,38 @@ pub enum DetectionError {
 pub enum AdapterError {
     #[error("detection failed: {0}")]
     DetectionFailed(String),
+}
+
+/// Errors related to sync operations.
+#[derive(Debug, Error)]
+pub enum SyncError {
+    #[error("sync failed for {tool}: {reason}")]
+    ToolSyncFailed { tool: String, reason: String },
+
+    #[error("symlink creation failed: {0}")]
+    SymlinkFailed(#[source] std::io::Error),
+
+    #[error("file write failed: {0}")]
+    WriteFailed(#[source] std::io::Error),
+
+    #[error("canonical file not found: {path}")]
+    CanonicalMissing { path: String },
+
+    #[error("gitignore update failed: {0}")]
+    GitignoreFailed(#[source] std::io::Error),
+}
+
+/// Errors related to project initialization.
+#[derive(Debug, Error)]
+pub enum InitError {
+    #[error("scaffold failed: {0}")]
+    ScaffoldFailed(#[source] std::io::Error),
+
+    #[error("import failed: {0}")]
+    ImportFailed(String),
+
+    #[error("already initialized, use --force to re-initialize")]
+    AlreadyInitialized,
 }
 
 #[cfg(test)]
