@@ -16,7 +16,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **CLI-05**: User can run `aisync watch` to start a daemon that auto-syncs on file changes
 - [ ] **CLI-06**: User can run `aisync diff` to compare canonical `.ai/` content vs tool-native files
 - [ ] **CLI-07**: User can run `aisync check` to validate sync state in CI (exit non-zero on drift)
-- [ ] **CLI-08**: `aisync.toml` config file with `schema_version`, per-tool settings, sync strategy
+- [x] **CLI-08**: `aisync.toml` config file with `schema_version`, per-tool settings, sync strategy
 - [ ] **CLI-09**: All sync operations are idempotent — running twice produces the same result
 - [ ] **CLI-10**: Shell completions generated for bash, zsh, and fish
 - [ ] **CLI-11**: Clear error messages with `--verbose` flag for debugging
@@ -127,7 +127,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CLI-05 | Phase 4 | Pending |
 | CLI-06 | Phase 4 | Pending |
 | CLI-07 | Phase 4 | Pending |
-| CLI-08 | Phase 1 | Pending |
+| CLI-08 | Phase 1 | Complete |
 | CLI-09 | Phase 2 | Pending |
 | CLI-10 | Phase 5 | Pending |
 | CLI-11 | Phase 2 | Pending |
