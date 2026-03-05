@@ -1,0 +1,116 @@
+use std::path::Path;
+
+use colored::Colorize;
+
+use aisync_core::{AisyncConfig, DriftState, StatusReport, SyncEngine, SyncStrategy, ToolKind};
+
+pub fn run_status(json: bool, verbose: bool) -> Result<(), Box<dyn std::error::Error>> {
+    let config_path = Path::new("aisync.toml");
+    if !config_path.exists() {
+        return Err("aisync.toml not found. Run `aisync init` first.".into());
+    }
+
+    let config = AisyncConfig::from_file(config_path)?;
+    let project_root = Path::new(".");
+
+    if verbose {
+        eprintln!("[verbose] Loaded config from aisync.toml");
+    }
+
+    let status = SyncEngine::status(&config, project_root)?;
+
+    if json {
+        let output = serde_json::to_string_pretty(&status)?;
+        println!("{output}");
+        if !status.all_in_sync() {
+            std::process::exit(1);
+        }
+        return Ok(());
+    }
+
+    // Colored table output
+    print_status_table(&status, verbose);
+
+    if !status.all_in_sync() {
+        std::process::exit(1);
+    }
+
+    Ok(())
+}
+
+fn print_status_table(status: &StatusReport, verbose: bool) {
+    if status.all_in_sync() {
+        let count = status.tools.len();
+        println!(
+            "{}",
+            format!("✓ All {count} tool(s) in sync").green().bold()
+        );
+        if verbose {
+            for tool_status in &status.tools {
+                eprintln!(
+                    "  [verbose] {} ({:?}): {:?}",
+                    tool_display_name(tool_status.tool),
+                    tool_status.strategy,
+                    tool_status.drift
+                );
+            }
+        }
+        return;
+    }
+
+    // Print header
+    println!(
+        "{:<14}| {:<10}| {:<10}| {}",
+        "Tool", "Strategy", "Status", "Details"
+    );
+    println!("{}", "-".repeat(60));
+
+    for tool_status in &status.tools {
+        let tool_name = tool_display_name(tool_status.tool);
+        let strategy = strategy_display_name(tool_status.strategy);
+        let (status_str, details) = drift_display(&tool_status.drift, &tool_status.details);
+
+        println!(
+            "{:<14}| {:<10}| {:<10}| {}",
+            tool_name, strategy, status_str, details
+        );
+
+        if verbose {
+            if let Some(detail) = &tool_status.details {
+                eprintln!("  [verbose] {tool_name}: {detail}");
+            }
+        }
+    }
+}
+
+fn drift_display(drift: &DriftState, details: &Option<String>) -> (String, String) {
+    match drift {
+        DriftState::InSync => ("OK".green().to_string(), String::new()),
+        DriftState::Drifted { reason } => ("DRIFTED".red().to_string(), reason.clone()),
+        DriftState::Missing => ("MISSING".red().to_string(), String::new()),
+        DriftState::DanglingSymlink => (
+            "DANGLING".red().to_string(),
+            details
+                .as_deref()
+                .unwrap_or("symlink target missing")
+                .to_string(),
+        ),
+        DriftState::NotConfigured => ("SKIP".yellow().to_string(), "not configured".to_string()),
+    }
+}
+
+fn tool_display_name(tool: ToolKind) -> &'static str {
+    match tool {
+        ToolKind::ClaudeCode => "Claude Code",
+        ToolKind::Cursor => "Cursor",
+        ToolKind::OpenCode => "OpenCode",
+    }
+}
+
+fn strategy_display_name(strategy: SyncStrategy) -> &'static str {
+    match strategy {
+        SyncStrategy::Symlink => "symlink",
+        SyncStrategy::Copy => "copy",
+        SyncStrategy::Generate => "generate",
+    }
+}

@@ -1,62 +1,57 @@
-use std::path::PathBuf;
-use std::process;
+use clap::{Parser, Subcommand};
 
-use aisync_core::{DetectionEngine, DetectionResult};
+mod commands;
 
-fn main() {
-    let args: Vec<String> = std::env::args().skip(1).collect();
+#[derive(Parser)]
+#[command(
+    name = "aisync",
+    version,
+    about = "Sync AI tool configurations across Claude Code, Cursor, and OpenCode"
+)]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
 
-    match args.first().map(|s| s.as_str()) {
-        Some("detect") => {
-            let path = args
-                .get(1)
-                .map(PathBuf::from)
-                .unwrap_or_else(|| std::env::current_dir().expect("cannot read current directory"));
-
-            match DetectionEngine::scan(&path) {
-                Ok(results) if results.is_empty() => {
-                    println!("No AI tools detected in {}", path.display());
-                }
-                Ok(results) => {
-                    print_results(&path, &results);
-                }
-                Err(e) => {
-                    eprintln!("Detection failed: {e}");
-                    process::exit(1);
-                }
-            }
-        }
-        Some(cmd) => {
-            eprintln!("Unknown command: {cmd}");
-            eprintln!("Usage: aisync <detect [path]>");
-            process::exit(1);
-        }
-        None => {
-            println!("aisync v0.1.0");
-            println!("Usage: aisync <detect [path]>");
-        }
-    }
+    /// Enable verbose debug output
+    #[arg(long, global = true)]
+    verbose: bool,
 }
 
-// TODO: Format detection results for terminal output.
-//
-// `results` contains only detected tools (already filtered).
-// Each DetectionResult has:
-//   - tool: ToolKind (ClaudeCode, Cursor, OpenCode)
-//   - confidence: Confidence (High, Medium, Low)
-//   - markers_found: Vec<PathBuf> — files/dirs that triggered detection
-//   - version_hint: Option<String> — e.g. "legacy format" warning
-fn print_results(path: &std::path::Path, results: &[DetectionResult]) {
-    println!("Detected {} tool(s) in {}\n", results.len(), path.display());
-    for r in results {
-        let markers: Vec<_> = r.markers_found.iter()
-            .filter_map(|m| m.strip_prefix(path).ok())
-            .map(|p| p.display().to_string())
-            .collect();
-        println!("  {:?}  ({:?})", r.tool, r.confidence);
-        println!("    markers: {}", markers.join(", "));
-        if let Some(hint) = &r.version_hint {
-            println!("    warning: {hint}");
+#[derive(Subcommand)]
+enum Commands {
+    /// Initialize .ai/ directory with tool detection and config import
+    Init,
+    /// Sync .ai/ instructions to all configured tools
+    Sync {
+        /// Preview changes without applying
+        #[arg(long)]
+        dry_run: bool,
+    },
+    /// Show per-tool sync status and drift detection
+    Status {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+fn main() {
+    let cli = Cli::parse();
+    let result = match &cli.command {
+        Commands::Init => commands::init::run_init(cli.verbose),
+        Commands::Sync { dry_run } => commands::sync::run_sync(*dry_run, cli.verbose),
+        Commands::Status { json } => commands::status::run_status(*json, cli.verbose),
+    };
+    if let Err(e) = result {
+        eprintln!("Error: {e}");
+        if cli.verbose {
+            let mut source: Option<&dyn std::error::Error> =
+                std::error::Error::source(e.as_ref());
+            while let Some(s) = source {
+                eprintln!("  caused by: {s}");
+                source = s.source();
+            }
         }
+        std::process::exit(1);
     }
 }
