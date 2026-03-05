@@ -4,6 +4,7 @@ pub mod config;
 pub mod detection;
 pub mod error;
 pub mod gitignore;
+pub mod sync;
 pub mod types;
 
 pub use adapter::{
@@ -13,6 +14,7 @@ pub use config::{AisyncConfig, DefaultsConfig, SyncStrategy, ToolConfig, ToolsCo
 pub use detection::DetectionEngine;
 pub use error::{AdapterError, AisyncError, ConfigError, DetectionError, InitError, SyncError};
 pub use gitignore::update_managed_section;
+pub use sync::SyncEngine;
 pub use types::{
     content_hash, Confidence, DriftState, StatusReport, SyncAction, SyncReport, ToolKind,
     ToolSyncResult, ToolSyncStatus,
