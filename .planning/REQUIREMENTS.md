@@ -120,60 +120,60 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CLI-01 | — | Pending |
-| CLI-02 | — | Pending |
-| CLI-03 | — | Pending |
-| CLI-04 | — | Pending |
-| CLI-05 | — | Pending |
-| CLI-06 | — | Pending |
-| CLI-07 | — | Pending |
-| CLI-08 | — | Pending |
-| CLI-09 | — | Pending |
-| CLI-10 | — | Pending |
-| CLI-11 | — | Pending |
-| INST-01 | — | Pending |
-| INST-02 | — | Pending |
-| INST-03 | — | Pending |
-| INST-04 | — | Pending |
-| INST-05 | — | Pending |
-| INST-06 | — | Pending |
-| INST-07 | — | Pending |
-| INST-08 | — | Pending |
-| INST-09 | — | Pending |
-| INST-10 | — | Pending |
-| ADPT-01 | — | Pending |
-| ADPT-02 | — | Pending |
-| ADPT-03 | — | Pending |
-| ADPT-04 | — | Pending |
-| ADPT-05 | — | Pending |
-| MEM-01 | — | Pending |
-| MEM-02 | — | Pending |
-| MEM-03 | — | Pending |
-| MEM-04 | — | Pending |
-| MEM-05 | — | Pending |
-| MEM-06 | — | Pending |
-| MEM-07 | — | Pending |
-| HOOK-01 | — | Pending |
-| HOOK-02 | — | Pending |
-| HOOK-03 | — | Pending |
-| HOOK-04 | — | Pending |
-| HOOK-05 | — | Pending |
-| HOOK-06 | — | Pending |
-| HOOK-07 | — | Pending |
-| DIST-01 | — | Pending |
-| DIST-02 | — | Pending |
-| DIST-03 | — | Pending |
-| DIST-04 | — | Pending |
-| DIST-05 | — | Pending |
-| QUAL-01 | — | Pending |
-| QUAL-02 | — | Pending |
-| QUAL-03 | — | Pending |
+| CLI-01 | Phase 2 | Pending |
+| CLI-02 | Phase 2 | Pending |
+| CLI-03 | Phase 2 | Pending |
+| CLI-04 | Phase 2 | Pending |
+| CLI-05 | Phase 4 | Pending |
+| CLI-06 | Phase 4 | Pending |
+| CLI-07 | Phase 4 | Pending |
+| CLI-08 | Phase 1 | Pending |
+| CLI-09 | Phase 2 | Pending |
+| CLI-10 | Phase 5 | Pending |
+| CLI-11 | Phase 2 | Pending |
+| INST-01 | Phase 2 | Pending |
+| INST-02 | Phase 2 | Pending |
+| INST-03 | Phase 2 | Pending |
+| INST-04 | Phase 2 | Pending |
+| INST-05 | Phase 2 | Pending |
+| INST-06 | Phase 2 | Pending |
+| INST-07 | Phase 2 | Pending |
+| INST-08 | Phase 4 | Pending |
+| INST-09 | Phase 4 | Pending |
+| INST-10 | Phase 2 | Pending |
+| ADPT-01 | Phase 2 | Pending |
+| ADPT-02 | Phase 2 | Pending |
+| ADPT-03 | Phase 2 | Pending |
+| ADPT-04 | Phase 1 | Pending |
+| ADPT-05 | Phase 1 | Pending |
+| MEM-01 | Phase 3 | Pending |
+| MEM-02 | Phase 3 | Pending |
+| MEM-03 | Phase 3 | Pending |
+| MEM-04 | Phase 3 | Pending |
+| MEM-05 | Phase 3 | Pending |
+| MEM-06 | Phase 3 | Pending |
+| MEM-07 | Phase 3 | Pending |
+| HOOK-01 | Phase 3 | Pending |
+| HOOK-02 | Phase 3 | Pending |
+| HOOK-03 | Phase 3 | Pending |
+| HOOK-04 | Phase 3 | Pending |
+| HOOK-05 | Phase 3 | Pending |
+| HOOK-06 | Phase 3 | Pending |
+| HOOK-07 | Phase 3 | Pending |
+| DIST-01 | Phase 5 | Pending |
+| DIST-02 | Phase 5 | Pending |
+| DIST-03 | Phase 5 | Pending |
+| DIST-04 | Phase 5 | Pending |
+| DIST-05 | Phase 5 | Pending |
+| QUAL-01 | Phase 5 | Pending |
+| QUAL-02 | Phase 5 | Pending |
+| QUAL-03 | Phase 5 | Pending |
 
 **Coverage:**
 - v1 requirements: 43 total
-- Mapped to phases: 0
-- Unmapped: 43 ⚠️
+- Mapped to phases: 43
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-05*
-*Last updated: 2026-03-05 after initial definition*
+*Last updated: 2026-03-05 after roadmap creation*
