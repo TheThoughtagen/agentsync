@@ -39,8 +39,8 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **ADPT-01**: Claude Code adapter — instructions, memory symlink, hooks translation
 - [ ] **ADPT-02**: OpenCode adapter — AGENTS.md, memory references, hook plugin stubs
 - [ ] **ADPT-03**: Cursor adapter — .mdc generation with frontmatter, memory references
-- [ ] **ADPT-04**: Tool detection engine scans project root for AI tool config markers
-- [ ] **ADPT-05**: Adapter trait with detect, read, write, sync_memory, translate_hook, watch_paths
+- [x] **ADPT-04**: Tool detection engine scans project root for AI tool config markers
+- [x] **ADPT-05**: Adapter trait with detect, read, write, sync_memory, translate_hook, watch_paths
 
 ### Memory
 
@@ -144,8 +144,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ADPT-01 | Phase 2 | Pending |
 | ADPT-02 | Phase 2 | Pending |
 | ADPT-03 | Phase 2 | Pending |
-| ADPT-04 | Phase 1 | Pending |
-| ADPT-05 | Phase 1 | Pending |
+| ADPT-04 | Phase 1 | Complete |
+| ADPT-05 | Phase 1 | Complete |
 | MEM-01 | Phase 3 | Pending |
 | MEM-02 | Phase 3 | Pending |
 | MEM-03 | Phase 3 | Pending |
