@@ -11,5 +11,9 @@ pub use adapter::{
 };
 pub use config::{AisyncConfig, DefaultsConfig, SyncStrategy, ToolConfig, ToolsConfig};
 pub use detection::DetectionEngine;
-pub use error::{AdapterError, AisyncError, ConfigError, DetectionError};
-pub use types::{Confidence, ToolKind};
+pub use error::{AdapterError, AisyncError, ConfigError, DetectionError, InitError, SyncError};
+pub use gitignore::update_managed_section;
+pub use types::{
+    Confidence, DriftState, StatusReport, SyncAction, SyncReport, ToolKind, ToolSyncResult,
+    ToolSyncStatus,
+};

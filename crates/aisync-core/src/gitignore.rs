@@ -13,9 +13,48 @@ pub fn update_managed_section(
     gitignore_path: &std::path::Path,
     entries: &[&str],
 ) -> Result<(), std::io::Error> {
-    // TODO: implement
-    let _ = (gitignore_path, entries);
-    todo!()
+    use std::fs;
+
+    let existing = fs::read_to_string(gitignore_path).unwrap_or_default();
+
+    let managed_section = format!(
+        "{}\n{}\n{}",
+        MARKER_START,
+        entries.join("\n"),
+        MARKER_END,
+    );
+
+    let new_content = if let Some(start_idx) = existing.find(MARKER_START) {
+        let before = &existing[..start_idx];
+        let after_marker_start = &existing[start_idx..];
+
+        let after = if let Some(end_offset) = after_marker_start.find(MARKER_END) {
+            let end_idx = start_idx + end_offset + MARKER_END.len();
+            // Skip any trailing newline after MARKER_END
+            let end_idx = if existing[end_idx..].starts_with('\n') {
+                end_idx + 1
+            } else {
+                end_idx
+            };
+            &existing[end_idx..]
+        } else {
+            // No end marker: replace from start marker to end of file
+            ""
+        };
+
+        format!("{}{}\n{}", before, managed_section, after)
+    } else {
+        // No existing managed section: append
+        if existing.is_empty() {
+            format!("{}\n", managed_section)
+        } else if existing.ends_with('\n') {
+            format!("{}{}\n", existing, managed_section)
+        } else {
+            format!("{}\n{}\n", existing, managed_section)
+        }
+    };
+
+    fs::write(gitignore_path, new_content)
 }
 
 #[cfg(test)]
