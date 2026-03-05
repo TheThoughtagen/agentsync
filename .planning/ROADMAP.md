@@ -27,14 +27,13 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Success Criteria** (what must be TRUE):
   1. A Cargo workspace exists with separate library and binary crates that compile and pass `cargo test`
   2. `aisync.toml` can be parsed and serialized with `schema_version = 1`, per-tool settings, and sync strategy fields
-  3. The ToolAdapter trait is defined with detect, read, write, sync_memory, translate_hook, and watch_paths methods
+  3. The ToolAdapter trait is defined with detect and name methods (lean Phase 1 — remaining methods added in later phases)
   4. Tool detection engine scans a project directory and correctly identifies which AI tools are configured (Claude Code, OpenCode, Cursor)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 01-01: TBD
-- [ ] 01-02: TBD
-- [ ] 01-03: TBD
+- [ ] 01-01-PLAN.md — Cargo workspace, shared types, error hierarchy, config parsing
+- [ ] 01-02-PLAN.md — Adapter trait, tool adapters, detection engine
 
 ### Phase 2: Core Sync Loop (MVP)
 **Goal**: Users can scaffold a canonical `.ai/` directory, import existing configs, and forward-sync instructions to Claude Code, OpenCode, and Cursor with a single command
@@ -111,7 +110,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation and Data Model | 0/3 | Not started | - |
+| 1. Foundation and Data Model | 0/2 | Not started | - |
 | 2. Core Sync Loop (MVP) | 0/4 | Not started | - |
 | 3. Memory and Hooks | 0/3 | Not started | - |
 | 4. Watch Mode and Bidirectional Sync | 0/3 | Not started | - |
