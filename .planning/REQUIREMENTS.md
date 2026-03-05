@@ -10,9 +10,9 @@ Requirements for initial release. Each maps to roadmap phases.
 ### CLI Core
 
 - [ ] **CLI-01**: User can run `aisync init` to scaffold `.ai/` directory with interactive detection and import
-- [ ] **CLI-02**: User can run `aisync sync` to one-shot sync from `.ai/` to all configured tools
-- [ ] **CLI-03**: User can run `aisync sync --dry-run` to preview changes without applying them
-- [ ] **CLI-04**: User can run `aisync status` to see per-tool sync state and drift detection
+- [x] **CLI-02**: User can run `aisync sync` to one-shot sync from `.ai/` to all configured tools
+- [x] **CLI-03**: User can run `aisync sync --dry-run` to preview changes without applying them
+- [x] **CLI-04**: User can run `aisync status` to see per-tool sync state and drift detection
 - [ ] **CLI-05**: User can run `aisync watch` to start a daemon that auto-syncs on file changes
 - [ ] **CLI-06**: User can run `aisync diff` to compare canonical `.ai/` content vs tool-native files
 - [ ] **CLI-07**: User can run `aisync check` to validate sync state in CI (exit non-zero on drift)
@@ -121,9 +121,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | CLI-01 | Phase 2 | Pending |
-| CLI-02 | Phase 2 | Pending |
-| CLI-03 | Phase 2 | Pending |
-| CLI-04 | Phase 2 | Pending |
+| CLI-02 | Phase 2 | Complete |
+| CLI-03 | Phase 2 | Complete |
+| CLI-04 | Phase 2 | Complete |
 | CLI-05 | Phase 4 | Pending |
 | CLI-06 | Phase 4 | Pending |
 | CLI-07 | Phase 4 | Pending |
