@@ -66,6 +66,15 @@ pub enum HookTranslation {
     },
 }
 
+/// Result of diffing a single tool's native file against canonical content.
+#[derive(Debug, Clone)]
+pub struct ToolDiff {
+    pub tool: ToolKind,
+    pub has_changes: bool,
+    pub unified_diff: String,
+    pub tool_file: String,
+}
+
 /// A planned sync action that can be displayed (dry-run) or executed.
 #[derive(Debug, Clone, Serialize)]
 pub enum SyncAction {

@@ -19,9 +19,10 @@ pub use adapter::{
 pub use conditional::ConditionalProcessor;
 pub use config::{AisyncConfig, DefaultsConfig, SyncStrategy, ToolConfig, ToolsConfig};
 pub use detection::DetectionEngine;
+pub use diff::{DiffEngine};
 pub use error::{
     AdapterError, AisyncError, ConfigError, DetectionError, HookError, InitError, MemoryError,
-    SyncError,
+    SyncError, WatchError,
 };
 pub use gitignore::update_managed_section;
 pub use init::{ImportChoice, ImportSource, InitEngine, InitOptions};
@@ -31,5 +32,5 @@ pub use hooks::{HookEngine, HookSummary, VALID_EVENTS};
 pub use types::{
     content_hash, Confidence, DriftState, HookGroup, HookHandler, HookStatusReport,
     HookTranslation, HooksConfig, MemoryStatusReport, StatusReport, SyncAction, SyncReport,
-    ToolHookStatus, ToolKind, ToolMemoryStatus, ToolSyncResult, ToolSyncStatus,
+    ToolDiff, ToolHookStatus, ToolKind, ToolMemoryStatus, ToolSyncResult, ToolSyncStatus,
 };

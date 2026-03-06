@@ -26,6 +26,9 @@ pub enum AisyncError {
 
     #[error("hook error: {0}")]
     Hook(#[from] HookError),
+
+    #[error("watch error: {0}")]
+    Watch(#[from] WatchError),
 }
 
 /// Errors related to configuration parsing and validation.
@@ -110,6 +113,15 @@ pub enum MemoryError {
 
     #[error("claude memory path not found: {path}")]
     ClaudeMemoryNotFound { path: String },
+}
+
+/// Errors related to watch mode operations.
+#[derive(Debug, Error)]
+pub enum WatchError {
+    #[error("watch failed: {0}")]
+    WatchFailed(String),
+    #[error("reverse sync failed: {0}")]
+    ReverseSyncFailed(String),
 }
 
 /// Errors related to hook operations.

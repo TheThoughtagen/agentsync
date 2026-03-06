@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use crate::adapter::{AnyAdapter, ClaudeCodeAdapter, CursorAdapter, OpenCodeAdapter, ToolAdapter};
+use crate::conditional::ConditionalProcessor;
 use crate::config::{AisyncConfig, SyncStrategy};
 use crate::error::{AisyncError, SyncError};
 use crate::hooks::HookEngine;
@@ -37,8 +38,11 @@ impl SyncEngine {
 
             let mut actions = Vec::new();
 
+            // Apply conditional processing for this tool
+            let tool_content = ConditionalProcessor::process(&canonical_content, tool_kind);
+
             // Plan instruction sync
-            match adapter.plan_sync(project_root, &canonical_content, strategy) {
+            match adapter.plan_sync(project_root, &tool_content, strategy) {
                 Ok(instruction_actions) => {
                     actions.extend(instruction_actions);
                 }
@@ -519,7 +523,7 @@ impl SyncEngine {
     }
 
     /// Returns an iterator of (ToolKind, AnyAdapter, Option<&ToolConfig>) for all enabled tools.
-    fn enabled_tools(
+    pub(crate) fn enabled_tools(
         config: &AisyncConfig,
     ) -> Vec<(ToolKind, AnyAdapter, Option<&crate::config::ToolConfig>)> {
         let mut tools = Vec::new();
@@ -871,6 +875,29 @@ mod tests {
         let agents_content = std::fs::read_to_string(dir.path().join("AGENTS.md"));
         // AGENTS.md is a symlink, but managed section updates write to the resolved path
         // For OpenCode memory, UpdateMemoryReferences targets AGENTS.md
+    }
+
+    #[test]
+    fn test_plan_applies_conditional_processing_per_tool() {
+        let dir = TempDir::new().unwrap();
+        let content = "# Common\n\n<!-- aisync:claude-only -->\nClaude-specific info\n<!-- /aisync:claude-only -->\n\n<!-- aisync:cursor-only -->\nCursor-specific info\n<!-- /aisync:cursor-only -->\n\nShared footer\n";
+        setup_canonical(dir.path(), content);
+
+        let config = all_enabled_config();
+        let report = SyncEngine::plan(&config, dir.path()).unwrap();
+
+        // The Cursor adapter generates MDC content; check that the claude-only section is stripped
+        let cursor_result = report.results.iter().find(|r| r.tool == ToolKind::Cursor).unwrap();
+        for action in &cursor_result.actions {
+            if let SyncAction::GenerateMdc { content, .. } = action {
+                assert!(!content.contains("Claude-specific info"),
+                    "Cursor MDC should NOT contain claude-only content");
+                assert!(content.contains("Cursor-specific info"),
+                    "Cursor MDC should contain cursor-only content");
+                assert!(content.contains("Shared footer"),
+                    "Cursor MDC should contain common content");
+            }
+        }
     }
 
     #[test]
