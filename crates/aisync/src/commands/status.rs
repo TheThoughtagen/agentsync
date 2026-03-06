@@ -39,32 +39,14 @@ pub fn run_status(json: bool, verbose: bool) -> Result<(), Box<dyn std::error::E
 }
 
 fn print_status_table(status: &StatusReport, verbose: bool) {
-    if status.all_in_sync() {
-        let count = status.tools.len();
-        println!(
-            "{}",
-            format!("✓ All {count} tool(s) in sync").green().bold()
-        );
-        if verbose {
-            for tool_status in &status.tools {
-                eprintln!(
-                    "  [verbose] {} ({:?}): {:?}",
-                    tool_display_name(tool_status.tool),
-                    tool_status.strategy,
-                    tool_status.drift
-                );
-            }
-        }
-        return;
-    }
-
-    // Print header
+    // Always print the table header
     println!(
         "{:<14}| {:<10}| {:<10}| {}",
         "Tool", "Strategy", "Status", "Details"
     );
     println!("{}", "-".repeat(60));
 
+    // Always iterate and print each tool row
     for tool_status in &status.tools {
         let tool_name = tool_display_name(tool_status.tool);
         let strategy = strategy_display_name(tool_status.strategy);
@@ -80,6 +62,26 @@ fn print_status_table(status: &StatusReport, verbose: bool) {
                 eprintln!("  [verbose] {tool_name}: {detail}");
             }
         }
+    }
+
+    // Summary line after the table
+    println!();
+    if status.all_in_sync() {
+        let count = status.tools.len();
+        println!(
+            "{}",
+            format!("All {count} tool(s) in sync").green().bold()
+        );
+    } else {
+        let out_of_sync = status
+            .tools
+            .iter()
+            .filter(|t| t.drift != DriftState::InSync && t.drift != DriftState::NotConfigured)
+            .count();
+        println!(
+            "{}",
+            format!("{out_of_sync} tool(s) out of sync").red().bold()
+        );
     }
 }
 
