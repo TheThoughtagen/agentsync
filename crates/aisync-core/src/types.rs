@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fmt;
 use std::path::PathBuf;
 
@@ -26,6 +27,45 @@ pub enum Confidence {
     Medium,
 }
 
+/// Configuration for hooks, keyed by event name.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HooksConfig {
+    #[serde(flatten)]
+    pub events: BTreeMap<String, Vec<HookGroup>>,
+}
+
+/// A group of hooks that share an optional file matcher.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HookGroup {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub matcher: Option<String>,
+    pub hooks: Vec<HookHandler>,
+}
+
+/// A single hook handler with a type, command, and optional timeout.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HookHandler {
+    #[serde(rename = "type")]
+    pub hook_type: String,
+    pub command: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout: Option<u64>,
+}
+
+/// Result of translating hooks for a specific tool.
+#[derive(Debug, Clone, Serialize)]
+pub enum HookTranslation {
+    Supported {
+        tool: ToolKind,
+        content: String,
+        format: String,
+    },
+    Unsupported {
+        tool: ToolKind,
+        reason: String,
+    },
+}
+
 /// A planned sync action that can be displayed (dry-run) or executed.
 #[derive(Debug, Clone, Serialize)]
 pub enum SyncAction {
@@ -36,6 +76,12 @@ pub enum SyncAction {
     CreateDirectory { path: PathBuf },
     CreateFile { path: PathBuf, content: String },
     SkipExistingFile { path: PathBuf, reason: String },
+    // Memory actions
+    CreateMemorySymlink { link: PathBuf, target: PathBuf },
+    UpdateMemoryReferences { path: PathBuf, references: Vec<String>, marker_start: String, marker_end: String },
+    // Hook actions
+    WriteHookTranslation { path: PathBuf, content: String, tool: ToolKind },
+    WarnUnsupportedHooks { tool: ToolKind, reason: String },
 }
 
 impl fmt::Display for SyncAction {
@@ -61,6 +107,18 @@ impl fmt::Display for SyncAction {
             }
             SyncAction::SkipExistingFile { path, reason } => {
                 write!(f, "Would skip {}: {}", path.display(), reason)
+            }
+            SyncAction::CreateMemorySymlink { link, target } => {
+                write!(f, "Would create memory symlink: {} -> {}", link.display(), target.display())
+            }
+            SyncAction::UpdateMemoryReferences { path, references, .. } => {
+                write!(f, "Would update memory references in {} with {} entries", path.display(), references.len())
+            }
+            SyncAction::WriteHookTranslation { path, tool, .. } => {
+                write!(f, "Would write hook translation for {:?} to {}", tool, path.display())
+            }
+            SyncAction::WarnUnsupportedHooks { tool, reason } => {
+                write!(f, "Warning: hooks unsupported for {:?}: {}", tool, reason)
             }
         }
     }

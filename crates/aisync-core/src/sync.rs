@@ -222,6 +222,39 @@ impl SyncEngine {
                 // No filesystem change -- just recorded
                 Ok(())
             }
+            SyncAction::CreateMemorySymlink { link, target } => {
+                #[cfg(unix)]
+                {
+                    std::os::unix::fs::symlink(target, link)
+                        .map_err(|e| AisyncError::Sync(SyncError::SymlinkFailed(e)))?;
+                }
+                #[cfg(not(unix))]
+                {
+                    let canonical_path = link.parent().unwrap_or(Path::new(".")).join(target);
+                    std::fs::copy(&canonical_path, link)
+                        .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
+                }
+                Ok(())
+            }
+            SyncAction::UpdateMemoryReferences { path, references, marker_start, marker_end } => {
+                let entry_refs: Vec<&str> = references.iter().map(|s| s.as_str()).collect();
+                crate::managed_section::update_managed_section(path, &entry_refs, marker_start, marker_end)
+                    .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
+                Ok(())
+            }
+            SyncAction::WriteHookTranslation { path, content, .. } => {
+                if let Some(parent) = path.parent() {
+                    std::fs::create_dir_all(parent)
+                        .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
+                }
+                std::fs::write(path, content)
+                    .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
+                Ok(())
+            }
+            SyncAction::WarnUnsupportedHooks { .. } => {
+                // No filesystem change -- advisory only
+                Ok(())
+            }
         }
     }
 
@@ -477,7 +510,7 @@ mod tests {
         let claude_content1 = std::fs::read_to_string(dir.path().join("CLAUDE.md")).unwrap();
         let mdc_content1 =
             std::fs::read_to_string(dir.path().join(".cursor/rules/project.mdc")).unwrap();
-        let gitignore1 = std::fs::read_to_string(dir.path().join(".gitignore")).unwrap();
+        let _gitignore1 = std::fs::read_to_string(dir.path().join(".gitignore")).unwrap();
 
         // Second sync -- should produce no changes
         let plan2 = SyncEngine::plan(&config, dir.path()).unwrap();

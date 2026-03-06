@@ -20,6 +20,12 @@ pub enum AisyncError {
 
     #[error("init error: {0}")]
     Init(#[from] InitError),
+
+    #[error("memory error: {0}")]
+    Memory(#[from] MemoryError),
+
+    #[error("hook error: {0}")]
+    Hook(#[from] HookError),
 }
 
 /// Errors related to configuration parsing and validation.
@@ -82,6 +88,44 @@ pub enum InitError {
 
     #[error("already initialized, use --force to re-initialize")]
     AlreadyInitialized,
+}
+
+/// Errors related to memory operations.
+#[derive(Debug, Error)]
+pub enum MemoryError {
+    #[error("memory directory not found: {path}")]
+    DirectoryNotFound { path: String },
+
+    #[error("memory file already exists: {path}")]
+    AlreadyExists { path: String },
+
+    #[error("failed to read memory: {0}")]
+    ReadFailed(#[source] std::io::Error),
+
+    #[error("failed to write memory: {0}")]
+    WriteFailed(#[source] std::io::Error),
+
+    #[error("path resolution failed: {0}")]
+    PathResolution(#[source] std::io::Error),
+
+    #[error("claude memory path not found: {path}")]
+    ClaudeMemoryNotFound { path: String },
+}
+
+/// Errors related to hook operations.
+#[derive(Debug, Error)]
+pub enum HookError {
+    #[error("hooks file not found: {path}")]
+    FileNotFound { path: String },
+
+    #[error("failed to parse hooks: {0}")]
+    ParseFailed(#[from] toml::de::Error),
+
+    #[error("failed to write hooks: {0}")]
+    WriteFailed(#[source] std::io::Error),
+
+    #[error("invalid event name: {name}")]
+    InvalidEvent { name: String },
 }
 
 #[cfg(test)]
