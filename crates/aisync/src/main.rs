@@ -53,6 +53,9 @@ pub enum MemoryAction {
     Add {
         /// Topic name for the memory file
         topic: String,
+        /// Optional content to include in the memory file
+        #[arg(long)]
+        content: Option<String>,
     },
     /// Import memory from a tool's native storage
     Import {

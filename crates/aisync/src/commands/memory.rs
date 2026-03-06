@@ -14,7 +14,7 @@ pub fn run_memory(
 
     match action {
         MemoryAction::List => run_list(project_root, verbose),
-        MemoryAction::Add { topic } => run_add(project_root, topic, verbose),
+        MemoryAction::Add { topic, content } => run_add(project_root, topic, content.as_deref(), verbose),
         MemoryAction::Import { tool } => run_import(project_root, tool, verbose),
         MemoryAction::Export => run_export(project_root, verbose),
     }
@@ -54,9 +54,10 @@ fn run_list(project_root: &Path, verbose: bool) -> Result<(), Box<dyn std::error
 fn run_add(
     project_root: &Path,
     topic: &str,
+    content: Option<&str>,
     verbose: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let path = MemoryEngine::add(project_root, topic)?;
+    let path = MemoryEngine::add(project_root, topic, content)?;
 
     let rel = path
         .strip_prefix(project_root)
@@ -67,6 +68,7 @@ fn run_add(
 
     if verbose {
         eprintln!("[verbose] Full path: {}", path.display());
+        eprintln!("[verbose] Content added: {} bytes", content.map(|c| c.len()).unwrap_or(0));
     }
 
     Ok(())
