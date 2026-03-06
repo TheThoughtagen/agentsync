@@ -13,7 +13,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **CLI-02**: User can run `aisync sync` to one-shot sync from `.ai/` to all configured tools
 - [x] **CLI-03**: User can run `aisync sync --dry-run` to preview changes without applying them
 - [x] **CLI-04**: User can run `aisync status` to see per-tool sync state and drift detection
-- [ ] **CLI-05**: User can run `aisync watch` to start a daemon that auto-syncs on file changes
+- [x] **CLI-05**: User can run `aisync watch` to start a daemon that auto-syncs on file changes
 - [x] **CLI-06**: User can run `aisync diff` to compare canonical `.ai/` content vs tool-native files
 - [ ] **CLI-07**: User can run `aisync check` to validate sync state in CI (exit non-zero on drift)
 - [x] **CLI-08**: `aisync.toml` config file with `schema_version`, per-tool settings, sync strategy
@@ -30,7 +30,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **INST-05**: `aisync init` imports existing CLAUDE.md/AGENTS.md/.mdc as `.ai/instructions.md`
 - [x] **INST-06**: Import prompts user when multiple existing configs conflict
 - [x] **INST-07**: `.gitignore` entries suggested/managed for tool-generated files
-- [ ] **INST-08**: Bidirectional sync detects external edits to tool-native files and reverse-syncs to `.ai/`
+- [x] **INST-08**: Bidirectional sync detects external edits to tool-native files and reverse-syncs to `.ai/`
 - [x] **INST-09**: Conditional sections (`<!-- aisync:tool-only -->`) include/exclude content per tool
 - [x] **INST-10**: Symlink targets validated in `aisync status` (detect dangling symlinks)
 
@@ -124,7 +124,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CLI-02 | Phase 2 | Complete |
 | CLI-03 | Phase 2 | Complete |
 | CLI-04 | Phase 2 | Complete |
-| CLI-05 | Phase 4 | Pending |
+| CLI-05 | Phase 4 | Complete |
 | CLI-06 | Phase 4 | Complete |
 | CLI-07 | Phase 4 | Pending |
 | CLI-08 | Phase 1 | Complete |
@@ -138,7 +138,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INST-05 | Phase 2 | Complete |
 | INST-06 | Phase 2 | Complete |
 | INST-07 | Phase 2 | Complete |
-| INST-08 | Phase 4 | Pending |
+| INST-08 | Phase 4 | Complete |
 | INST-09 | Phase 4 | Complete |
 | INST-10 | Phase 2 | Complete |
 | ADPT-01 | Phase 2 | Complete |

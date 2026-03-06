@@ -8,7 +8,7 @@ progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 15
-  completed_plans: 13
+  completed_plans: 14
 ---
 
 # Project State
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 ## Current Position
 
 Phase: 4 of 5 (Watch Mode and Bidirectional Sync)
-Plan: 1 of 3 in current phase (04-01 complete)
+Plan: 2 of 3 in current phase (04-02 complete)
 Status: In Progress
-Last activity: 2026-03-06 -- Completed 04-01 (ConditionalProcessor and DiffEngine foundation)
+Last activity: 2026-03-06 -- Completed 04-02 (WatchEngine with bidirectional sync)
 
-Progress: [████████░░] 87%
+Progress: [█████████░] 93%
 
 ## Performance Metrics
 
@@ -44,10 +44,10 @@ Progress: [████████░░] 87%
 | 02-core-sync-loop-mvp | 5 | 15min | 3.0min |
 
 | 03-memory-and-hooks | 3 | 14min | 4.7min |
-| 04-watch-mode | 1 | 3min | 3.0min |
+| 04-watch-mode | 2 | 6min | 3.0min |
 
 **Recent Trend:**
-- Last 5 plans: 02-05 (2min), 03-01 (4min), 03-02 (5min), 03-03 (5min), 04-01 (3min)
+- Last 5 plans: 03-01 (4min), 03-02 (5min), 03-03 (5min), 04-01 (3min), 04-02 (3min)
 - Trend: stable
 
 ## Accumulated Context
@@ -92,6 +92,10 @@ Recent decisions affecting current work:
 - 04-01: DiffEngine compares conditionally-processed canonical content against tool-native files
 - 04-01: SyncEngine::plan() applies ConditionalProcessor per-tool before adapter.plan_sync()
 - 04-01: enabled_tools changed to pub(crate) for DiffEngine cross-module access
+- 04-02: WatchEngine lives in aisync-core with notify deps moved from CLI to core
+- 04-02: Sync lock uses AtomicBool to prevent self-triggered watch events during sync writes
+- 04-02: Reverse sync reads via ToolAdapter::read_instructions() for consistent content parsing
+- 04-02: Tool watch paths filter to non-symlink files only (symlinks already edit canonical)
 
 ### Pending Todos
 
@@ -104,5 +108,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-06
-Stopped at: Completed 04-01-PLAN.md (ConditionalProcessor and DiffEngine foundation)
-Resume file: .planning/phases/04-watch-mode-bidirectional-sync/04-01-SUMMARY.md
+Stopped at: Completed 04-02-PLAN.md (WatchEngine with bidirectional sync)
+Resume file: .planning/phases/04-watch-mode-bidirectional-sync/04-02-SUMMARY.md
