@@ -62,6 +62,9 @@ fn print_dry_run(report: &SyncReport, verbose: bool) {
         println!("  {}:", tool_name.bold());
         for action in &tool_result.actions {
             println!("    {action}");
+            if let SyncAction::SkipExistingFile { .. } = action {
+                println!("      {}", "hint: run `aisync sync` to be prompted to replace, or `aisync sync --force` to auto-replace".yellow());
+            }
             if verbose {
                 print_action_details(action);
             }
