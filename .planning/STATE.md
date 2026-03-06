@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: unknown
-last_updated: "2026-03-06T13:31:40.110Z"
+status: in-progress
+last_updated: "2026-03-06T13:53:24Z"
 progress:
-  total_phases: 3
+  total_phases: 4
   completed_phases: 3
-  total_plans: 12
-  completed_plans: 12
+  total_plans: 15
+  completed_plans: 13
 ---
 
 # Project State
@@ -18,16 +18,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** Every AI tool working on a project sees the same instructions, memory, and hooks -- always in sync, zero manual copying.
-**Current focus:** Phase 3: Memory and Hooks
+**Current focus:** Phase 4: Watch Mode and Bidirectional Sync
 
 ## Current Position
 
-Phase: 3 of 5 (Memory and Hooks)
-Plan: 5 of 5 in current phase (03-05 complete)
-Status: Phase Complete
-Last activity: 2026-03-06 -- Completed 03-05 (UAT gap closure: memory add content, import graceful handling)
+Phase: 4 of 5 (Watch Mode and Bidirectional Sync)
+Plan: 1 of 3 in current phase (04-01 complete)
+Status: In Progress
+Last activity: 2026-03-06 -- Completed 04-01 (ConditionalProcessor and DiffEngine foundation)
 
-Progress: [██████████] 100%
+Progress: [████████░░] 87%
 
 ## Performance Metrics
 
@@ -44,11 +44,11 @@ Progress: [██████████] 100%
 | 02-core-sync-loop-mvp | 5 | 15min | 3.0min |
 
 | 03-memory-and-hooks | 3 | 14min | 4.7min |
+| 04-watch-mode | 1 | 3min | 3.0min |
 
 **Recent Trend:**
-- Last 5 plans: 02-03 (3min), 02-05 (2min), 03-01 (4min), 03-02 (5min), 03-03 (5min)
+- Last 5 plans: 02-05 (2min), 03-01 (4min), 03-02 (5min), 03-03 (5min), 04-01 (3min)
 - Trend: stable
-| Phase 03 P02 | 6 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -88,6 +88,10 @@ Recent decisions affecting current work:
 - 03-04: StatusReport extended with optional memory and hooks fields for backward compat
 - 03-04: Hook translation in SyncEngine::plan() is non-fatal (errors silently skipped)
 - [Phase 03]: 03-05: Empty string content treated same as None for memory add (header-only)
+- 04-01: ConditionalProcessor uses line-by-line parsing with skip_depth counter for nested tag handling
+- 04-01: DiffEngine compares conditionally-processed canonical content against tool-native files
+- 04-01: SyncEngine::plan() applies ConditionalProcessor per-tool before adapter.plan_sync()
+- 04-01: enabled_tools changed to pub(crate) for DiffEngine cross-module access
 
 ### Pending Todos
 
@@ -100,5 +104,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-06
-Stopped at: Completed 03-05-PLAN.md (Phase 3 UAT gaps closed)
-Resume file: .planning/phases/03-memory-and-hooks/03-05-SUMMARY.md
+Stopped at: Completed 04-01-PLAN.md (ConditionalProcessor and DiffEngine foundation)
+Resume file: .planning/phases/04-watch-mode-bidirectional-sync/04-01-SUMMARY.md
