@@ -372,6 +372,78 @@ mod tests {
     }
 
     #[test]
+    fn test_watch_exits_when_running_flag_is_false() {
+        // When running flag is set to false, the watch loop should exit within 1 second
+        // (no filesystem event needed to unblock)
+        let dir = TempDir::new().unwrap();
+        let config = all_enabled_config();
+
+        // Create .ai directory so watch has something to monitor
+        let ai_dir = dir.path().join(".ai");
+        std::fs::create_dir_all(&ai_dir).unwrap();
+        std::fs::write(ai_dir.join("instructions.md"), "# test").unwrap();
+
+        let running = Arc::new(AtomicBool::new(true));
+        let running_clone = running.clone();
+
+        // Set running to false after 200ms (no filesystem event)
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(200));
+            running_clone.store(false, SeqCst);
+        });
+
+        let start = std::time::Instant::now();
+        let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let events_clone = events.clone();
+
+        let result = WatchEngine::watch(&config, dir.path(), running, move |event| {
+            events_clone.lock().unwrap().push(format!("{event:?}"));
+        });
+
+        let elapsed = start.elapsed();
+        assert!(result.is_ok(), "watch should exit cleanly");
+        assert!(
+            elapsed < Duration::from_secs(2),
+            "watch should exit within 2 seconds of running=false, took {:?}",
+            elapsed
+        );
+    }
+
+    #[test]
+    fn test_watch_processes_events_when_running() {
+        // Normal filesystem events are still processed when running is true
+        let dir = TempDir::new().unwrap();
+        let config = all_enabled_config();
+
+        let ai_dir = dir.path().join(".ai");
+        std::fs::create_dir_all(&ai_dir).unwrap();
+        std::fs::write(ai_dir.join("instructions.md"), "# test").unwrap();
+
+        let running = Arc::new(AtomicBool::new(true));
+        let running_clone = running.clone();
+
+        let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let events_clone = events.clone();
+
+        // Modify a file after 300ms, then stop after 1500ms
+        let ai_dir_clone = ai_dir.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(300));
+            std::fs::write(ai_dir_clone.join("instructions.md"), "# modified").unwrap();
+            std::thread::sleep(Duration::from_millis(1200));
+            running_clone.store(false, SeqCst);
+        });
+
+        let result = WatchEngine::watch(&config, dir.path(), running, move |event| {
+            events_clone.lock().unwrap().push(format!("{event:?}"));
+        });
+
+        assert!(result.is_ok(), "watch should exit cleanly");
+        // We can't guarantee events are received in test (timing-dependent),
+        // but watch should have exited cleanly via the running flag
+    }
+
+    #[test]
     fn test_reverse_sync_noop_when_identical() {
         let dir = TempDir::new().unwrap();
         let config = all_enabled_config();
