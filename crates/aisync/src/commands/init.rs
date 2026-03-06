@@ -4,8 +4,8 @@ use std::path::Path;
 use colored::Colorize;
 use dialoguer::{Confirm, Select};
 
-use aisync_core::{InitEngine, InitOptions};
 use aisync_core::types::ToolKind;
+use aisync_core::{InitEngine, InitOptions};
 
 /// Format a ToolKind for display.
 fn tool_display_name(tool: ToolKind) -> &'static str {
@@ -46,7 +46,10 @@ pub fn run_init(verbose: bool) -> Result<(), Box<dyn std::error::Error>> {
             true
         } else {
             // Non-interactive: skip re-init
-            eprintln!("{}", "Existing .ai/ directory found. Use --force to re-initialize.".yellow());
+            eprintln!(
+                "{}",
+                "Existing .ai/ directory found. Use --force to re-initialize.".yellow()
+            );
             println!("Aborted.");
             return Ok(());
         }
@@ -108,10 +111,18 @@ pub fn run_init(verbose: bool) -> Result<(), Box<dyn std::error::Error>> {
     )?;
 
     // Print summary
-    println!("  {} {}", "\u{2714}".green(), "Created .ai/instructions.md".green());
+    println!(
+        "  {} {}",
+        "\u{2714}".green(),
+        "Created .ai/instructions.md".green()
+    );
     println!("  {} {}", "\u{2714}".green(), "Created .ai/memory/".green());
     println!("  {} {}", "\u{2714}".green(), "Created .ai/hooks/".green());
-    println!("  {} {}", "\u{2714}".green(), "Created .ai/commands/".green());
+    println!(
+        "  {} {}",
+        "\u{2714}".green(),
+        "Created .ai/commands/".green()
+    );
 
     let tool_count = detected.len();
     let tools_msg = if tool_count > 0 {
@@ -122,10 +133,7 @@ pub fn run_init(verbose: bool) -> Result<(), Box<dyn std::error::Error>> {
     println!("  {} {}", "\u{2714}".green(), tools_msg.green());
 
     if import_content.is_some() {
-        println!(
-            "\n{}",
-            "Instructions imported successfully.".green()
-        );
+        println!("\n{}", "Instructions imported successfully.".green());
     }
 
     println!("\n{}", "Initialization complete!".green().bold());
@@ -191,8 +199,7 @@ fn resolve_import(
                     source.source_path.display()
                 );
                 // Show first 5 lines as preview
-                let preview_lines: Vec<&str> =
-                    source.content.lines().take(5).collect();
+                let preview_lines: Vec<&str> = source.content.lines().take(5).collect();
                 for line in &preview_lines {
                     println!("     {}", line.dimmed());
                 }

@@ -8,10 +8,7 @@ use aisync_core::{
 
 use crate::HooksAction;
 
-pub fn run_hooks(
-    action: &HooksAction,
-    verbose: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn run_hooks(action: &HooksAction, verbose: bool) -> Result<(), Box<dyn std::error::Error>> {
     let project_root = Path::new(".");
 
     match action {
@@ -45,16 +42,13 @@ fn run_list(project_root: &Path, verbose: bool) -> Result<(), Box<dyn std::error
 
     // Hook table
     println!(
-        "{:<16}| {:<12}| {:<30}| {}",
-        "Event", "Matcher", "Command", "Timeout"
+        "{:<16}| {:<12}| {:<30}| Timeout",
+        "Event", "Matcher", "Command"
     );
     println!("{}", "-".repeat(72));
 
     for summary in &summaries {
-        let matcher = summary
-            .matcher
-            .as_deref()
-            .unwrap_or("*");
+        let matcher = summary.matcher.as_deref().unwrap_or("*");
         let timeout = summary
             .timeout
             .map(|t| format!("{}ms", t))
@@ -134,7 +128,11 @@ fn run_add(project_root: &Path, verbose: bool) -> Result<(), Box<dyn std::error:
     let timeout = if timeout_input.is_empty() {
         None
     } else {
-        Some(timeout_input.parse::<u64>().map_err(|_| "Invalid timeout value")?)
+        Some(
+            timeout_input
+                .parse::<u64>()
+                .map_err(|_| "Invalid timeout value")?,
+        )
     };
 
     HookEngine::add_hook(project_root, event, matcher, &command, timeout)?;
@@ -172,12 +170,10 @@ fn run_translate(project_root: &Path, verbose: bool) -> Result<(), Box<dyn std::
         let translation = adapter.translate_hooks(&config)?;
 
         match translation {
-            HookTranslation::Supported { content, format, .. } => {
-                println!(
-                    "=== {} ({}) ===",
-                    tool_name.bold(),
-                    format.to_uppercase()
-                );
+            HookTranslation::Supported {
+                content, format, ..
+            } => {
+                println!("=== {} ({}) ===", tool_name.bold(), format.to_uppercase());
                 println!("{content}");
                 println!();
             }

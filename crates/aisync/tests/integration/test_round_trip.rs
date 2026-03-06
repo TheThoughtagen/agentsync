@@ -1,6 +1,6 @@
 use assert_fs::prelude::*;
 
-use crate::helpers::{aisync_cmd, setup_project, STANDARD_CONFIG};
+use crate::helpers::{STANDARD_CONFIG, aisync_cmd, setup_project};
 
 #[test]
 fn test_round_trip_claude_code() {

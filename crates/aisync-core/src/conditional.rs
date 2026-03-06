@@ -29,9 +29,7 @@ impl ConditionalProcessor {
             }
 
             if let Some(_tag) = Self::parse_close_tag(line) {
-                if skip_depth > 0 {
-                    skip_depth -= 1;
-                }
+                skip_depth = skip_depth.saturating_sub(1);
                 // Always strip close marker lines
                 continue;
             }
@@ -62,7 +60,10 @@ impl ConditionalProcessor {
     /// Returns the tag name if the line matches `<!-- aisync:TAG -->`.
     fn parse_open_tag(line: &str) -> Option<String> {
         let trimmed = line.trim();
-        if trimmed.starts_with("<!-- aisync:") && trimmed.ends_with(" -->") && !trimmed.starts_with("<!-- /aisync:") {
+        if trimmed.starts_with("<!-- aisync:")
+            && trimmed.ends_with(" -->")
+            && !trimmed.starts_with("<!-- /aisync:")
+        {
             let inner = &trimmed[12..trimmed.len() - 4]; // after "<!-- aisync:" and before " -->"
             if !inner.is_empty() && !inner.contains(' ') {
                 return Some(inner.to_string());
@@ -152,7 +153,11 @@ mod tests {
         let input = "# Title\n\nThis is common content.\n\n## Usage\n\nAll tools see this.\n";
         for tool in [ToolKind::ClaudeCode, ToolKind::Cursor, ToolKind::OpenCode] {
             let result = ConditionalProcessor::process(input, tool);
-            assert_eq!(result, input, "common content should be unchanged for {:?}", tool);
+            assert_eq!(
+                result, input,
+                "common content should be unchanged for {:?}",
+                tool
+            );
         }
     }
 
@@ -188,7 +193,8 @@ mod tests {
 
     #[test]
     fn test_marker_lines_always_stripped() {
-        let input = "before\n<!-- aisync:claude-only -->\ncontent\n<!-- /aisync:claude-only -->\nafter\n";
+        let input =
+            "before\n<!-- aisync:claude-only -->\ncontent\n<!-- /aisync:claude-only -->\nafter\n";
         let result = ConditionalProcessor::process(input, ToolKind::ClaudeCode);
         assert!(!result.contains("<!-- aisync:"));
         assert!(!result.contains("<!-- /aisync:"));

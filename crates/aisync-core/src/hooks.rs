@@ -34,9 +34,7 @@ impl HookEngine {
             }
             .into());
         }
-        let content = std::fs::read_to_string(&path).map_err(|e| {
-            HookError::WriteFailed(e)
-        })?;
+        let content = std::fs::read_to_string(&path).map_err(HookError::WriteFailed)?;
         let config: HooksConfig = toml::from_str(&content).map_err(HookError::ParseFailed)?;
         Ok(config)
     }
@@ -113,9 +111,8 @@ impl HookEngine {
 
     /// Serialize HooksConfig back to TOML string.
     pub fn serialize(config: &HooksConfig) -> Result<String, AisyncError> {
-        let toml_str = toml::to_string_pretty(config).map_err(|e| {
-            HookError::WriteFailed(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
-        })?;
+        let toml_str = toml::to_string_pretty(config)
+            .map_err(|e| HookError::WriteFailed(std::io::Error::other(e.to_string())))?;
         Ok(toml_str)
     }
 }
@@ -194,7 +191,10 @@ command = "cargo fmt"
         assert!(result.is_err());
         let err = result.unwrap_err();
         let msg = format!("{err}");
-        assert!(msg.contains("not found"), "expected FileNotFound, got: {msg}");
+        assert!(
+            msg.contains("not found"),
+            "expected FileNotFound, got: {msg}"
+        );
     }
 
     #[test]
@@ -234,7 +234,10 @@ command = "cargo fmt"
         let result = HookEngine::validate(&config);
         assert!(result.is_err());
         let msg = format!("{}", result.unwrap_err());
-        assert!(msg.contains("InvalidEvent"), "expected InvalidEvent in error: {msg}");
+        assert!(
+            msg.contains("InvalidEvent"),
+            "expected InvalidEvent in error: {msg}"
+        );
     }
 
     #[test]
@@ -280,14 +283,7 @@ command = "cargo fmt"
         std::fs::create_dir_all(&ai_dir).unwrap();
         std::fs::write(ai_dir.join("hooks.toml"), sample_toml()).unwrap();
 
-        HookEngine::add_hook(
-            dir.path(),
-            "Stop",
-            None,
-            "echo done",
-            None,
-        )
-        .unwrap();
+        HookEngine::add_hook(dir.path(), "Stop", None, "echo done", None).unwrap();
 
         let config = HookEngine::parse(dir.path()).unwrap();
         assert!(config.events.contains_key("Stop"));

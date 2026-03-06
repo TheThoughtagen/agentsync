@@ -3,7 +3,6 @@
 /// This module provides the core algorithm for managing delimited sections
 /// within text files. The gitignore module delegates to this for its
 /// specific marker format.
-
 use std::path::Path;
 
 /// Updates a managed section in a file using custom start/end markers.
@@ -22,12 +21,7 @@ pub fn update_managed_section(
 
     let existing = fs::read_to_string(file_path).unwrap_or_default();
 
-    let managed_section = format!(
-        "{}\n{}\n{}",
-        marker_start,
-        entries.join("\n"),
-        marker_end,
-    );
+    let managed_section = format!("{}\n{}\n{}", marker_start, entries.join("\n"), marker_end,);
 
     let new_content = if let Some(start_idx) = existing.find(marker_start) {
         let before = &existing[..start_idx];

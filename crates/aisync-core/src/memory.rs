@@ -1,5 +1,4 @@
 /// Memory engine for managing .ai/memory/ topic files and importing from Claude.
-
 use std::path::{Path, PathBuf};
 
 use crate::error::{AisyncError, MemoryError};
@@ -27,8 +26,7 @@ impl MemoryEngine {
         }
 
         let mut files = Vec::new();
-        let entries = std::fs::read_dir(&memory_dir)
-            .map_err(MemoryError::ReadFailed)?;
+        let entries = std::fs::read_dir(&memory_dir).map_err(MemoryError::ReadFailed)?;
 
         for entry in entries {
             let entry = entry.map_err(MemoryError::ReadFailed)?;
@@ -48,10 +46,13 @@ impl MemoryEngine {
 
     /// Create a new memory file .ai/memory/<topic>.md with "# <Topic>" header.
     /// Sanitizes topic name: lowercase, hyphens for spaces, strip non-alphanumeric except hyphens.
-    pub fn add(project_root: &Path, topic: &str, content: Option<&str>) -> Result<PathBuf, AisyncError> {
+    pub fn add(
+        project_root: &Path,
+        topic: &str,
+        content: Option<&str>,
+    ) -> Result<PathBuf, AisyncError> {
         let memory_dir = project_root.join(".ai/memory");
-        std::fs::create_dir_all(&memory_dir)
-            .map_err(MemoryError::WriteFailed)?;
+        std::fs::create_dir_all(&memory_dir).map_err(MemoryError::WriteFailed)?;
 
         let sanitized = Self::sanitize_filename(topic);
         let filename = format!("{}.md", sanitized);
@@ -60,7 +61,8 @@ impl MemoryEngine {
         if file_path.exists() {
             return Err(MemoryError::AlreadyExists {
                 path: file_path.display().to_string(),
-            }.into());
+            }
+            .into());
         }
 
         let title = Self::title_case(topic);
@@ -68,8 +70,7 @@ impl MemoryEngine {
             Some(c) if !c.is_empty() => format!("# {}\n\n{}\n", title, c),
             _ => format!("# {}\n", title),
         };
-        std::fs::write(&file_path, file_content)
-            .map_err(MemoryError::WriteFailed)?;
+        std::fs::write(&file_path, file_content).map_err(MemoryError::WriteFailed)?;
 
         Ok(file_path)
     }
@@ -77,7 +78,8 @@ impl MemoryEngine {
     /// Compute Claude Code project key: absolute path with '/' replaced by '-'.
     /// Example: /Users/pmannion/project -> -Users-pmannion-project
     pub fn claude_project_key(project_root: &Path) -> Result<String, AisyncError> {
-        let canonical = project_root.canonicalize()
+        let canonical = project_root
+            .canonicalize()
             .map_err(MemoryError::PathResolution)?;
         let path_str = canonical.to_string_lossy();
         Ok(path_str.replace('/', "-"))
@@ -110,14 +112,12 @@ impl MemoryEngine {
         }
 
         let memory_dir = project_root.join(".ai/memory");
-        std::fs::create_dir_all(&memory_dir)
-            .map_err(MemoryError::WriteFailed)?;
+        std::fs::create_dir_all(&memory_dir).map_err(MemoryError::WriteFailed)?;
 
         let mut imported = Vec::new();
         let mut conflicts = Vec::new();
 
-        let entries = std::fs::read_dir(&claude_path)
-            .map_err(MemoryError::ReadFailed)?;
+        let entries = std::fs::read_dir(&claude_path).map_err(MemoryError::ReadFailed)?;
 
         for entry in entries {
             let entry = entry.map_err(MemoryError::ReadFailed)?;
@@ -139,8 +139,7 @@ impl MemoryEngine {
             if dest.exists() {
                 conflicts.push(filename);
             } else {
-                std::fs::copy(&path, &dest)
-                    .map_err(MemoryError::WriteFailed)?;
+                std::fs::copy(&path, &dest).map_err(MemoryError::WriteFailed)?;
                 imported.push(filename);
             }
         }
@@ -276,11 +275,19 @@ mod tests {
     #[test]
     fn test_add_with_content_includes_body() {
         let dir = TempDir::new().unwrap();
-        let path = MemoryEngine::add(dir.path(), "debugging tips", Some("These are my debugging notes")).unwrap();
+        let path = MemoryEngine::add(
+            dir.path(),
+            "debugging tips",
+            Some("These are my debugging notes"),
+        )
+        .unwrap();
 
         assert!(path.exists());
         let content = fs::read_to_string(&path).unwrap();
-        assert_eq!(content, "# Debugging Tips\n\nThese are my debugging notes\n");
+        assert_eq!(
+            content,
+            "# Debugging Tips\n\nThese are my debugging notes\n"
+        );
     }
 
     #[test]
@@ -330,16 +337,13 @@ mod tests {
         fs::create_dir_all(&project_root).unwrap();
 
         // Create a fake Claude memory directory
-        let claude_memory = MemoryEngine::claude_memory_path(
-            &project_root.canonicalize().unwrap(),
-        ).unwrap();
+        let claude_memory =
+            MemoryEngine::claude_memory_path(&project_root.canonicalize().unwrap()).unwrap();
         fs::create_dir_all(&claude_memory).unwrap();
         fs::write(claude_memory.join("topic-a.md"), "# Topic A content").unwrap();
         fs::write(claude_memory.join("topic-b.md"), "# Topic B content").unwrap();
 
-        let result = MemoryEngine::import_claude(
-            &project_root.canonicalize().unwrap(),
-        ).unwrap();
+        let result = MemoryEngine::import_claude(&project_root.canonicalize().unwrap()).unwrap();
 
         assert_eq!(result.imported.len(), 2);
         assert!(result.conflicts.is_empty());
@@ -362,16 +366,13 @@ mod tests {
         fs::write(ai_memory.join("existing.md"), "# Existing local").unwrap();
 
         // Create Claude memory with overlapping file
-        let claude_memory = MemoryEngine::claude_memory_path(
-            &project_root.canonicalize().unwrap(),
-        ).unwrap();
+        let claude_memory =
+            MemoryEngine::claude_memory_path(&project_root.canonicalize().unwrap()).unwrap();
         fs::create_dir_all(&claude_memory).unwrap();
         fs::write(claude_memory.join("existing.md"), "# Existing remote").unwrap();
         fs::write(claude_memory.join("new-topic.md"), "# New topic").unwrap();
 
-        let result = MemoryEngine::import_claude(
-            &project_root.canonicalize().unwrap(),
-        ).unwrap();
+        let result = MemoryEngine::import_claude(&project_root.canonicalize().unwrap()).unwrap();
 
         assert_eq!(result.imported.len(), 1);
         assert!(result.imported.contains(&"new-topic.md".to_string()));
@@ -390,9 +391,7 @@ mod tests {
         fs::create_dir_all(&project_root).unwrap();
 
         // Don't create Claude memory dir -- should return Ok with empty results
-        let result = MemoryEngine::import_claude(
-            &project_root.canonicalize().unwrap(),
-        );
+        let result = MemoryEngine::import_claude(&project_root.canonicalize().unwrap());
         assert!(result.is_ok());
         let import_result = result.unwrap();
         assert!(import_result.imported.is_empty());

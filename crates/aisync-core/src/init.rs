@@ -125,9 +125,7 @@ impl InitEngine {
     /// Get the appropriate adapter for a tool kind.
     fn adapter_for_tool(tool: ToolKind) -> AnyAdapter {
         match tool {
-            ToolKind::ClaudeCode => {
-                AnyAdapter::ClaudeCode(crate::adapter::ClaudeCodeAdapter)
-            }
+            ToolKind::ClaudeCode => AnyAdapter::ClaudeCode(crate::adapter::ClaudeCodeAdapter),
             ToolKind::Cursor => AnyAdapter::Cursor(crate::adapter::CursorAdapter),
             ToolKind::OpenCode => AnyAdapter::OpenCode(crate::adapter::OpenCodeAdapter),
         }
@@ -341,8 +339,7 @@ mod tests {
 
         InitEngine::scaffold(dir.path(), &[], Some("# Imported content"), &options).unwrap();
 
-        let content =
-            std::fs::read_to_string(dir.path().join(".ai/instructions.md")).unwrap();
+        let content = std::fs::read_to_string(dir.path().join(".ai/instructions.md")).unwrap();
         assert_eq!(content, "# Imported content");
     }
 
@@ -356,8 +353,7 @@ mod tests {
 
         InitEngine::scaffold(dir.path(), &[], None, &options).unwrap();
 
-        let content =
-            std::fs::read_to_string(dir.path().join(".ai/instructions.md")).unwrap();
+        let content = std::fs::read_to_string(dir.path().join(".ai/instructions.md")).unwrap();
         assert!(content.is_empty() || content.starts_with("# "));
     }
 

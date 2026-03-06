@@ -17,18 +17,10 @@ pub struct AisyncConfig {
 }
 
 /// Global default settings that tools inherit from.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct DefaultsConfig {
     #[serde(default)]
     pub sync_strategy: SyncStrategy,
-}
-
-impl Default for DefaultsConfig {
-    fn default() -> Self {
-        Self {
-            sync_strategy: SyncStrategy::default(),
-        }
-    }
 }
 
 /// Per-tool configuration sections.
@@ -66,22 +58,19 @@ impl ToolConfig {
 /// Strategy for synchronizing configuration files between tools.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum SyncStrategy {
+    #[default]
     Symlink,
     Copy,
     Generate,
-}
-
-impl Default for SyncStrategy {
-    fn default() -> Self {
-        Self::Symlink
-    }
 }
 
 impl AisyncConfig {
     /// Parse an `AisyncConfig` from a TOML string.
     ///
     /// Returns `ConfigError::UnsupportedVersion` if `schema_version` is not 1.
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Result<Self, ConfigError> {
         let config: AisyncConfig = toml::from_str(s)?;
         if config.schema_version != 1 {

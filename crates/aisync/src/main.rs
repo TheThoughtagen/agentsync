@@ -108,8 +108,7 @@ fn main() {
     if let Err(e) = result {
         eprintln!("Error: {e}");
         if cli.verbose {
-            let mut source: Option<&dyn std::error::Error> =
-                std::error::Error::source(e.as_ref());
+            let mut source: Option<&dyn std::error::Error> = std::error::Error::source(e.as_ref());
             while let Some(s) = source {
                 eprintln!("  caused by: {s}");
                 source = s.source();

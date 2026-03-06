@@ -24,8 +24,7 @@ pub fn run_check(verbose: bool) -> Result<(), Box<dyn std::error::Error>> {
 
     // Report drifted tools to stderr (CI friendly)
     for tool_status in &status.tools {
-        if tool_status.drift == DriftState::InSync
-            || tool_status.drift == DriftState::NotConfigured
+        if tool_status.drift == DriftState::InSync || tool_status.drift == DriftState::NotConfigured
         {
             continue;
         }

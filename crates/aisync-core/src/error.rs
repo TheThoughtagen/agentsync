@@ -10,10 +10,7 @@ pub enum AisyncError {
     Detection(#[from] DetectionError),
 
     #[error("adapter error for {tool}: {source}")]
-    Adapter {
-        tool: String,
-        source: AdapterError,
-    },
+    Adapter { tool: String, source: AdapterError },
 
     #[error("sync error: {0}")]
     Sync(#[from] SyncError),

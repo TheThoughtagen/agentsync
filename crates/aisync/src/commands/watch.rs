@@ -1,6 +1,6 @@
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use aisync_core::{AisyncConfig, WatchEngine, WatchEvent};
 
@@ -31,15 +31,23 @@ pub fn run_watch(verbose: bool) -> Result<(), Box<dyn std::error::Error>> {
             WatchEvent::ForwardSync { changed_path } => {
                 if verbose {
                     let ts = chrono_timestamp();
-                    println!("{ts} [sync] {} changed, syncing to all tools...", changed_path.display());
+                    println!(
+                        "{ts} [sync] {} changed, syncing to all tools...",
+                        changed_path.display()
+                    );
                 } else {
-                    println!("[sync] {} changed, syncing to all tools...", changed_path.display());
+                    println!(
+                        "[sync] {} changed, syncing to all tools...",
+                        changed_path.display()
+                    );
                 }
             }
             WatchEvent::ReverseSync { tool, source_path } => {
                 if verbose {
                     let ts = chrono_timestamp();
-                    println!("{ts} [reverse] {tool:?} file changed, updating .ai/instructions.md...");
+                    println!(
+                        "{ts} [reverse] {tool:?} file changed, updating .ai/instructions.md..."
+                    );
                 } else {
                     println!("[reverse] {tool:?} file changed, updating .ai/instructions.md...");
                 }

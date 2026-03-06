@@ -85,11 +85,7 @@ fn handle_interactive_prompts(
                 SyncAction::SkipExistingFile { path, reason } => {
                     if !is_tty {
                         if verbose {
-                            eprintln!(
-                                "[verbose] Non-TTY: skipping {}: {}",
-                                path.display(),
-                                reason
-                            );
+                            eprintln!("[verbose] Non-TTY: skipping {}: {}", path.display(), reason);
                         }
                         eprintln!(
                             "  {} Skipping {} (non-interactive mode): {}",
@@ -101,8 +97,10 @@ fn handle_interactive_prompts(
                         continue;
                     }
 
-                    let prompt =
-                        format!("{} exists and is not a symlink. Replace with symlink?", path.display());
+                    let prompt = format!(
+                        "{} exists and is not a symlink. Replace with symlink?",
+                        path.display()
+                    );
                     let confirmed = dialoguer::Confirm::new()
                         .with_prompt(&prompt)
                         .default(false)
@@ -208,7 +206,11 @@ fn print_action_details(action: &SyncAction) {
             eprintln!("      [verbose] target: {}", target.display());
         }
         SyncAction::RemoveAndRelink { link, target } => {
-            eprintln!("      [verbose] relink: {} -> {}", link.display(), target.display());
+            eprintln!(
+                "      [verbose] relink: {} -> {}",
+                link.display(),
+                target.display()
+            );
         }
         SyncAction::GenerateMdc { output, content } => {
             eprintln!("      [verbose] output: {}", output.display());

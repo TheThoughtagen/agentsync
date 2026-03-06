@@ -1,7 +1,6 @@
 /// Managed .gitignore section markers and utilities.
 ///
 /// Delegates to the generalized `managed_section` module for the core algorithm.
-
 pub const MARKER_START: &str = "# aisync-managed";
 pub const MARKER_END: &str = "# /aisync-managed";
 
@@ -15,7 +14,12 @@ pub fn update_managed_section(
     gitignore_path: &std::path::Path,
     entries: &[&str],
 ) -> Result<(), std::io::Error> {
-    crate::managed_section::update_managed_section(gitignore_path, entries, MARKER_START, MARKER_END)
+    crate::managed_section::update_managed_section(
+        gitignore_path,
+        entries,
+        MARKER_START,
+        MARKER_END,
+    )
 }
 
 #[cfg(test)]

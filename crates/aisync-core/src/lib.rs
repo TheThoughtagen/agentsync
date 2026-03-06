@@ -20,20 +20,19 @@ pub use adapter::{
 pub use conditional::ConditionalProcessor;
 pub use config::{AisyncConfig, DefaultsConfig, SyncStrategy, ToolConfig, ToolsConfig};
 pub use detection::DetectionEngine;
-pub use diff::{DiffEngine};
+pub use diff::DiffEngine;
 pub use error::{
     AdapterError, AisyncError, ConfigError, DetectionError, HookError, InitError, MemoryError,
     SyncError, WatchError,
 };
 pub use gitignore::update_managed_section;
-pub use init::{ImportChoice, ImportSource, InitEngine, InitOptions};
-pub use sync::SyncEngine;
-pub use watch::WatchEngine;
-pub use memory::{ImportResult, MemoryEngine};
 pub use hooks::{HookEngine, HookSummary, VALID_EVENTS};
+pub use init::{ImportChoice, ImportSource, InitEngine, InitOptions};
+pub use memory::{ImportResult, MemoryEngine};
+pub use sync::SyncEngine;
 pub use types::{
-    content_hash, Confidence, DriftState, HookGroup, HookHandler, HookStatusReport,
-    HookTranslation, HooksConfig, MemoryStatusReport, StatusReport, SyncAction, SyncReport,
-    ToolDiff, ToolHookStatus, ToolKind, ToolMemoryStatus, ToolSyncResult, ToolSyncStatus,
-    WatchEvent,
+    Confidence, DriftState, HookGroup, HookHandler, HookStatusReport, HookTranslation, HooksConfig,
+    MemoryStatusReport, StatusReport, SyncAction, SyncReport, ToolDiff, ToolHookStatus, ToolKind,
+    ToolMemoryStatus, ToolSyncResult, ToolSyncStatus, WatchEvent, content_hash,
 };
+pub use watch::WatchEngine;

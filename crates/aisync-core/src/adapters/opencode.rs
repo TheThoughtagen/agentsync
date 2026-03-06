@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use crate::adapter::{DetectionResult, OpenCodeAdapter, ToolAdapter};
 use crate::config::SyncStrategy;
 use crate::error::AisyncError;
-use crate::types::{content_hash, Confidence, DriftState, SyncAction, ToolKind, ToolSyncStatus};
+use crate::types::{Confidence, DriftState, SyncAction, ToolKind, ToolSyncStatus, content_hash};
 
 /// The relative symlink target path from project root to canonical instructions.
 const CANONICAL_REL: &str = ".ai/instructions.md";
@@ -116,14 +116,13 @@ impl ToolAdapter for OpenCodeAdapter {
         if link_path.exists() || link_path.symlink_metadata().is_ok() {
             if let Ok(meta) = link_path.symlink_metadata() {
                 if meta.file_type().is_symlink() {
-                    let current_target = std::fs::read_link(&link_path).map_err(|e| {
-                        AisyncError::Adapter {
+                    let current_target =
+                        std::fs::read_link(&link_path).map_err(|e| AisyncError::Adapter {
                             tool: "opencode".to_string(),
                             source: crate::error::AdapterError::DetectionFailed(format!(
                                 "failed to read symlink: {e}"
                             )),
-                        }
-                    })?;
+                        })?;
                     if current_target == target_rel {
                         return Ok(vec![]);
                     }
@@ -134,10 +133,7 @@ impl ToolAdapter for OpenCodeAdapter {
                 }
                 return Ok(vec![SyncAction::SkipExistingFile {
                     path: link_path,
-                    reason: format!(
-                        "{} is a regular file, not managed by aisync",
-                        TOOL_FILE
-                    ),
+                    reason: format!("{} is a regular file, not managed by aisync", TOOL_FILE),
                 }]);
             }
         }
@@ -161,7 +157,8 @@ impl ToolAdapter for OpenCodeAdapter {
             .iter()
             .filter_map(|path| {
                 let name = path.file_stem()?.to_string_lossy().to_string();
-                let rel = path.strip_prefix(project_root)
+                let rel = path
+                    .strip_prefix(project_root)
                     .map(|p| p.display().to_string())
                     .unwrap_or_else(|_| format!(".ai/memory/{}.md", name));
                 Some(format!("- [{}]({})", name, rel))
@@ -202,13 +199,18 @@ impl ToolAdapter for OpenCodeAdapter {
                 for group in groups {
                     for hook in &group.hooks {
                         lines.push(format!("      // {}", hook.command));
-                        lines.push(format!("      const {{ execSync }} = require(\"child_process\");"));
+                        lines.push(
+                            "      const { execSync } = require(\"child_process\");".to_string(),
+                        );
                         lines.push(format!("      execSync(\"{}\");", hook.command));
                     }
                 }
                 lines.push("    },".to_string());
             } else {
-                lines.push(format!("    // Unsupported: {} (no OpenCode equivalent)", event));
+                lines.push(format!(
+                    "    // Unsupported: {} (no OpenCode equivalent)",
+                    event
+                ));
             }
         }
 
@@ -481,7 +483,12 @@ mod tests {
 
         assert_eq!(actions.len(), 1);
         match &actions[0] {
-            SyncAction::UpdateMemoryReferences { path, references, marker_start, marker_end } => {
+            SyncAction::UpdateMemoryReferences {
+                path,
+                references,
+                marker_start,
+                marker_end,
+            } => {
                 assert!(path.ends_with("AGENTS.md"));
                 assert_eq!(references.len(), 2);
                 assert!(references[0].contains(".ai/memory/debugging.md"));
@@ -497,9 +504,7 @@ mod tests {
     fn test_plan_memory_sync_empty_files_returns_empty() {
         let dir = TempDir::new().unwrap();
 
-        let actions = OpenCodeAdapter
-            .plan_memory_sync(dir.path(), &[])
-            .unwrap();
+        let actions = OpenCodeAdapter.plan_memory_sync(dir.path(), &[]).unwrap();
         assert!(actions.is_empty());
     }
 
@@ -524,7 +529,7 @@ mod tests {
 
     #[test]
     fn test_translate_hooks_produces_js_plugin_stub() {
-        use crate::types::{HookGroup, HookHandler, HooksConfig, HookTranslation};
+        use crate::types::{HookGroup, HookHandler, HookTranslation, HooksConfig};
         use std::collections::BTreeMap;
 
         let mut events = BTreeMap::new();
@@ -554,7 +559,11 @@ mod tests {
 
         let result = OpenCodeAdapter.translate_hooks(&config).unwrap();
         match result {
-            HookTranslation::Supported { tool, content, format } => {
+            HookTranslation::Supported {
+                tool,
+                content,
+                format,
+            } => {
                 assert_eq!(tool, ToolKind::OpenCode);
                 assert_eq!(format, "js");
                 assert!(content.contains("module.exports"));
@@ -569,7 +578,7 @@ mod tests {
 
     #[test]
     fn test_translate_hooks_skips_unsupported_events() {
-        use crate::types::{HookGroup, HookHandler, HooksConfig, HookTranslation};
+        use crate::types::{HookGroup, HookHandler, HookTranslation, HooksConfig};
         use std::collections::BTreeMap;
 
         let mut events = BTreeMap::new();
@@ -609,7 +618,7 @@ mod tests {
 
     #[test]
     fn test_translate_hooks_maps_stop_event() {
-        use crate::types::{HookGroup, HookHandler, HooksConfig, HookTranslation};
+        use crate::types::{HookGroup, HookHandler, HookTranslation, HooksConfig};
         use std::collections::BTreeMap;
 
         let mut events = BTreeMap::new();

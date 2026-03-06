@@ -4,7 +4,7 @@ use crate::adapter::{ClaudeCodeAdapter, DetectionResult, ToolAdapter};
 use crate::config::SyncStrategy;
 use crate::error::AisyncError;
 use crate::memory::MemoryEngine;
-use crate::types::{content_hash, Confidence, DriftState, SyncAction, ToolKind, ToolSyncStatus};
+use crate::types::{Confidence, DriftState, SyncAction, ToolKind, ToolSyncStatus, content_hash};
 
 /// The relative symlink target path from project root to canonical instructions.
 const CANONICAL_REL: &str = ".ai/instructions.md";
@@ -121,14 +121,13 @@ impl ToolAdapter for ClaudeCodeAdapter {
         if link_path.exists() || link_path.symlink_metadata().is_ok() {
             if let Ok(meta) = link_path.symlink_metadata() {
                 if meta.file_type().is_symlink() {
-                    let current_target = std::fs::read_link(&link_path).map_err(|e| {
-                        AisyncError::Adapter {
+                    let current_target =
+                        std::fs::read_link(&link_path).map_err(|e| AisyncError::Adapter {
                             tool: "claude-code".to_string(),
                             source: crate::error::AdapterError::DetectionFailed(format!(
                                 "failed to read symlink: {e}"
                             )),
-                        }
-                    })?;
+                        })?;
                     if current_target == target_rel {
                         return Ok(vec![]);
                     }
@@ -140,10 +139,7 @@ impl ToolAdapter for ClaudeCodeAdapter {
                 // Regular file, no conditionals -- skip (user-managed file)
                 return Ok(vec![SyncAction::SkipExistingFile {
                     path: link_path,
-                    reason: format!(
-                        "{} is a regular file, not managed by aisync",
-                        TOOL_FILE
-                    ),
+                    reason: format!("{} is a regular file, not managed by aisync", TOOL_FILE),
                 }]);
             }
         }
@@ -168,14 +164,14 @@ impl ToolAdapter for ClaudeCodeAdapter {
 
         // Check if the symlink already exists and is correct
         if claude_memory.symlink_metadata().is_ok() {
-            let meta = claude_memory.symlink_metadata().map_err(|e| {
-                AisyncError::Adapter {
+            let meta = claude_memory
+                .symlink_metadata()
+                .map_err(|e| AisyncError::Adapter {
                     tool: "claude-code".to_string(),
                     source: crate::error::AdapterError::DetectionFailed(format!(
                         "failed to read symlink metadata: {e}"
                     )),
-                }
-            })?;
+                })?;
 
             if meta.file_type().is_symlink() {
                 // Check if it points to the right target
@@ -187,7 +183,10 @@ impl ToolAdapter for ClaudeCodeAdapter {
                     } else {
                         // Resolve relative to symlink parent
                         if let Some(parent) = claude_memory.parent() {
-                            parent.join(&current_target).canonicalize().unwrap_or(current_target)
+                            parent
+                                .join(&current_target)
+                                .canonicalize()
+                                .unwrap_or(current_target)
                         } else {
                             current_target
                         }
@@ -202,7 +201,8 @@ impl ToolAdapter for ClaudeCodeAdapter {
                 // It's a real directory (not a symlink) with content
                 return Ok(vec![SyncAction::SkipExistingFile {
                     path: claude_memory,
-                    reason: "existing Claude memory found, run `aisync memory import claude` first".to_string(),
+                    reason: "existing Claude memory found, run `aisync memory import claude` first"
+                        .to_string(),
                 }]);
             }
         }
@@ -219,32 +219,47 @@ impl ToolAdapter for ClaudeCodeAdapter {
     ) -> Result<crate::types::HookTranslation, AisyncError> {
         let mut hooks_obj = serde_json::Map::new();
         for (event, groups) in &hooks.events {
-            let groups_json: Vec<serde_json::Value> = groups.iter().map(|g| {
-                let mut obj = serde_json::Map::new();
-                if let Some(matcher) = &g.matcher {
-                    obj.insert("matcher".into(), serde_json::Value::String(matcher.clone()));
-                }
-                let hooks_arr: Vec<serde_json::Value> = g.hooks.iter().map(|h| {
-                    let mut hook_obj = serde_json::Map::new();
-                    hook_obj.insert("type".into(), serde_json::Value::String(h.hook_type.clone()));
-                    hook_obj.insert("command".into(), serde_json::Value::String(h.command.clone()));
-                    if let Some(timeout) = h.timeout {
-                        // Convert milliseconds to seconds for Claude Code
-                        hook_obj.insert("timeout".into(), serde_json::json!(timeout / 1000));
+            let groups_json: Vec<serde_json::Value> = groups
+                .iter()
+                .map(|g| {
+                    let mut obj = serde_json::Map::new();
+                    if let Some(matcher) = &g.matcher {
+                        obj.insert("matcher".into(), serde_json::Value::String(matcher.clone()));
                     }
-                    serde_json::Value::Object(hook_obj)
-                }).collect();
-                obj.insert("hooks".into(), serde_json::Value::Array(hooks_arr));
-                serde_json::Value::Object(obj)
-            }).collect();
+                    let hooks_arr: Vec<serde_json::Value> = g
+                        .hooks
+                        .iter()
+                        .map(|h| {
+                            let mut hook_obj = serde_json::Map::new();
+                            hook_obj.insert(
+                                "type".into(),
+                                serde_json::Value::String(h.hook_type.clone()),
+                            );
+                            hook_obj.insert(
+                                "command".into(),
+                                serde_json::Value::String(h.command.clone()),
+                            );
+                            if let Some(timeout) = h.timeout {
+                                // Convert milliseconds to seconds for Claude Code
+                                hook_obj
+                                    .insert("timeout".into(), serde_json::json!(timeout / 1000));
+                            }
+                            serde_json::Value::Object(hook_obj)
+                        })
+                        .collect();
+                    obj.insert("hooks".into(), serde_json::Value::Array(hooks_arr));
+                    serde_json::Value::Object(obj)
+                })
+                .collect();
             hooks_obj.insert(event.clone(), serde_json::Value::Array(groups_json));
         }
         let json = serde_json::json!({ "hooks": hooks_obj });
-        let content = serde_json::to_string_pretty(&json)
-            .map_err(|e| AisyncError::Adapter {
-                tool: "claude-code".to_string(),
-                source: crate::error::AdapterError::DetectionFailed(format!("JSON serialization failed: {e}")),
-            })?;
+        let content = serde_json::to_string_pretty(&json).map_err(|e| AisyncError::Adapter {
+            tool: "claude-code".to_string(),
+            source: crate::error::AdapterError::DetectionFailed(format!(
+                "JSON serialization failed: {e}"
+            )),
+        })?;
         Ok(crate::types::HookTranslation::Supported {
             tool: ToolKind::ClaudeCode,
             content,
@@ -356,7 +371,12 @@ mod tests {
         let result = ClaudeCodeAdapter.detect(dir.path()).unwrap();
         assert!(result.detected);
         assert_eq!(result.confidence, Confidence::High);
-        assert!(result.markers_found.iter().any(|p| p.ends_with("CLAUDE.md")));
+        assert!(
+            result
+                .markers_found
+                .iter()
+                .any(|p| p.ends_with("CLAUDE.md"))
+        );
     }
 
     #[test]
@@ -468,7 +488,10 @@ mod tests {
         let actions = ClaudeCodeAdapter
             .plan_sync(dir.path(), "content", SyncStrategy::Symlink)
             .unwrap();
-        assert!(actions.is_empty(), "expected no actions for correct symlink");
+        assert!(
+            actions.is_empty(),
+            "expected no actions for correct symlink"
+        );
     }
 
     #[test]
@@ -489,11 +512,8 @@ mod tests {
 
         #[cfg(unix)]
         {
-            std::os::unix::fs::symlink(
-                Path::new("wrong/target.md"),
-                dir.path().join("CLAUDE.md"),
-            )
-            .unwrap();
+            std::os::unix::fs::symlink(Path::new("wrong/target.md"), dir.path().join("CLAUDE.md"))
+                .unwrap();
         }
 
         let actions = ClaudeCodeAdapter
@@ -583,9 +603,7 @@ mod tests {
     fn test_plan_memory_sync_empty_files_returns_empty() {
         let dir = TempDir::new().unwrap();
 
-        let actions = ClaudeCodeAdapter
-            .plan_memory_sync(dir.path(), &[])
-            .unwrap();
+        let actions = ClaudeCodeAdapter.plan_memory_sync(dir.path(), &[]).unwrap();
         assert!(actions.is_empty());
     }
 
@@ -598,9 +616,8 @@ mod tests {
         std::fs::write(memory_dir.join("topic.md"), "# Topic").unwrap();
 
         // Create the Claude memory symlink manually
-        let claude_memory = crate::MemoryEngine::claude_memory_path(
-            &dir.path().canonicalize().unwrap(),
-        ).unwrap();
+        let claude_memory =
+            crate::MemoryEngine::claude_memory_path(&dir.path().canonicalize().unwrap()).unwrap();
         if let Some(parent) = claude_memory.parent() {
             std::fs::create_dir_all(parent).unwrap();
         }
@@ -611,7 +628,11 @@ mod tests {
         let actions = ClaudeCodeAdapter
             .plan_memory_sync(&dir.path().canonicalize().unwrap(), &memory_files)
             .unwrap();
-        assert!(actions.is_empty(), "expected no actions for existing correct symlink, got {:?}", actions);
+        assert!(
+            actions.is_empty(),
+            "expected no actions for existing correct symlink, got {:?}",
+            actions
+        );
     }
 
     #[test]
@@ -622,9 +643,8 @@ mod tests {
         std::fs::write(memory_dir.join("topic.md"), "# Topic").unwrap();
 
         // Create a real (non-symlink) memory directory at Claude's path
-        let claude_memory = crate::MemoryEngine::claude_memory_path(
-            &dir.path().canonicalize().unwrap(),
-        ).unwrap();
+        let claude_memory =
+            crate::MemoryEngine::claude_memory_path(&dir.path().canonicalize().unwrap()).unwrap();
         std::fs::create_dir_all(&claude_memory).unwrap();
         std::fs::write(claude_memory.join("existing.md"), "# Existing").unwrap();
 
@@ -636,7 +656,10 @@ mod tests {
         assert_eq!(actions.len(), 1);
         match &actions[0] {
             SyncAction::SkipExistingFile { reason, .. } => {
-                assert!(reason.contains("import"), "reason should mention import: {reason}");
+                assert!(
+                    reason.contains("import"),
+                    "reason should mention import: {reason}"
+                );
             }
             other => panic!("expected SkipExistingFile, got {other:?}"),
         }
@@ -740,10 +763,19 @@ mod tests {
             .unwrap();
 
         // Should have actions to handle the transition from symlink to file
-        assert!(!actions.is_empty(), "expected actions to transition from symlink to file");
+        assert!(
+            !actions.is_empty(),
+            "expected actions to transition from symlink to file"
+        );
         // Should end with CreateFile
-        let has_create_file = actions.iter().any(|a| matches!(a, SyncAction::CreateFile { .. }));
-        assert!(has_create_file, "expected CreateFile action, got {:?}", actions);
+        let has_create_file = actions
+            .iter()
+            .any(|a| matches!(a, SyncAction::CreateFile { .. }));
+        assert!(
+            has_create_file,
+            "expected CreateFile action, got {:?}",
+            actions
+        );
     }
 
     #[test]
@@ -772,7 +804,7 @@ mod tests {
 
     #[test]
     fn test_translate_hooks_produces_valid_json() {
-        use crate::types::{HookGroup, HookHandler, HooksConfig, HookTranslation};
+        use crate::types::{HookGroup, HookHandler, HookTranslation, HooksConfig};
         use std::collections::BTreeMap;
 
         let mut events = BTreeMap::new();
@@ -791,7 +823,11 @@ mod tests {
 
         let result = ClaudeCodeAdapter.translate_hooks(&config).unwrap();
         match result {
-            HookTranslation::Supported { tool, content, format } => {
+            HookTranslation::Supported {
+                tool,
+                content,
+                format,
+            } => {
                 assert_eq!(tool, ToolKind::ClaudeCode);
                 assert_eq!(format, "json");
                 let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
@@ -809,7 +845,7 @@ mod tests {
 
     #[test]
     fn test_translate_hooks_omits_matcher_when_none() {
-        use crate::types::{HookGroup, HookHandler, HooksConfig, HookTranslation};
+        use crate::types::{HookGroup, HookHandler, HookTranslation, HooksConfig};
         use std::collections::BTreeMap;
 
         let mut events = BTreeMap::new();
@@ -832,7 +868,10 @@ mod tests {
                 let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
                 let group = &parsed["hooks"]["PostToolUse"][0];
                 // matcher key should be absent, not null
-                assert!(group.get("matcher").is_none(), "matcher should be absent when None");
+                assert!(
+                    group.get("matcher").is_none(),
+                    "matcher should be absent when None"
+                );
             }
             other => panic!("expected Supported, got {other:?}"),
         }

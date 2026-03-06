@@ -1,6 +1,6 @@
 use assert_cmd::Command;
-use assert_fs::prelude::*;
 use assert_fs::TempDir;
+use assert_fs::prelude::*;
 
 /// Standard multi-tool aisync.toml configuration for tests.
 pub const STANDARD_CONFIG: &str = r#"schema_version = 1
@@ -17,9 +17,7 @@ pub fn setup_project(toml_content: &str, instructions: &str) -> TempDir {
     let temp = TempDir::new().unwrap();
 
     // Write aisync.toml
-    temp.child("aisync.toml")
-        .write_str(toml_content)
-        .unwrap();
+    temp.child("aisync.toml").write_str(toml_content).unwrap();
 
     // Create .ai/ directory and instructions.md
     temp.child(".ai").create_dir_all().unwrap();

@@ -2,8 +2,8 @@ use std::path::Path;
 
 use similar::TextDiff;
 
-use crate::conditional::ConditionalProcessor;
 use crate::adapter::ToolAdapter;
+use crate::conditional::ConditionalProcessor;
 use crate::config::AisyncConfig;
 use crate::error::{AisyncError, SyncError};
 use crate::sync::SyncEngine;
@@ -20,12 +20,11 @@ impl DiffEngine {
         project_root: &Path,
     ) -> Result<Vec<ToolDiff>, AisyncError> {
         let canonical_path = project_root.join(".ai/instructions.md");
-        let canonical_content =
-            std::fs::read_to_string(&canonical_path).map_err(|_| {
-                AisyncError::Sync(SyncError::CanonicalMissing {
-                    path: canonical_path.display().to_string(),
-                })
-            })?;
+        let canonical_content = std::fs::read_to_string(&canonical_path).map_err(|_| {
+            AisyncError::Sync(SyncError::CanonicalMissing {
+                path: canonical_path.display().to_string(),
+            })
+        })?;
 
         let mut diffs = Vec::new();
 
@@ -122,11 +121,22 @@ mod tests {
         assert_eq!(diffs.len(), 3);
 
         // Claude and OpenCode are symlinks -- should be in sync
-        let claude_diff = diffs.iter().find(|d| d.tool == ToolKind::ClaudeCode).unwrap();
-        assert!(!claude_diff.has_changes, "Claude should be in sync, diff: {}", claude_diff.unified_diff);
+        let claude_diff = diffs
+            .iter()
+            .find(|d| d.tool == ToolKind::ClaudeCode)
+            .unwrap();
+        assert!(
+            !claude_diff.has_changes,
+            "Claude should be in sync, diff: {}",
+            claude_diff.unified_diff
+        );
 
         let opencode_diff = diffs.iter().find(|d| d.tool == ToolKind::OpenCode).unwrap();
-        assert!(!opencode_diff.has_changes, "OpenCode should be in sync, diff: {}", opencode_diff.unified_diff);
+        assert!(
+            !opencode_diff.has_changes,
+            "OpenCode should be in sync, diff: {}",
+            opencode_diff.unified_diff
+        );
     }
 
     #[test]
@@ -143,9 +153,15 @@ mod tests {
         let config = all_enabled_config();
         let diffs = DiffEngine::diff_all(&config, dir.path()).unwrap();
 
-        let claude_diff = diffs.iter().find(|d| d.tool == ToolKind::ClaudeCode).unwrap();
+        let claude_diff = diffs
+            .iter()
+            .find(|d| d.tool == ToolKind::ClaudeCode)
+            .unwrap();
         assert!(claude_diff.has_changes, "Claude should have changes");
-        assert!(!claude_diff.unified_diff.is_empty(), "Should have non-empty diff");
+        assert!(
+            !claude_diff.unified_diff.is_empty(),
+            "Should have non-empty diff"
+        );
 
         let opencode_diff = diffs.iter().find(|d| d.tool == ToolKind::OpenCode).unwrap();
         assert!(opencode_diff.has_changes, "OpenCode should have changes");
@@ -161,7 +177,11 @@ mod tests {
         let diffs = DiffEngine::diff_all(&config, dir.path()).unwrap();
 
         for diff in &diffs {
-            assert!(diff.has_changes, "Missing tool file should show changes for {:?}", diff.tool);
+            assert!(
+                diff.has_changes,
+                "Missing tool file should show changes for {:?}",
+                diff.tool
+            );
         }
     }
 }

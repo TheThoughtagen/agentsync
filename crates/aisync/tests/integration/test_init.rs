@@ -8,9 +8,7 @@ fn test_init_creates_ai_directory() {
     let temp = assert_fs::TempDir::new().unwrap();
 
     // Create a CLAUDE.md so init has something to detect/import
-    temp.child("CLAUDE.md")
-        .write_str("# My Project\n")
-        .unwrap();
+    temp.child("CLAUDE.md").write_str("# My Project\n").unwrap();
 
     aisync_cmd()
         .arg("init")
@@ -19,7 +17,8 @@ fn test_init_creates_ai_directory() {
         .success();
 
     // Verify .ai/instructions.md was created
-    temp.child(".ai/instructions.md").assert(predicate::path::exists());
+    temp.child(".ai/instructions.md")
+        .assert(predicate::path::exists());
     // Verify aisync.toml was created
     temp.child("aisync.toml").assert(predicate::path::exists());
 }
@@ -46,9 +45,7 @@ fn test_init_imports_existing_claude_md() {
 fn test_init_idempotent() {
     let temp = assert_fs::TempDir::new().unwrap();
 
-    temp.child("CLAUDE.md")
-        .write_str("# Project\n")
-        .unwrap();
+    temp.child("CLAUDE.md").write_str("# Project\n").unwrap();
 
     // First init
     aisync_cmd()

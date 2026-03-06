@@ -44,8 +44,8 @@ pub fn run_status(json: bool, verbose: bool) -> Result<(), Box<dyn std::error::E
 fn print_status_table(status: &StatusReport, verbose: bool) {
     // Always print the table header
     println!(
-        "{:<14}| {:<10}| {:<10}| {}",
-        "Tool", "Strategy", "Status", "Details"
+        "{:<14}| {:<10}| {:<10}| Details",
+        "Tool", "Strategy", "Status"
     );
     println!("{}", "-".repeat(60));
 
@@ -83,10 +83,7 @@ fn print_status_table(status: &StatusReport, verbose: bool) {
     println!();
     if status.all_in_sync() {
         let count = status.tools.len();
-        println!(
-            "{}",
-            format!("All {count} tool(s) in sync").green().bold()
-        );
+        println!("{}", format!("All {count} tool(s) in sync").green().bold());
     } else {
         let out_of_sync = status
             .tools
@@ -139,10 +136,7 @@ fn print_memory_status(memory: &MemoryStatusReport) {
     );
     for tool_status in &memory.per_tool {
         let tool_name = tool_display_name(tool_status.tool);
-        let detail = tool_status
-            .details
-            .as_deref()
-            .unwrap_or("");
+        let detail = tool_status.details.as_deref().unwrap_or("");
         if tool_status.synced {
             println!(
                 "  {:<14} {} ({})",
@@ -168,10 +162,7 @@ fn print_hook_status(hooks: &HookStatusReport) {
     );
     for tool_status in &hooks.per_tool {
         let tool_name = tool_display_name(tool_status.tool);
-        let detail = tool_status
-            .details
-            .as_deref()
-            .unwrap_or("");
+        let detail = tool_status.details.as_deref().unwrap_or("");
         if !tool_status.supported {
             println!(
                 "  {:<14} {}",

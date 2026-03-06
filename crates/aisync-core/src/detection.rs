@@ -30,10 +30,7 @@ impl DetectionEngine {
                 Err(e) => {
                     return Err(DetectionError::ScanFailed {
                         path: project_root.display().to_string(),
-                        source: std::io::Error::new(
-                            std::io::ErrorKind::Other,
-                            format!("adapter error: {e}"),
-                        ),
+                        source: std::io::Error::other(format!("adapter error: {e}")),
                     });
                 }
             }

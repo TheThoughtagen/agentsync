@@ -5,9 +5,16 @@ use std::path::PathBuf;
 /// Event emitted by the watch engine for logging/display.
 #[derive(Debug, Clone)]
 pub enum WatchEvent {
-    ForwardSync { changed_path: PathBuf },
-    ReverseSync { tool: ToolKind, source_path: PathBuf },
-    Error { message: String },
+    ForwardSync {
+        changed_path: PathBuf,
+    },
+    ReverseSync {
+        tool: ToolKind,
+        source_path: PathBuf,
+    },
+    Error {
+        message: String,
+    },
 }
 
 use serde::{Deserialize, Serialize};
@@ -86,36 +93,88 @@ pub struct ToolDiff {
 /// A planned sync action that can be displayed (dry-run) or executed.
 #[derive(Debug, Clone, Serialize)]
 pub enum SyncAction {
-    CreateSymlink { link: PathBuf, target: PathBuf },
-    RemoveAndRelink { link: PathBuf, target: PathBuf },
-    GenerateMdc { output: PathBuf, content: String },
-    UpdateGitignore { path: PathBuf, entries: Vec<String> },
-    CreateDirectory { path: PathBuf },
-    CreateFile { path: PathBuf, content: String },
-    RemoveFile { path: PathBuf },
-    SkipExistingFile { path: PathBuf, reason: String },
+    CreateSymlink {
+        link: PathBuf,
+        target: PathBuf,
+    },
+    RemoveAndRelink {
+        link: PathBuf,
+        target: PathBuf,
+    },
+    GenerateMdc {
+        output: PathBuf,
+        content: String,
+    },
+    UpdateGitignore {
+        path: PathBuf,
+        entries: Vec<String>,
+    },
+    CreateDirectory {
+        path: PathBuf,
+    },
+    CreateFile {
+        path: PathBuf,
+        content: String,
+    },
+    RemoveFile {
+        path: PathBuf,
+    },
+    SkipExistingFile {
+        path: PathBuf,
+        reason: String,
+    },
     // Memory actions
-    CreateMemorySymlink { link: PathBuf, target: PathBuf },
-    UpdateMemoryReferences { path: PathBuf, references: Vec<String>, marker_start: String, marker_end: String },
+    CreateMemorySymlink {
+        link: PathBuf,
+        target: PathBuf,
+    },
+    UpdateMemoryReferences {
+        path: PathBuf,
+        references: Vec<String>,
+        marker_start: String,
+        marker_end: String,
+    },
     // Hook actions
-    WriteHookTranslation { path: PathBuf, content: String, tool: ToolKind },
-    WarnUnsupportedHooks { tool: ToolKind, reason: String },
+    WriteHookTranslation {
+        path: PathBuf,
+        content: String,
+        tool: ToolKind,
+    },
+    WarnUnsupportedHooks {
+        tool: ToolKind,
+        reason: String,
+    },
 }
 
 impl fmt::Display for SyncAction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             SyncAction::CreateSymlink { link, target } => {
-                write!(f, "Would create symlink: {} -> {}", link.display(), target.display())
+                write!(
+                    f,
+                    "Would create symlink: {} -> {}",
+                    link.display(),
+                    target.display()
+                )
             }
             SyncAction::RemoveAndRelink { link, target } => {
-                write!(f, "Would remove and relink: {} -> {}", link.display(), target.display())
+                write!(
+                    f,
+                    "Would remove and relink: {} -> {}",
+                    link.display(),
+                    target.display()
+                )
             }
             SyncAction::GenerateMdc { output, .. } => {
                 write!(f, "Would generate MDC file: {}", output.display())
             }
             SyncAction::UpdateGitignore { path, entries } => {
-                write!(f, "Would update .gitignore at {} with {} entries", path.display(), entries.len())
+                write!(
+                    f,
+                    "Would update .gitignore at {} with {} entries",
+                    path.display(),
+                    entries.len()
+                )
             }
             SyncAction::CreateDirectory { path } => {
                 write!(f, "Would create directory: {}", path.display())
@@ -130,13 +189,30 @@ impl fmt::Display for SyncAction {
                 write!(f, "Would skip {}: {}", path.display(), reason)
             }
             SyncAction::CreateMemorySymlink { link, target } => {
-                write!(f, "Would create memory symlink: {} -> {}", link.display(), target.display())
+                write!(
+                    f,
+                    "Would create memory symlink: {} -> {}",
+                    link.display(),
+                    target.display()
+                )
             }
-            SyncAction::UpdateMemoryReferences { path, references, .. } => {
-                write!(f, "Would update memory references in {} with {} entries", path.display(), references.len())
+            SyncAction::UpdateMemoryReferences {
+                path, references, ..
+            } => {
+                write!(
+                    f,
+                    "Would update memory references in {} with {} entries",
+                    path.display(),
+                    references.len()
+                )
             }
             SyncAction::WriteHookTranslation { path, tool, .. } => {
-                write!(f, "Would write hook translation for {:?} to {}", tool, path.display())
+                write!(
+                    f,
+                    "Would write hook translation for {:?} to {}",
+                    tool,
+                    path.display()
+                )
             }
             SyncAction::WarnUnsupportedHooks { tool, reason } => {
                 write!(f, "Warning: hooks unsupported for {:?}: {}", tool, reason)
@@ -198,7 +274,9 @@ pub struct StatusReport {
 
 impl StatusReport {
     pub fn all_in_sync(&self) -> bool {
-        self.tools.iter().all(|t| t.drift == DriftState::InSync || t.drift == DriftState::NotConfigured)
+        self.tools
+            .iter()
+            .all(|t| t.drift == DriftState::InSync || t.drift == DriftState::NotConfigured)
     }
 }
 

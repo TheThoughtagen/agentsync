@@ -6,15 +6,14 @@ use aisync_core::{AisyncConfig, MemoryEngine, SyncEngine};
 
 use crate::MemoryAction;
 
-pub fn run_memory(
-    action: &MemoryAction,
-    verbose: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn run_memory(action: &MemoryAction, verbose: bool) -> Result<(), Box<dyn std::error::Error>> {
     let project_root = Path::new(".");
 
     match action {
         MemoryAction::List => run_list(project_root, verbose),
-        MemoryAction::Add { topic, content } => run_add(project_root, topic, content.as_deref(), verbose),
+        MemoryAction::Add { topic, content } => {
+            run_add(project_root, topic, content.as_deref(), verbose)
+        }
         MemoryAction::Import { tool } => run_import(project_root, tool, verbose),
         MemoryAction::Export => run_export(project_root, verbose),
     }
@@ -68,7 +67,10 @@ fn run_add(
 
     if verbose {
         eprintln!("[verbose] Full path: {}", path.display());
-        eprintln!("[verbose] Content added: {} bytes", content.map(|c| c.len()).unwrap_or(0));
+        eprintln!(
+            "[verbose] Content added: {} bytes",
+            content.map(|c| c.len()).unwrap_or(0)
+        );
     }
 
     Ok(())
@@ -103,10 +105,7 @@ fn run_import(
 
         for file in &result.conflicts {
             if is_tty {
-                let prompt = format!(
-                    "Overwrite .ai/memory/{} with Claude's version?",
-                    file
-                );
+                let prompt = format!("Overwrite .ai/memory/{} with Claude's version?", file);
                 let confirmed = dialoguer::Confirm::new()
                     .with_prompt(&prompt)
                     .default(false)
@@ -131,10 +130,7 @@ fn run_import(
     }
 
     if verbose {
-        eprintln!(
-            "[verbose] Imported from: {}",
-            result.source_path.display()
-        );
+        eprintln!("[verbose] Imported from: {}", result.source_path.display());
         eprintln!(
             "[verbose] {} imported, {} conflicts",
             result.imported.len(),
@@ -174,7 +170,9 @@ fn run_export(project_root: &Path, verbose: bool) -> Result<(), Box<dyn std::err
                     );
                     memory_actions += 1;
                 }
-                aisync_core::SyncAction::UpdateMemoryReferences { path, references, .. } => {
+                aisync_core::SyncAction::UpdateMemoryReferences {
+                    path, references, ..
+                } => {
                     println!(
                         "  {} Updated {} with {} memory reference(s)",
                         "✓".green(),

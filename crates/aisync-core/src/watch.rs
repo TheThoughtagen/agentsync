@@ -1,10 +1,10 @@
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering::SeqCst};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering::SeqCst};
 use std::time::Duration;
 
-use notify_debouncer_mini::new_debouncer;
 use notify::RecursiveMode;
+use notify_debouncer_mini::new_debouncer;
 
 use crate::adapter::{AnyAdapter, ClaudeCodeAdapter, CursorAdapter, OpenCodeAdapter, ToolAdapter};
 use crate::config::AisyncConfig;
@@ -151,10 +151,7 @@ impl WatchEngine {
                             });
                         } else {
                             event_callback(WatchEvent::ForwardSync {
-                                changed_path: changed_paths
-                                    .first()
-                                    .cloned()
-                                    .unwrap_or_default(),
+                                changed_path: changed_paths.first().cloned().unwrap_or_default(),
                             });
                         }
                     }
@@ -174,10 +171,7 @@ impl WatchEngine {
                             });
                         } else {
                             event_callback(WatchEvent::ForwardSync {
-                                changed_path: changed_paths
-                                    .first()
-                                    .cloned()
-                                    .unwrap_or_default(),
+                                changed_path: changed_paths.first().cloned().unwrap_or_default(),
                             });
                         }
                     }
@@ -245,24 +239,32 @@ impl WatchEngine {
 
         for changed_path in changed_paths {
             // Determine which tool this path belongs to
-            let (tool_kind, adapter) = if Self::path_matches(changed_path, project_root, "CLAUDE.md") {
-                (ToolKind::ClaudeCode, AnyAdapter::ClaudeCode(ClaudeCodeAdapter))
-            } else if Self::path_matches(changed_path, project_root, "AGENTS.md") {
-                (ToolKind::OpenCode, AnyAdapter::OpenCode(OpenCodeAdapter))
-            } else if Self::path_matches(changed_path, project_root, ".cursor/rules/project.mdc") {
-                (ToolKind::Cursor, AnyAdapter::Cursor(CursorAdapter))
-            } else {
-                continue;
-            };
+            let (tool_kind, adapter) =
+                if Self::path_matches(changed_path, project_root, "CLAUDE.md") {
+                    (
+                        ToolKind::ClaudeCode,
+                        AnyAdapter::ClaudeCode(ClaudeCodeAdapter),
+                    )
+                } else if Self::path_matches(changed_path, project_root, "AGENTS.md") {
+                    (ToolKind::OpenCode, AnyAdapter::OpenCode(OpenCodeAdapter))
+                } else if Self::path_matches(
+                    changed_path,
+                    project_root,
+                    ".cursor/rules/project.mdc",
+                ) {
+                    (ToolKind::Cursor, AnyAdapter::Cursor(CursorAdapter))
+                } else {
+                    continue;
+                };
 
             // Read tool-native content via adapter
             let tool_content = match adapter.read_instructions(project_root) {
                 Ok(Some(content)) => content,
                 Ok(None) => continue,
                 Err(e) => {
-                    return Err(AisyncError::Watch(WatchError::ReverseSyncFailed(
-                        format!("failed to read {tool_kind:?} instructions: {e}"),
-                    )));
+                    return Err(AisyncError::Watch(WatchError::ReverseSyncFailed(format!(
+                        "failed to read {tool_kind:?} instructions: {e}"
+                    ))));
                 }
             };
 
@@ -287,8 +289,7 @@ impl WatchEngine {
     /// Check if a changed path matches a tool's expected file location.
     fn path_matches(changed: &Path, project_root: &Path, relative: &str) -> bool {
         let expected = project_root.join(relative);
-        changed == expected
-            || changed.canonicalize().ok() == expected.canonicalize().ok()
+        changed == expected || changed.canonicalize().ok() == expected.canonicalize().ok()
     }
 }
 
@@ -333,17 +334,34 @@ mod tests {
         let targets = WatchEngine::tool_watch_paths(&config, dir.path());
 
         // Expected files should contain the tool file paths
-        assert!(targets.expected_files.contains(&dir.path().join("CLAUDE.md")));
-        assert!(targets.expected_files.contains(&dir.path().join("AGENTS.md")));
+        assert!(
+            targets
+                .expected_files
+                .contains(&dir.path().join("CLAUDE.md"))
+        );
+        assert!(
+            targets
+                .expected_files
+                .contains(&dir.path().join("AGENTS.md"))
+        );
         // Cursor .mdc doesn't exist, so shouldn't be in expected files
-        assert!(!targets.expected_files.contains(&dir.path().join(".cursor/rules/project.mdc")));
+        assert!(
+            !targets
+                .expected_files
+                .contains(&dir.path().join(".cursor/rules/project.mdc"))
+        );
 
         // Watch dirs should contain parent directories, not the files themselves
-        assert!(targets.watch_dirs.contains(&dir.path().to_path_buf()),
-            "watch_dirs should contain project root (parent of CLAUDE.md and AGENTS.md)");
+        assert!(
+            targets.watch_dirs.contains(&dir.path().to_path_buf()),
+            "watch_dirs should contain project root (parent of CLAUDE.md and AGENTS.md)"
+        );
         // Both CLAUDE.md and AGENTS.md are in project root, so only one directory entry
-        assert_eq!(targets.watch_dirs.len(), 1,
-            "watch_dirs should deduplicate: CLAUDE.md and AGENTS.md share the same parent");
+        assert_eq!(
+            targets.watch_dirs.len(),
+            1,
+            "watch_dirs should deduplicate: CLAUDE.md and AGENTS.md share the same parent"
+        );
     }
 
     #[test]
@@ -373,11 +391,17 @@ mod tests {
 
         // CLAUDE.md is a symlink, should NOT be in expected_files
         assert!(
-            !targets.expected_files.contains(&dir.path().join("CLAUDE.md")),
+            !targets
+                .expected_files
+                .contains(&dir.path().join("CLAUDE.md")),
             "symlinked CLAUDE.md should not be in expected_files"
         );
         // AGENTS.md is a regular file, should be in expected_files
-        assert!(targets.expected_files.contains(&dir.path().join("AGENTS.md")));
+        assert!(
+            targets
+                .expected_files
+                .contains(&dir.path().join("AGENTS.md"))
+        );
     }
 
     #[test]
@@ -387,8 +411,14 @@ mod tests {
 
         // No tool files created
         let targets = WatchEngine::tool_watch_paths(&config, dir.path());
-        assert!(targets.expected_files.is_empty(), "expected no files for missing files");
-        assert!(targets.watch_dirs.is_empty(), "expected no dirs for missing files");
+        assert!(
+            targets.expected_files.is_empty(),
+            "expected no files for missing files"
+        );
+        assert!(
+            targets.watch_dirs.is_empty(),
+            "expected no dirs for missing files"
+        );
     }
 
     #[test]
@@ -406,9 +436,16 @@ mod tests {
 
         let targets = WatchEngine::tool_watch_paths(&config, dir.path());
 
-        assert_eq!(targets.expected_files.len(), 3, "should have 3 expected files");
-        assert_eq!(targets.watch_dirs.len(), 2,
-            "should have 2 watch dirs (project root + .cursor/rules)");
+        assert_eq!(
+            targets.expected_files.len(),
+            3,
+            "should have 3 expected files"
+        );
+        assert_eq!(
+            targets.watch_dirs.len(),
+            2,
+            "should have 2 watch dirs (project root + .cursor/rules)"
+        );
     }
 
     #[test]
@@ -438,7 +475,10 @@ mod tests {
             let same_parent = wrong_dir.parent() == expected.parent();
             same_name && same_parent
         });
-        assert!(!is_wrong_match, "CLAUDE.md in wrong directory should not match");
+        assert!(
+            !is_wrong_match,
+            "CLAUDE.md in wrong directory should not match"
+        );
     }
 
     #[test]
@@ -554,6 +594,9 @@ mod tests {
         let changed = vec![dir.path().join("CLAUDE.md")];
         let result = WatchEngine::reverse_sync(&config, dir.path(), &changed).unwrap();
 
-        assert!(result.is_none(), "expected no event when content is identical");
+        assert!(
+            result.is_none(),
+            "expected no event when content is identical"
+        );
     }
 }

@@ -6,8 +6,8 @@ use crate::config::{AisyncConfig, SyncStrategy};
 use crate::error::{AisyncError, SyncError};
 use crate::hooks::HookEngine;
 use crate::types::{
-    content_hash, DriftState, HookTranslation, StatusReport, SyncAction, SyncReport, ToolKind,
-    ToolSyncResult, ToolSyncStatus,
+    DriftState, HookTranslation, StatusReport, SyncAction, SyncReport, ToolKind, ToolSyncResult,
+    ToolSyncStatus, content_hash,
 };
 
 /// The sync engine orchestrates planning, executing, and checking status
@@ -19,12 +19,11 @@ impl SyncEngine {
     /// Used by both `aisync sync` and `aisync sync --dry-run`.
     pub fn plan(config: &AisyncConfig, project_root: &Path) -> Result<SyncReport, AisyncError> {
         let canonical_path = project_root.join(".ai/instructions.md");
-        let canonical_content =
-            std::fs::read_to_string(&canonical_path).map_err(|_| {
-                AisyncError::Sync(SyncError::CanonicalMissing {
-                    path: canonical_path.display().to_string(),
-                })
-            })?;
+        let canonical_content = std::fs::read_to_string(&canonical_path).map_err(|_| {
+            AisyncError::Sync(SyncError::CanonicalMissing {
+                path: canonical_path.display().to_string(),
+            })
+        })?;
 
         // Scan for memory files
         let memory_files = crate::memory::MemoryEngine::list(project_root)?;
@@ -77,9 +76,7 @@ impl SyncEngine {
                 match adapter.translate_hooks(&hooks_config) {
                     Ok(HookTranslation::Supported { tool, content, .. }) => {
                         let path = match tool {
-                            ToolKind::ClaudeCode => {
-                                project_root.join(".claude/settings.json")
-                            }
+                            ToolKind::ClaudeCode => project_root.join(".claude/settings.json"),
                             ToolKind::OpenCode => {
                                 project_root.join(".opencode/plugins/aisync-hooks.js")
                             }
@@ -113,10 +110,7 @@ impl SyncEngine {
     /// Execute a planned sync. Mutates the filesystem.
     /// Non-interactive mode: SkipExistingFile actions are recorded but not executed.
     /// After executing tool syncs, updates .gitignore with aisync-managed section.
-    pub fn execute(
-        report: &SyncReport,
-        project_root: &Path,
-    ) -> Result<SyncReport, AisyncError> {
+    pub fn execute(report: &SyncReport, project_root: &Path) -> Result<SyncReport, AisyncError> {
         let mut executed_results = Vec::new();
         let mut gitignore_entries = Vec::new();
 
@@ -138,22 +132,19 @@ impl SyncEngine {
                             SyncAction::CreateSymlink { link, .. }
                             | SyncAction::RemoveAndRelink { link, .. } => {
                                 if let Some(name) = link.file_name() {
-                                    gitignore_entries
-                                        .push(name.to_string_lossy().to_string());
+                                    gitignore_entries.push(name.to_string_lossy().to_string());
                                 }
                             }
                             SyncAction::CreateFile { path, .. } => {
                                 // Track aisync-managed files (e.g., CLAUDE.md with conditionals)
                                 if let Some(name) = path.file_name() {
-                                    gitignore_entries
-                                        .push(name.to_string_lossy().to_string());
+                                    gitignore_entries.push(name.to_string_lossy().to_string());
                                 }
                             }
                             SyncAction::GenerateMdc { output, .. } => {
                                 // Use relative path from project root
                                 if let Ok(rel) = output.strip_prefix(project_root) {
-                                    gitignore_entries
-                                        .push(rel.display().to_string());
+                                    gitignore_entries.push(rel.display().to_string());
                                 }
                             }
                             _ => {}
@@ -188,17 +179,13 @@ impl SyncEngine {
     }
 
     /// Get sync status for all enabled tools.
-    pub fn status(
-        config: &AisyncConfig,
-        project_root: &Path,
-    ) -> Result<StatusReport, AisyncError> {
+    pub fn status(config: &AisyncConfig, project_root: &Path) -> Result<StatusReport, AisyncError> {
         let canonical_path = project_root.join(".ai/instructions.md");
-        let canonical_content =
-            std::fs::read_to_string(&canonical_path).map_err(|_| {
-                AisyncError::Sync(SyncError::CanonicalMissing {
-                    path: canonical_path.display().to_string(),
-                })
-            })?;
+        let canonical_content = std::fs::read_to_string(&canonical_path).map_err(|_| {
+            AisyncError::Sync(SyncError::CanonicalMissing {
+                path: canonical_path.display().to_string(),
+            })
+        })?;
         let hash = content_hash(canonical_content.as_bytes());
 
         let mut tools = Vec::new();
@@ -242,10 +229,7 @@ impl SyncEngine {
 
         let files: Vec<String> = memory_files
             .iter()
-            .filter_map(|p| {
-                p.file_name()
-                    .map(|n| n.to_string_lossy().to_string())
-            })
+            .filter_map(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
             .collect();
 
         let mut per_tool = Vec::new();
@@ -274,8 +258,7 @@ impl SyncEngine {
                 ToolKind::OpenCode => {
                     let agents_md = project_root.join("AGENTS.md");
                     if agents_md.exists() {
-                        let content =
-                            std::fs::read_to_string(&agents_md).unwrap_or_default();
+                        let content = std::fs::read_to_string(&agents_md).unwrap_or_default();
                         if content.contains("<!-- aisync:memory -->") {
                             (true, Some("references in AGENTS.md".to_string()))
                         } else {
@@ -292,7 +275,10 @@ impl SyncEngine {
                         if content.contains("<!-- aisync:memory -->") {
                             (true, Some("references in project.mdc".to_string()))
                         } else {
-                            (false, Some("no memory references in project.mdc".to_string()))
+                            (
+                                false,
+                                Some("no memory references in project.mdc".to_string()),
+                            )
                         }
                     } else {
                         (false, Some("project.mdc not found".to_string()))
@@ -342,11 +328,9 @@ impl SyncEngine {
                                 false
                             }
                         }
-                        ToolKind::OpenCode => {
-                            project_root
-                                .join(".opencode/plugins/aisync-hooks.js")
-                                .exists()
-                        }
+                        ToolKind::OpenCode => project_root
+                            .join(".opencode/plugins/aisync-hooks.js")
+                            .exists(),
                         _ => false,
                     };
                     let detail = if is_translated {
@@ -360,9 +344,7 @@ impl SyncEngine {
                     };
                     (true, is_translated, detail)
                 }
-                Ok(HookTranslation::Unsupported { reason, .. }) => {
-                    (false, false, Some(reason))
-                }
+                Ok(HookTranslation::Unsupported { reason, .. }) => (false, false, Some(reason)),
                 Err(e) => (false, false, Some(format!("error: {e}"))),
             };
 
@@ -480,13 +462,27 @@ impl SyncEngine {
                 }
                 Ok(())
             }
-            SyncAction::UpdateMemoryReferences { path, references, marker_start, marker_end } => {
+            SyncAction::UpdateMemoryReferences {
+                path,
+                references,
+                marker_start,
+                marker_end,
+            } => {
                 let entry_refs: Vec<&str> = references.iter().map(|s| s.as_str()).collect();
-                crate::managed_section::update_managed_section(path, &entry_refs, marker_start, marker_end)
-                    .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
+                crate::managed_section::update_managed_section(
+                    path,
+                    &entry_refs,
+                    marker_start,
+                    marker_end,
+                )
+                .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
                 Ok(())
             }
-            SyncAction::WriteHookTranslation { path, content, tool } => {
+            SyncAction::WriteHookTranslation {
+                path,
+                content,
+                tool,
+            } => {
                 if let Some(parent) = path.parent() {
                     std::fs::create_dir_all(parent)
                         .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
@@ -494,14 +490,12 @@ impl SyncEngine {
                 match tool {
                     ToolKind::ClaudeCode => {
                         // Merge hooks into existing settings.json if it exists
-                        let hooks_value: serde_json::Value =
-                            serde_json::from_str(content).map_err(|e| {
-                                AisyncError::Sync(SyncError::WriteFailed(
-                                    std::io::Error::new(
-                                        std::io::ErrorKind::InvalidData,
-                                        format!("failed to parse hook JSON: {e}"),
-                                    ),
-                                ))
+                        let hooks_value: serde_json::Value = serde_json::from_str(content)
+                            .map_err(|e| {
+                                AisyncError::Sync(SyncError::WriteFailed(std::io::Error::new(
+                                    std::io::ErrorKind::InvalidData,
+                                    format!("failed to parse hook JSON: {e}"),
+                                )))
                             })?;
                         let mut settings = if path.exists() {
                             let existing = std::fs::read_to_string(path)
@@ -515,16 +509,13 @@ impl SyncEngine {
                         if let (Some(settings_map), Some(hooks_obj)) =
                             (settings.as_object_mut(), hooks_value.get("hooks"))
                         {
-                            settings_map
-                                .insert("hooks".to_string(), hooks_obj.clone());
+                            settings_map.insert("hooks".to_string(), hooks_obj.clone());
                         }
                         let output = serde_json::to_string_pretty(&settings).map_err(|e| {
-                            AisyncError::Sync(SyncError::WriteFailed(
-                                std::io::Error::new(
-                                    std::io::ErrorKind::InvalidData,
-                                    format!("failed to serialize settings.json: {e}"),
-                                ),
-                            ))
+                            AisyncError::Sync(SyncError::WriteFailed(std::io::Error::new(
+                                std::io::ErrorKind::InvalidData,
+                                format!("failed to serialize settings.json: {e}"),
+                            )))
                         })?;
                         std::fs::write(path, output)
                             .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
@@ -555,7 +546,7 @@ impl SyncEngine {
             .tools
             .claude_code
             .as_ref()
-            .map_or(true, |tc| tc.enabled);
+            .is_none_or(|tc| tc.enabled);
         if claude_enabled {
             tools.push((
                 ToolKind::ClaudeCode,
@@ -565,7 +556,7 @@ impl SyncEngine {
         }
 
         // Cursor
-        let cursor_enabled = config.tools.cursor.as_ref().map_or(true, |tc| tc.enabled);
+        let cursor_enabled = config.tools.cursor.as_ref().is_none_or(|tc| tc.enabled);
         if cursor_enabled {
             tools.push((
                 ToolKind::Cursor,
@@ -575,11 +566,7 @@ impl SyncEngine {
         }
 
         // OpenCode
-        let opencode_enabled = config
-            .tools
-            .opencode
-            .as_ref()
-            .map_or(true, |tc| tc.enabled);
+        let opencode_enabled = config.tools.opencode.as_ref().is_none_or(|tc| tc.enabled);
         if opencode_enabled {
             tools.push((
                 ToolKind::OpenCode,
@@ -685,12 +672,24 @@ mod tests {
 
         // Check CLAUDE.md symlink exists
         let claude_md = dir.path().join("CLAUDE.md");
-        assert!(claude_md.symlink_metadata().unwrap().file_type().is_symlink());
+        assert!(
+            claude_md
+                .symlink_metadata()
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
         assert_eq!(std::fs::read_to_string(&claude_md).unwrap(), canonical);
 
         // Check AGENTS.md symlink exists
         let agents_md = dir.path().join("AGENTS.md");
-        assert!(agents_md.symlink_metadata().unwrap().file_type().is_symlink());
+        assert!(
+            agents_md
+                .symlink_metadata()
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
         assert_eq!(std::fs::read_to_string(&agents_md).unwrap(), canonical);
 
         // Check .cursor/rules/project.mdc exists with frontmatter
@@ -720,16 +719,28 @@ mod tests {
         let result = SyncEngine::execute(&plan, dir.path()).unwrap();
 
         // ClaudeCode should have a SkipExistingFile (not an error)
-        let claude_result = result.results.iter().find(|r| r.tool == ToolKind::ClaudeCode).unwrap();
+        let claude_result = result
+            .results
+            .iter()
+            .find(|r| r.tool == ToolKind::ClaudeCode)
+            .unwrap();
         assert!(claude_result.error.is_none());
 
         // Cursor should have succeeded
-        let cursor_result = result.results.iter().find(|r| r.tool == ToolKind::Cursor).unwrap();
+        let cursor_result = result
+            .results
+            .iter()
+            .find(|r| r.tool == ToolKind::Cursor)
+            .unwrap();
         assert!(cursor_result.error.is_none());
         assert!(dir.path().join(".cursor/rules/project.mdc").exists());
 
         // OpenCode should have succeeded
-        let opencode_result = result.results.iter().find(|r| r.tool == ToolKind::OpenCode).unwrap();
+        let opencode_result = result
+            .results
+            .iter()
+            .find(|r| r.tool == ToolKind::OpenCode)
+            .unwrap();
         assert!(opencode_result.error.is_none());
     }
 
@@ -802,20 +813,32 @@ mod tests {
         let plan2 = SyncEngine::plan(&config, dir.path()).unwrap();
 
         // ClaudeCode and OpenCode should have empty actions (symlinks already correct)
-        let claude_plan = plan2.results.iter().find(|r| r.tool == ToolKind::ClaudeCode).unwrap();
+        let claude_plan = plan2
+            .results
+            .iter()
+            .find(|r| r.tool == ToolKind::ClaudeCode)
+            .unwrap();
         assert!(
             claude_plan.actions.is_empty(),
             "expected no actions for ClaudeCode on second plan, got {:?}",
             claude_plan.actions
         );
 
-        let opencode_plan = plan2.results.iter().find(|r| r.tool == ToolKind::OpenCode).unwrap();
+        let opencode_plan = plan2
+            .results
+            .iter()
+            .find(|r| r.tool == ToolKind::OpenCode)
+            .unwrap();
         assert!(
             opencode_plan.actions.is_empty(),
             "expected no actions for OpenCode on second plan"
         );
 
-        let cursor_plan = plan2.results.iter().find(|r| r.tool == ToolKind::Cursor).unwrap();
+        let cursor_plan = plan2
+            .results
+            .iter()
+            .find(|r| r.tool == ToolKind::Cursor)
+            .unwrap();
         assert!(
             cursor_plan.actions.is_empty(),
             "expected no actions for Cursor on second plan"
@@ -848,7 +871,11 @@ mod tests {
         // Each tool should have memory sync actions in addition to instruction sync actions
         for tool_result in &report.results {
             let has_memory_action = tool_result.actions.iter().any(|a| {
-                matches!(a, SyncAction::CreateMemorySymlink { .. } | SyncAction::UpdateMemoryReferences { .. })
+                matches!(
+                    a,
+                    SyncAction::CreateMemorySymlink { .. }
+                        | SyncAction::UpdateMemoryReferences { .. }
+                )
             });
             assert!(
                 has_memory_action,
@@ -870,7 +897,11 @@ mod tests {
         // No memory actions should be present
         for tool_result in &report.results {
             let has_memory_action = tool_result.actions.iter().any(|a| {
-                matches!(a, SyncAction::CreateMemorySymlink { .. } | SyncAction::UpdateMemoryReferences { .. })
+                matches!(
+                    a,
+                    SyncAction::CreateMemorySymlink { .. }
+                        | SyncAction::UpdateMemoryReferences { .. }
+                )
             });
             assert!(
                 !has_memory_action,
@@ -891,7 +922,11 @@ mod tests {
         let config = all_enabled_config();
         let plan = SyncEngine::plan(&config, dir.path()).unwrap();
         let result = SyncEngine::execute(&plan, dir.path()).unwrap();
-        assert!(!result.has_errors(), "sync should not have errors: {:?}", result);
+        assert!(
+            !result.has_errors(),
+            "sync should not have errors: {:?}",
+            result
+        );
 
         // Check AGENTS.md has memory references
         let agents_content = std::fs::read_to_string(dir.path().join("AGENTS.md"));
@@ -909,15 +944,25 @@ mod tests {
         let report = SyncEngine::plan(&config, dir.path()).unwrap();
 
         // The Cursor adapter generates MDC content; check that the claude-only section is stripped
-        let cursor_result = report.results.iter().find(|r| r.tool == ToolKind::Cursor).unwrap();
+        let cursor_result = report
+            .results
+            .iter()
+            .find(|r| r.tool == ToolKind::Cursor)
+            .unwrap();
         for action in &cursor_result.actions {
             if let SyncAction::GenerateMdc { content, .. } = action {
-                assert!(!content.contains("Claude-specific info"),
-                    "Cursor MDC should NOT contain claude-only content");
-                assert!(content.contains("Cursor-specific info"),
-                    "Cursor MDC should contain cursor-only content");
-                assert!(content.contains("Shared footer"),
-                    "Cursor MDC should contain common content");
+                assert!(
+                    !content.contains("Claude-specific info"),
+                    "Cursor MDC should NOT contain claude-only content"
+                );
+                assert!(
+                    content.contains("Cursor-specific info"),
+                    "Cursor MDC should contain cursor-only content"
+                );
+                assert!(
+                    content.contains("Shared footer"),
+                    "Cursor MDC should contain common content"
+                );
             }
         }
     }
@@ -949,23 +994,34 @@ mod tests {
         // CLAUDE.md should NOT contain cursor-only content (regular file, not symlink)
         let claude_md = dir.path().join("CLAUDE.md");
         let claude_content = std::fs::read_to_string(&claude_md).unwrap();
-        assert!(!claude_content.contains("Cursor-specific content"),
-            "CLAUDE.md should NOT contain cursor-only content");
-        assert!(claude_content.contains("Shared content"),
-            "CLAUDE.md should contain shared content");
+        assert!(
+            !claude_content.contains("Cursor-specific content"),
+            "CLAUDE.md should NOT contain cursor-only content"
+        );
+        assert!(
+            claude_content.contains("Shared content"),
+            "CLAUDE.md should contain shared content"
+        );
         let meta = claude_md.symlink_metadata().unwrap();
-        assert!(!meta.file_type().is_symlink(),
-            "CLAUDE.md should be a regular file when conditionals are active");
+        assert!(
+            !meta.file_type().is_symlink(),
+            "CLAUDE.md should be a regular file when conditionals are active"
+        );
 
         // Cursor MDC should contain cursor-only content
-        let mdc_content = std::fs::read_to_string(dir.path().join(".cursor/rules/project.mdc")).unwrap();
-        assert!(mdc_content.contains("Cursor-specific content"),
-            "Cursor MDC should contain cursor-only content");
+        let mdc_content =
+            std::fs::read_to_string(dir.path().join(".cursor/rules/project.mdc")).unwrap();
+        assert!(
+            mdc_content.contains("Cursor-specific content"),
+            "Cursor MDC should contain cursor-only content"
+        );
 
         // AGENTS.md (OpenCode) should NOT contain cursor-only content
         let agents_content = std::fs::read_to_string(dir.path().join("AGENTS.md")).unwrap();
-        assert!(!agents_content.contains("Cursor-specific content"),
-            "AGENTS.md should NOT contain cursor-only content");
+        assert!(
+            !agents_content.contains("Cursor-specific content"),
+            "AGENTS.md should NOT contain cursor-only content"
+        );
     }
 
     #[cfg(unix)]
@@ -982,18 +1038,25 @@ mod tests {
 
         // CLAUDE.md should contain claude-only content
         let claude_content = std::fs::read_to_string(dir.path().join("CLAUDE.md")).unwrap();
-        assert!(claude_content.contains("Claude-only content"),
-            "CLAUDE.md should contain claude-only content");
+        assert!(
+            claude_content.contains("Claude-only content"),
+            "CLAUDE.md should contain claude-only content"
+        );
 
         // Cursor MDC should NOT contain claude-only content
-        let mdc_content = std::fs::read_to_string(dir.path().join(".cursor/rules/project.mdc")).unwrap();
-        assert!(!mdc_content.contains("Claude-only content"),
-            "Cursor MDC should NOT contain claude-only content");
+        let mdc_content =
+            std::fs::read_to_string(dir.path().join(".cursor/rules/project.mdc")).unwrap();
+        assert!(
+            !mdc_content.contains("Claude-only content"),
+            "Cursor MDC should NOT contain claude-only content"
+        );
 
         // AGENTS.md should NOT contain claude-only content
         let agents_content = std::fs::read_to_string(dir.path().join("AGENTS.md")).unwrap();
-        assert!(!agents_content.contains("Claude-only content"),
-            "AGENTS.md should NOT contain claude-only content");
+        assert!(
+            !agents_content.contains("Claude-only content"),
+            "AGENTS.md should NOT contain claude-only content"
+        );
     }
 
     #[cfg(unix)]
@@ -1010,8 +1073,10 @@ mod tests {
 
         let claude_md = dir.path().join("CLAUDE.md");
         let meta = claude_md.symlink_metadata().unwrap();
-        assert!(meta.file_type().is_symlink(),
-            "CLAUDE.md should be a symlink when no conditionals are used");
+        assert!(
+            meta.file_type().is_symlink(),
+            "CLAUDE.md should be a symlink when no conditionals are used"
+        );
         let claude_content = std::fs::read_to_string(&claude_md).unwrap();
         assert_eq!(claude_content, content);
     }

@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use crate::adapter::{CursorAdapter, DetectionResult, ToolAdapter};
 use crate::config::SyncStrategy;
 use crate::error::AisyncError;
-use crate::types::{content_hash, Confidence, DriftState, SyncAction, ToolKind, ToolSyncStatus};
+use crate::types::{Confidence, DriftState, SyncAction, ToolKind, ToolSyncStatus, content_hash};
 
 /// The output path relative to project root for generated .mdc file.
 const MDC_REL: &str = ".cursor/rules/project.mdc";
@@ -32,9 +32,8 @@ impl ToolAdapter for CursorAdapter {
         }
         if cursorrules_file.exists() {
             markers.push(cursorrules_file);
-            version_hint = Some(
-                "legacy format (.cursorrules) — consider migrating to .cursor/rules/".into(),
-            );
+            version_hint =
+                Some("legacy format (.cursorrules) — consider migrating to .cursor/rules/".into());
         }
 
         let detected = !markers.is_empty();
@@ -61,10 +60,10 @@ impl ToolAdapter for CursorAdapter {
         })?;
 
         // Strip YAML frontmatter: content between --- and ---
-        let body = if raw.starts_with("---") {
+        let body = if let Some(after_open) = raw.strip_prefix("---") {
             // Find the closing ---
-            if let Some(end_idx) = raw[3..].find("---") {
-                let after_frontmatter = &raw[3 + end_idx + 3..];
+            if let Some(end_idx) = after_open.find("---") {
+                let after_frontmatter = &after_open[end_idx + 3..];
                 // Strip leading newlines after frontmatter
                 after_frontmatter.trim_start_matches('\n').to_string()
             } else {
@@ -92,22 +91,19 @@ impl ToolAdapter for CursorAdapter {
         // Ensure directory exists
         let rules_dir = project_root.join(".cursor").join("rules");
         if !rules_dir.is_dir() {
-            actions.push(SyncAction::CreateDirectory {
-                path: rules_dir,
-            });
+            actions.push(SyncAction::CreateDirectory { path: rules_dir });
         }
 
         if output_path.exists() {
             // Compare existing content
-            let existing = std::fs::read_to_string(&output_path).map_err(|e| {
-                AisyncError::Adapter {
+            let existing =
+                std::fs::read_to_string(&output_path).map_err(|e| AisyncError::Adapter {
                     tool: "cursor".to_string(),
                     source: crate::error::AdapterError::DetectionFailed(format!(
                         "failed to read {}: {e}",
                         output_path.display()
                     )),
-                }
-            })?;
+                })?;
             if existing == expected_content {
                 // Idempotent: no action needed
                 return Ok(vec![]);
@@ -135,7 +131,8 @@ impl ToolAdapter for CursorAdapter {
             .iter()
             .filter_map(|path| {
                 let name = path.file_stem()?.to_string_lossy().to_string();
-                let rel = path.strip_prefix(project_root)
+                let rel = path
+                    .strip_prefix(project_root)
                     .map(|p| p.display().to_string())
                     .unwrap_or_else(|_| format!(".ai/memory/{}.md", name));
                 Some(format!("- [{}]({})", name, rel))
@@ -196,9 +193,9 @@ impl ToolAdapter for CursorAdapter {
 
         // Strip frontmatter and hash body only
         let actual_str = String::from_utf8_lossy(&actual_content);
-        let body = if actual_str.starts_with("---") {
-            if let Some(end_idx) = actual_str[3..].find("---") {
-                let after = &actual_str[3 + end_idx + 3..];
+        let body = if let Some(after_open) = actual_str.strip_prefix("---") {
+            if let Some(end_idx) = after_open.find("---") {
+                let after = &after_open[end_idx + 3..];
                 after.trim_start_matches('\n').to_string()
             } else {
                 actual_str.to_string()
@@ -287,7 +284,8 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let rules_dir = dir.path().join(".cursor").join("rules");
         std::fs::create_dir_all(&rules_dir).unwrap();
-        let mdc_content = "---\ndescription: test\nglobs: \"**\"\nalwaysApply: true\n---\n\n# Instructions";
+        let mdc_content =
+            "---\ndescription: test\nglobs: \"**\"\nalwaysApply: true\n---\n\n# Instructions";
         std::fs::write(rules_dir.join("project.mdc"), mdc_content).unwrap();
 
         let content = CursorAdapter.read_instructions(dir.path()).unwrap();
@@ -315,7 +313,9 @@ mod tests {
         // Should include CreateDirectory + GenerateMdc
         assert!(actions.len() >= 1);
 
-        let mdc_action = actions.iter().find(|a| matches!(a, SyncAction::GenerateMdc { .. }));
+        let mdc_action = actions
+            .iter()
+            .find(|a| matches!(a, SyncAction::GenerateMdc { .. }));
         assert!(mdc_action.is_some(), "expected GenerateMdc action");
 
         if let SyncAction::GenerateMdc { content, .. } = mdc_action.unwrap() {
@@ -339,7 +339,10 @@ mod tests {
         let actions = CursorAdapter
             .plan_sync(dir.path(), canonical, SyncStrategy::Generate)
             .unwrap();
-        assert!(actions.is_empty(), "expected no actions for unchanged content");
+        assert!(
+            actions.is_empty(),
+            "expected no actions for unchanged content"
+        );
     }
 
     #[test]
@@ -353,7 +356,11 @@ mod tests {
             .plan_sync(dir.path(), "new instructions", SyncStrategy::Generate)
             .unwrap();
         assert!(!actions.is_empty());
-        assert!(actions.iter().any(|a| matches!(a, SyncAction::GenerateMdc { .. })));
+        assert!(
+            actions
+                .iter()
+                .any(|a| matches!(a, SyncAction::GenerateMdc { .. }))
+        );
     }
 
     // --- sync_status tests ---
@@ -378,7 +385,9 @@ mod tests {
         std::fs::write(rules_dir.join("project.mdc"), &mdc_content).unwrap();
 
         let canonical_hash = content_hash(canonical.as_bytes());
-        let status = CursorAdapter.sync_status(dir.path(), &canonical_hash).unwrap();
+        let status = CursorAdapter
+            .sync_status(dir.path(), &canonical_hash)
+            .unwrap();
         assert_eq!(status.drift, DriftState::InSync);
     }
 
@@ -398,7 +407,12 @@ mod tests {
 
         assert_eq!(actions.len(), 1);
         match &actions[0] {
-            SyncAction::UpdateMemoryReferences { path, references, marker_start, marker_end } => {
+            SyncAction::UpdateMemoryReferences {
+                path,
+                references,
+                marker_start,
+                marker_end,
+            } => {
                 assert!(path.to_string_lossy().contains(".cursor/rules/project.mdc"));
                 assert_eq!(references.len(), 1);
                 assert!(references[0].contains(".ai/memory/debugging.md"));
@@ -413,9 +427,7 @@ mod tests {
     fn test_plan_memory_sync_empty_files_returns_empty() {
         let dir = TempDir::new().unwrap();
 
-        let actions = CursorAdapter
-            .plan_memory_sync(dir.path(), &[])
-            .unwrap();
+        let actions = CursorAdapter.plan_memory_sync(dir.path(), &[]).unwrap();
         assert!(actions.is_empty());
     }
 
@@ -437,7 +449,7 @@ mod tests {
 
     #[test]
     fn test_translate_hooks_returns_unsupported() {
-        use crate::types::{HookGroup, HookHandler, HooksConfig, HookTranslation};
+        use crate::types::{HookGroup, HookHandler, HookTranslation, HooksConfig};
         use std::collections::BTreeMap;
 
         let mut events = BTreeMap::new();

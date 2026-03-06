@@ -65,10 +65,7 @@ pub trait ToolAdapter {
     }
 
     /// Translate hooks to this tool's native format.
-    fn translate_hooks(
-        &self,
-        hooks: &HooksConfig,
-    ) -> Result<HookTranslation, AisyncError> {
+    fn translate_hooks(&self, hooks: &HooksConfig) -> Result<HookTranslation, AisyncError> {
         let _ = hooks;
         Ok(HookTranslation::Unsupported {
             tool: self.name(),
@@ -171,10 +168,7 @@ impl ToolAdapter for AnyAdapter {
         }
     }
 
-    fn translate_hooks(
-        &self,
-        hooks: &HooksConfig,
-    ) -> Result<HookTranslation, AisyncError> {
+    fn translate_hooks(&self, hooks: &HooksConfig) -> Result<HookTranslation, AisyncError> {
         match self {
             AnyAdapter::ClaudeCode(a) => a.translate_hooks(hooks),
             AnyAdapter::Cursor(a) => a.translate_hooks(hooks),
