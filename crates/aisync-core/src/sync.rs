@@ -24,6 +24,9 @@ impl SyncEngine {
                 })
             })?;
 
+        // Scan for memory files
+        let memory_files = crate::memory::MemoryEngine::list(project_root)?;
+
         let mut results = Vec::new();
 
         for (tool_kind, adapter, tool_config_opt) in Self::enabled_tools(config) {
@@ -31,13 +34,12 @@ impl SyncEngine {
                 .map(|tc| tc.effective_sync_strategy(&config.defaults))
                 .unwrap_or(config.defaults.sync_strategy);
 
+            let mut actions = Vec::new();
+
+            // Plan instruction sync
             match adapter.plan_sync(project_root, &canonical_content, strategy) {
-                Ok(actions) => {
-                    results.push(ToolSyncResult {
-                        tool: tool_kind,
-                        actions,
-                        error: None,
-                    });
+                Ok(instruction_actions) => {
+                    actions.extend(instruction_actions);
                 }
                 Err(e) => {
                     results.push(ToolSyncResult {
@@ -45,8 +47,31 @@ impl SyncEngine {
                         actions: vec![],
                         error: Some(format!("{e}")),
                     });
+                    continue;
                 }
             }
+
+            // Plan memory sync (if memory files exist)
+            if !memory_files.is_empty() {
+                match adapter.plan_memory_sync(project_root, &memory_files) {
+                    Ok(memory_actions) => {
+                        actions.extend(memory_actions);
+                    }
+                    Err(e) => {
+                        // Memory sync errors are non-fatal; log but continue
+                        actions.push(SyncAction::WarnUnsupportedHooks {
+                            tool: tool_kind,
+                            reason: format!("memory sync failed: {e}"),
+                        });
+                    }
+                }
+            }
+
+            results.push(ToolSyncResult {
+                tool: tool_kind,
+                actions,
+                error: None,
+            });
         }
 
         Ok(SyncReport { results })
@@ -223,6 +248,11 @@ impl SyncEngine {
                 Ok(())
             }
             SyncAction::CreateMemorySymlink { link, target } => {
+                // Create parent directories for the symlink
+                if let Some(parent) = link.parent() {
+                    std::fs::create_dir_all(parent)
+                        .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
+                }
                 #[cfg(unix)]
                 {
                     std::os::unix::fs::symlink(target, link)
@@ -230,9 +260,8 @@ impl SyncEngine {
                 }
                 #[cfg(not(unix))]
                 {
-                    let canonical_path = link.parent().unwrap_or(Path::new(".")).join(target);
-                    std::fs::copy(&canonical_path, link)
-                        .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
+                    let _ = (link, target); // Suppress unused warnings
+                    eprintln!("Warning: memory directory symlinks not supported on this platform");
                 }
                 Ok(())
             }

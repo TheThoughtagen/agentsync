@@ -165,6 +165,45 @@ impl ToolAdapter for ClaudeCodeAdapter {
         }])
     }
 
+    fn translate_hooks(
+        &self,
+        hooks: &crate::types::HooksConfig,
+    ) -> Result<crate::types::HookTranslation, AisyncError> {
+        let mut hooks_obj = serde_json::Map::new();
+        for (event, groups) in &hooks.events {
+            let groups_json: Vec<serde_json::Value> = groups.iter().map(|g| {
+                let mut obj = serde_json::Map::new();
+                if let Some(matcher) = &g.matcher {
+                    obj.insert("matcher".into(), serde_json::Value::String(matcher.clone()));
+                }
+                let hooks_arr: Vec<serde_json::Value> = g.hooks.iter().map(|h| {
+                    let mut hook_obj = serde_json::Map::new();
+                    hook_obj.insert("type".into(), serde_json::Value::String(h.hook_type.clone()));
+                    hook_obj.insert("command".into(), serde_json::Value::String(h.command.clone()));
+                    if let Some(timeout) = h.timeout {
+                        // Convert milliseconds to seconds for Claude Code
+                        hook_obj.insert("timeout".into(), serde_json::json!(timeout / 1000));
+                    }
+                    serde_json::Value::Object(hook_obj)
+                }).collect();
+                obj.insert("hooks".into(), serde_json::Value::Array(hooks_arr));
+                serde_json::Value::Object(obj)
+            }).collect();
+            hooks_obj.insert(event.clone(), serde_json::Value::Array(groups_json));
+        }
+        let json = serde_json::json!({ "hooks": hooks_obj });
+        let content = serde_json::to_string_pretty(&json)
+            .map_err(|e| AisyncError::Adapter {
+                tool: "claude-code".to_string(),
+                source: crate::error::AdapterError::DetectionFailed(format!("JSON serialization failed: {e}")),
+            })?;
+        Ok(crate::types::HookTranslation::Supported {
+            tool: ToolKind::ClaudeCode,
+            content,
+            format: "json".to_string(),
+        })
+    }
+
     fn sync_status(
         &self,
         project_root: &Path,

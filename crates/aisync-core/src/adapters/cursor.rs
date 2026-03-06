@@ -150,6 +150,16 @@ impl ToolAdapter for CursorAdapter {
         }])
     }
 
+    fn translate_hooks(
+        &self,
+        _hooks: &crate::types::HooksConfig,
+    ) -> Result<crate::types::HookTranslation, AisyncError> {
+        Ok(crate::types::HookTranslation::Unsupported {
+            tool: ToolKind::Cursor,
+            reason: "Cursor does not support hooks".to_string(),
+        })
+    }
+
     fn sync_status(
         &self,
         project_root: &Path,
