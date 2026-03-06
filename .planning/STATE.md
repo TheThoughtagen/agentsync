@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-last_updated: "2026-03-06T13:53:24Z"
+last_updated: "2026-03-06T14:03:13Z"
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 15
-  completed_plans: 14
+  completed_plans: 15
 ---
 
 # Project State
@@ -22,19 +22,19 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 
 ## Current Position
 
-Phase: 4 of 5 (Watch Mode and Bidirectional Sync)
-Plan: 2 of 3 in current phase (04-02 complete)
-Status: In Progress
-Last activity: 2026-03-06 -- Completed 04-02 (WatchEngine with bidirectional sync)
+Phase: 4 of 4 (Watch Mode and Bidirectional Sync) -- COMPLETE
+Plan: 3 of 3 in current phase (04-03 complete)
+Status: Phase 04 Complete
+Last activity: 2026-03-06 -- Completed 04-03 (CLI command wiring for watch, diff, check)
 
-Progress: [█████████░] 93%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 10
-- Average duration: 2.9min
-- Total execution time: 0.47 hours
+- Total plans completed: 11
+- Average duration: 2.7min
+- Total execution time: 0.48 hours
 
 **By Phase:**
 
@@ -44,10 +44,10 @@ Progress: [█████████░] 93%
 | 02-core-sync-loop-mvp | 5 | 15min | 3.0min |
 
 | 03-memory-and-hooks | 3 | 14min | 4.7min |
-| 04-watch-mode | 2 | 6min | 3.0min |
+| 04-watch-mode | 3 | 7min | 2.3min |
 
 **Recent Trend:**
-- Last 5 plans: 03-01 (4min), 03-02 (5min), 03-03 (5min), 04-01 (3min), 04-02 (3min)
+- Last 5 plans: 03-02 (5min), 03-03 (5min), 04-01 (3min), 04-02 (3min), 04-03 (1min)
 - Trend: stable
 
 ## Accumulated Context
@@ -96,6 +96,8 @@ Recent decisions affecting current work:
 - 04-02: Sync lock uses AtomicBool to prevent self-triggered watch events during sync writes
 - 04-02: Reverse sync reads via ToolAdapter::read_instructions() for consistent content parsing
 - 04-02: Tool watch paths filter to non-symlink files only (symlinks already edit canonical)
+- 04-03: check command uses process::exit(1) for drift, no color in default output for CI compatibility
+- 04-03: watch timestamp uses SystemTime instead of chrono to avoid new dependency
 
 ### Pending Todos
 
@@ -108,5 +110,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-06
-Stopped at: Completed 04-02-PLAN.md (WatchEngine with bidirectional sync)
-Resume file: .planning/phases/04-watch-mode-bidirectional-sync/04-02-SUMMARY.md
+Stopped at: Completed 04-03-PLAN.md (CLI command wiring for watch, diff, check)
+Resume file: .planning/phases/04-watch-mode-bidirectional-sync/04-03-SUMMARY.md
