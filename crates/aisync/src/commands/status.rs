@@ -2,7 +2,10 @@ use std::path::Path;
 
 use colored::Colorize;
 
-use aisync_core::{AisyncConfig, DriftState, StatusReport, SyncEngine, SyncStrategy, ToolKind};
+use aisync_core::{
+    AisyncConfig, DriftState, HookStatusReport, MemoryStatusReport, StatusReport, SyncEngine,
+    SyncStrategy, ToolKind,
+};
 
 pub fn run_status(json: bool, verbose: bool) -> Result<(), Box<dyn std::error::Error>> {
     let config_path = Path::new("aisync.toml");
@@ -64,6 +67,18 @@ fn print_status_table(status: &StatusReport, verbose: bool) {
         }
     }
 
+    // Memory section
+    if let Some(ref memory) = status.memory {
+        println!();
+        print_memory_status(memory);
+    }
+
+    // Hook section
+    if let Some(ref hooks) = status.hooks {
+        println!();
+        print_hook_status(hooks);
+    }
+
     // Summary line after the table
     println!();
     if status.all_in_sync() {
@@ -114,5 +129,69 @@ fn strategy_display_name(strategy: SyncStrategy) -> &'static str {
         SyncStrategy::Symlink => "symlink",
         SyncStrategy::Copy => "copy",
         SyncStrategy::Generate => "generate",
+    }
+}
+
+fn print_memory_status(memory: &MemoryStatusReport) {
+    println!(
+        "{}",
+        format!("Memory Files: {} files in .ai/memory/", memory.file_count).bold()
+    );
+    for tool_status in &memory.per_tool {
+        let tool_name = tool_display_name(tool_status.tool);
+        let detail = tool_status
+            .details
+            .as_deref()
+            .unwrap_or("");
+        if tool_status.synced {
+            println!(
+                "  {:<14} {} ({})",
+                format!("{}:", tool_name),
+                "synced".green(),
+                detail
+            );
+        } else {
+            println!(
+                "  {:<14} {} ({})",
+                format!("{}:", tool_name),
+                "not synced".red(),
+                detail
+            );
+        }
+    }
+}
+
+fn print_hook_status(hooks: &HookStatusReport) {
+    println!(
+        "{}",
+        format!("Hooks: {} hooks in .ai/hooks.toml", hooks.hook_count).bold()
+    );
+    for tool_status in &hooks.per_tool {
+        let tool_name = tool_display_name(tool_status.tool);
+        let detail = tool_status
+            .details
+            .as_deref()
+            .unwrap_or("");
+        if !tool_status.supported {
+            println!(
+                "  {:<14} {}",
+                format!("{}:", tool_name),
+                format!("not supported ({})", detail).yellow()
+            );
+        } else if tool_status.translated {
+            println!(
+                "  {:<14} {} ({})",
+                format!("{}:", tool_name),
+                "translated".green(),
+                detail
+            );
+        } else {
+            println!(
+                "  {:<14} {} ({})",
+                format!("{}:", tool_name),
+                "not translated".red(),
+                detail
+            );
+        }
     }
 }

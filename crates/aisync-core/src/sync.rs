@@ -206,7 +206,167 @@ impl SyncEngine {
             }
         }
 
-        Ok(StatusReport { tools })
+        // Check memory status
+        let memory = Self::check_memory_status(config, project_root);
+
+        // Check hook status
+        let hooks = Self::check_hook_status(config, project_root);
+
+        Ok(StatusReport {
+            tools,
+            memory,
+            hooks,
+        })
+    }
+
+    /// Check memory sync status for all enabled tools.
+    fn check_memory_status(
+        config: &AisyncConfig,
+        project_root: &Path,
+    ) -> Option<crate::types::MemoryStatusReport> {
+        let memory_files = crate::memory::MemoryEngine::list(project_root).ok()?;
+        if memory_files.is_empty() {
+            return None;
+        }
+
+        let files: Vec<String> = memory_files
+            .iter()
+            .filter_map(|p| {
+                p.file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+            })
+            .collect();
+
+        let mut per_tool = Vec::new();
+
+        for (tool_kind, _adapter, _) in Self::enabled_tools(config) {
+            let (synced, details) = match tool_kind {
+                ToolKind::ClaudeCode => {
+                    match crate::memory::MemoryEngine::claude_memory_path(project_root) {
+                        Ok(claude_memory) => {
+                            if claude_memory.symlink_metadata().is_ok() {
+                                let meta = claude_memory.symlink_metadata().unwrap();
+                                if meta.file_type().is_symlink() {
+                                    (true, Some("symlinked".to_string()))
+                                } else if meta.is_dir() {
+                                    (false, Some("native directory (not symlinked)".to_string()))
+                                } else {
+                                    (false, Some("unexpected file type".to_string()))
+                                }
+                            } else {
+                                (false, Some("not synced".to_string()))
+                            }
+                        }
+                        Err(_) => (false, Some("could not resolve path".to_string())),
+                    }
+                }
+                ToolKind::OpenCode => {
+                    let agents_md = project_root.join("AGENTS.md");
+                    if agents_md.exists() {
+                        let content =
+                            std::fs::read_to_string(&agents_md).unwrap_or_default();
+                        if content.contains("<!-- aisync:memory -->") {
+                            (true, Some("references in AGENTS.md".to_string()))
+                        } else {
+                            (false, Some("no memory references in AGENTS.md".to_string()))
+                        }
+                    } else {
+                        (false, Some("AGENTS.md not found".to_string()))
+                    }
+                }
+                ToolKind::Cursor => {
+                    let mdc = project_root.join(".cursor/rules/project.mdc");
+                    if mdc.exists() {
+                        let content = std::fs::read_to_string(&mdc).unwrap_or_default();
+                        if content.contains("<!-- aisync:memory -->") {
+                            (true, Some("references in project.mdc".to_string()))
+                        } else {
+                            (false, Some("no memory references in project.mdc".to_string()))
+                        }
+                    } else {
+                        (false, Some("project.mdc not found".to_string()))
+                    }
+                }
+            };
+
+            per_tool.push(crate::types::ToolMemoryStatus {
+                tool: tool_kind,
+                synced,
+                details,
+            });
+        }
+
+        Some(crate::types::MemoryStatusReport {
+            file_count: memory_files.len(),
+            files,
+            per_tool,
+        })
+    }
+
+    /// Check hook translation status for all enabled tools.
+    fn check_hook_status(
+        config: &AisyncConfig,
+        project_root: &Path,
+    ) -> Option<crate::types::HookStatusReport> {
+        let hooks_config = HookEngine::parse(project_root).ok()?;
+        let summaries = HookEngine::list_hooks(&hooks_config);
+        if summaries.is_empty() {
+            return None;
+        }
+
+        let mut per_tool = Vec::new();
+
+        for (tool_kind, adapter, _) in Self::enabled_tools(config) {
+            let translation = adapter.translate_hooks(&hooks_config);
+            let (supported, translated, details) = match translation {
+                Ok(HookTranslation::Supported { .. }) => {
+                    let is_translated = match tool_kind {
+                        ToolKind::ClaudeCode => {
+                            let settings = project_root.join(".claude/settings.json");
+                            if settings.exists() {
+                                let content =
+                                    std::fs::read_to_string(&settings).unwrap_or_default();
+                                content.contains("\"hooks\"")
+                            } else {
+                                false
+                            }
+                        }
+                        ToolKind::OpenCode => {
+                            project_root
+                                .join(".opencode/plugins/aisync-hooks.js")
+                                .exists()
+                        }
+                        _ => false,
+                    };
+                    let detail = if is_translated {
+                        match tool_kind {
+                            ToolKind::ClaudeCode => Some("settings.json".to_string()),
+                            ToolKind::OpenCode => Some("aisync-hooks.js".to_string()),
+                            _ => None,
+                        }
+                    } else {
+                        Some("not translated yet".to_string())
+                    };
+                    (true, is_translated, detail)
+                }
+                Ok(HookTranslation::Unsupported { reason, .. }) => {
+                    (false, false, Some(reason))
+                }
+                Err(e) => (false, false, Some(format!("error: {e}"))),
+            };
+
+            per_tool.push(crate::types::ToolHookStatus {
+                tool: tool_kind,
+                supported,
+                translated,
+                details,
+            });
+        }
+
+        Some(crate::types::HookStatusReport {
+            hook_count: summaries.len(),
+            per_tool,
+        })
     }
 
     /// Execute a single sync action on the filesystem.

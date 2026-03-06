@@ -171,12 +171,46 @@ pub struct ToolSyncStatus {
 #[derive(Debug, Clone, Serialize)]
 pub struct StatusReport {
     pub tools: Vec<ToolSyncStatus>,
+    pub memory: Option<MemoryStatusReport>,
+    pub hooks: Option<HookStatusReport>,
 }
 
 impl StatusReport {
     pub fn all_in_sync(&self) -> bool {
         self.tools.iter().all(|t| t.drift == DriftState::InSync || t.drift == DriftState::NotConfigured)
     }
+}
+
+/// Memory sync status across tools.
+#[derive(Debug, Clone, Serialize)]
+pub struct MemoryStatusReport {
+    pub file_count: usize,
+    pub files: Vec<String>,
+    pub per_tool: Vec<ToolMemoryStatus>,
+}
+
+/// Memory sync status for a single tool.
+#[derive(Debug, Clone, Serialize)]
+pub struct ToolMemoryStatus {
+    pub tool: ToolKind,
+    pub synced: bool,
+    pub details: Option<String>,
+}
+
+/// Hook translation status across tools.
+#[derive(Debug, Clone, Serialize)]
+pub struct HookStatusReport {
+    pub hook_count: usize,
+    pub per_tool: Vec<ToolHookStatus>,
+}
+
+/// Hook translation status for a single tool.
+#[derive(Debug, Clone, Serialize)]
+pub struct ToolHookStatus {
+    pub tool: ToolKind,
+    pub supported: bool,
+    pub translated: bool,
+    pub details: Option<String>,
 }
 
 #[cfg(test)]

@@ -26,6 +26,7 @@ pub use sync::SyncEngine;
 pub use memory::{ImportResult, MemoryEngine};
 pub use hooks::{HookEngine, HookSummary, VALID_EVENTS};
 pub use types::{
-    content_hash, Confidence, DriftState, HookGroup, HookHandler, HookTranslation, HooksConfig,
-    StatusReport, SyncAction, SyncReport, ToolKind, ToolSyncResult, ToolSyncStatus,
+    content_hash, Confidence, DriftState, HookGroup, HookHandler, HookStatusReport,
+    HookTranslation, HooksConfig, MemoryStatusReport, StatusReport, SyncAction, SyncReport,
+    ToolHookStatus, ToolKind, ToolMemoryStatus, ToolSyncResult, ToolSyncStatus,
 };
