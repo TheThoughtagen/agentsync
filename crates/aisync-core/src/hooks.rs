@@ -26,34 +26,97 @@ pub struct HookEngine;
 
 impl HookEngine {
     /// Parse .ai/hooks.toml into HooksConfig.
-    pub fn parse(_project_root: &Path) -> Result<HooksConfig, AisyncError> {
-        todo!()
+    pub fn parse(project_root: &Path) -> Result<HooksConfig, AisyncError> {
+        let path = project_root.join(".ai/hooks.toml");
+        if !path.exists() {
+            return Err(HookError::FileNotFound {
+                path: path.display().to_string(),
+            }
+            .into());
+        }
+        let content = std::fs::read_to_string(&path).map_err(|e| {
+            HookError::WriteFailed(e)
+        })?;
+        let config: HooksConfig = toml::from_str(&content).map_err(HookError::ParseFailed)?;
+        Ok(config)
     }
 
     /// Validate all event names in a HooksConfig against VALID_EVENTS.
-    pub fn validate(_config: &HooksConfig) -> Result<(), AisyncError> {
-        todo!()
+    pub fn validate(config: &HooksConfig) -> Result<(), AisyncError> {
+        for event_name in config.events.keys() {
+            if !VALID_EVENTS.contains(&event_name.as_str()) {
+                return Err(HookError::InvalidEvent {
+                    name: event_name.clone(),
+                }
+                .into());
+            }
+        }
+        Ok(())
     }
 
     /// Flatten hooks into a list of summaries for display.
-    pub fn list_hooks(_config: &HooksConfig) -> Vec<HookSummary> {
-        todo!()
+    pub fn list_hooks(config: &HooksConfig) -> Vec<HookSummary> {
+        let mut summaries = Vec::new();
+        for (event, groups) in &config.events {
+            for group in groups {
+                for hook in &group.hooks {
+                    summaries.push(HookSummary {
+                        event: event.clone(),
+                        matcher: group.matcher.clone(),
+                        command: hook.command.clone(),
+                        timeout: hook.timeout,
+                    });
+                }
+            }
+        }
+        summaries
     }
 
     /// Add a new hook to .ai/hooks.toml. Creates the file if it doesn't exist.
     pub fn add_hook(
-        _project_root: &Path,
-        _event: &str,
-        _matcher: Option<&str>,
-        _command: &str,
-        _timeout: Option<u64>,
+        project_root: &Path,
+        event: &str,
+        matcher: Option<&str>,
+        command: &str,
+        timeout: Option<u64>,
     ) -> Result<(), AisyncError> {
-        todo!()
+        let path = project_root.join(".ai/hooks.toml");
+
+        let mut config = if path.exists() {
+            let content = std::fs::read_to_string(&path).map_err(HookError::WriteFailed)?;
+            toml::from_str::<HooksConfig>(&content).map_err(HookError::ParseFailed)?
+        } else {
+            HooksConfig {
+                events: std::collections::BTreeMap::new(),
+            }
+        };
+
+        let new_group = HookGroup {
+            matcher: matcher.map(|s| s.to_string()),
+            hooks: vec![HookHandler {
+                hook_type: "command".to_string(),
+                command: command.to_string(),
+                timeout,
+            }],
+        };
+
+        config
+            .events
+            .entry(event.to_string())
+            .or_default()
+            .push(new_group);
+
+        let toml_str = Self::serialize(&config)?;
+        std::fs::write(&path, toml_str).map_err(HookError::WriteFailed)?;
+        Ok(())
     }
 
     /// Serialize HooksConfig back to TOML string.
-    pub fn serialize(_config: &HooksConfig) -> Result<String, AisyncError> {
-        todo!()
+    pub fn serialize(config: &HooksConfig) -> Result<String, AisyncError> {
+        let toml_str = toml::to_string_pretty(config).map_err(|e| {
+            HookError::WriteFailed(std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
+        })?;
+        Ok(toml_str)
     }
 }
 
