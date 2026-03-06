@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::error::AisyncError;
-use crate::types::{Confidence, ToolKind};
+use crate::types::{Confidence, HookTranslation, HooksConfig, SyncAction, ToolKind};
 
 /// Result of detecting a specific AI tool in a project directory.
 #[derive(Debug, Clone)]
@@ -52,6 +52,28 @@ pub trait ToolAdapter {
     ) -> Result<crate::types::ToolSyncStatus, AisyncError> {
         let _ = (project_root, canonical_hash);
         todo!("Adapter sync_status not yet implemented")
+    }
+
+    /// Plan memory sync actions for this tool.
+    fn plan_memory_sync(
+        &self,
+        project_root: &Path,
+        memory_files: &[PathBuf],
+    ) -> Result<Vec<SyncAction>, AisyncError> {
+        let _ = (project_root, memory_files);
+        Ok(vec![]) // Default: no memory sync
+    }
+
+    /// Translate hooks to this tool's native format.
+    fn translate_hooks(
+        &self,
+        hooks: &HooksConfig,
+    ) -> Result<HookTranslation, AisyncError> {
+        let _ = hooks;
+        Ok(HookTranslation::Unsupported {
+            tool: self.name(),
+            reason: "hooks not supported by this tool".into(),
+        })
     }
 }
 
@@ -134,6 +156,29 @@ impl ToolAdapter for AnyAdapter {
             AnyAdapter::ClaudeCode(a) => a.sync_status(project_root, canonical_hash),
             AnyAdapter::Cursor(a) => a.sync_status(project_root, canonical_hash),
             AnyAdapter::OpenCode(a) => a.sync_status(project_root, canonical_hash),
+        }
+    }
+
+    fn plan_memory_sync(
+        &self,
+        project_root: &Path,
+        memory_files: &[PathBuf],
+    ) -> Result<Vec<SyncAction>, AisyncError> {
+        match self {
+            AnyAdapter::ClaudeCode(a) => a.plan_memory_sync(project_root, memory_files),
+            AnyAdapter::Cursor(a) => a.plan_memory_sync(project_root, memory_files),
+            AnyAdapter::OpenCode(a) => a.plan_memory_sync(project_root, memory_files),
+        }
+    }
+
+    fn translate_hooks(
+        &self,
+        hooks: &HooksConfig,
+    ) -> Result<HookTranslation, AisyncError> {
+        match self {
+            AnyAdapter::ClaudeCode(a) => a.translate_hooks(hooks),
+            AnyAdapter::Cursor(a) => a.translate_hooks(hooks),
+            AnyAdapter::OpenCode(a) => a.translate_hooks(hooks),
         }
     }
 }
