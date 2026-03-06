@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-03-06T14:07:14.897Z"
+last_updated: "2026-03-06T15:22:33.170Z"
 progress:
   total_phases: 4
   completed_phases: 4
-  total_plans: 15
-  completed_plans: 15
+  total_plans: 17
+  completed_plans: 17
 ---
 
 # Project State
@@ -22,10 +22,10 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 
 ## Current Position
 
-Phase: 4 of 4 (Watch Mode and Bidirectional Sync) -- COMPLETE
-Plan: 3 of 3 in current phase (04-03 complete)
-Status: Phase 04 Complete
-Last activity: 2026-03-06 -- Completed 04-03 (CLI command wiring for watch, diff, check)
+Phase: 4 of 4 (Watch Mode and Bidirectional Sync)
+Plan: 5 of 5 in current phase (04-05 complete)
+Status: Phase 04 gap closure complete
+Last activity: 2026-03-06 -- Completed 04-05 (conditional section filtering for ClaudeCode and OpenCode)
 
 Progress: [██████████] 100%
 
@@ -98,6 +98,11 @@ Recent decisions affecting current work:
 - 04-02: Tool watch paths filter to non-symlink files only (symlinks already edit canonical)
 - 04-03: check command uses process::exit(1) for drift, no color in default output for CI compatibility
 - 04-03: watch timestamp uses SystemTime instead of chrono to avoid new dependency
+- 04-04: recv_timeout(500ms) for interruptible watch loop (Ctrl+C fix)
+- 04-04: WatchTargets struct separates watch_dirs from expected_files
+- 04-04: Directory-level watching survives editor atomic saves on macOS kqueue
+- [Phase 04]: Compare processed content against raw .ai/instructions.md to detect active conditionals
+- [Phase 04]: CreateFile executor removes existing symlinks to prevent writing through to canonical
 
 ### Pending Todos
 
@@ -110,5 +115,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-06
-Stopped at: Completed 04-03-PLAN.md (CLI command wiring for watch, diff, check)
-Resume file: .planning/phases/04-watch-mode-bidirectional-sync/04-03-SUMMARY.md
+Stopped at: Completed 04-05-PLAN.md (conditional section filtering for ClaudeCode and OpenCode)
+Resume file: .planning/phases/04-watch-mode-bidirectional-sync/04-05-SUMMARY.md
