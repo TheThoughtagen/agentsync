@@ -20,28 +20,173 @@ pub struct MemoryEngine;
 
 impl MemoryEngine {
     /// List all .md files in .ai/memory/, sorted alphabetically.
-    pub fn list(_project_root: &Path) -> Result<Vec<PathBuf>, AisyncError> {
-        todo!("MemoryEngine::list not yet implemented")
+    pub fn list(project_root: &Path) -> Result<Vec<PathBuf>, AisyncError> {
+        let memory_dir = project_root.join(".ai/memory");
+        if !memory_dir.exists() {
+            return Ok(vec![]);
+        }
+
+        let mut files = Vec::new();
+        let entries = std::fs::read_dir(&memory_dir)
+            .map_err(MemoryError::ReadFailed)?;
+
+        for entry in entries {
+            let entry = entry.map_err(MemoryError::ReadFailed)?;
+            let path = entry.path();
+            if path.is_file() {
+                if let Some(ext) = path.extension() {
+                    if ext == "md" {
+                        files.push(path);
+                    }
+                }
+            }
+        }
+
+        files.sort();
+        Ok(files)
     }
 
     /// Create a new memory file .ai/memory/<topic>.md with "# <Topic>" header.
-    pub fn add(_project_root: &Path, _topic: &str) -> Result<PathBuf, AisyncError> {
-        todo!("MemoryEngine::add not yet implemented")
+    /// Sanitizes topic name: lowercase, hyphens for spaces, strip non-alphanumeric except hyphens.
+    pub fn add(project_root: &Path, topic: &str) -> Result<PathBuf, AisyncError> {
+        let memory_dir = project_root.join(".ai/memory");
+        std::fs::create_dir_all(&memory_dir)
+            .map_err(MemoryError::WriteFailed)?;
+
+        let sanitized = Self::sanitize_filename(topic);
+        let filename = format!("{}.md", sanitized);
+        let file_path = memory_dir.join(&filename);
+
+        if file_path.exists() {
+            return Err(MemoryError::AlreadyExists {
+                path: file_path.display().to_string(),
+            }.into());
+        }
+
+        let title = Self::title_case(topic);
+        let content = format!("# {}\n", title);
+        std::fs::write(&file_path, content)
+            .map_err(MemoryError::WriteFailed)?;
+
+        Ok(file_path)
     }
 
-    /// Compute Claude Code project key from absolute path.
-    pub fn claude_project_key(_project_root: &Path) -> Result<String, AisyncError> {
-        todo!("MemoryEngine::claude_project_key not yet implemented")
+    /// Compute Claude Code project key: absolute path with '/' replaced by '-'.
+    /// Example: /Users/pmannion/project -> -Users-pmannion-project
+    pub fn claude_project_key(project_root: &Path) -> Result<String, AisyncError> {
+        let canonical = project_root.canonicalize()
+            .map_err(MemoryError::PathResolution)?;
+        let path_str = canonical.to_string_lossy();
+        Ok(path_str.replace('/', "-"))
     }
 
-    /// Get the Claude memory directory path.
-    pub fn claude_memory_path(_project_root: &Path) -> Result<PathBuf, AisyncError> {
-        todo!("MemoryEngine::claude_memory_path not yet implemented")
+    /// Get the Claude memory directory path: ~/.claude/projects/<key>/memory/
+    pub fn claude_memory_path(project_root: &Path) -> Result<PathBuf, AisyncError> {
+        let key = Self::claude_project_key(project_root)?;
+        let home = dirs::home_dir().ok_or_else(|| {
+            MemoryError::PathResolution(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "could not determine home directory",
+            ))
+        })?;
+        Ok(home.join(".claude/projects").join(key).join("memory"))
     }
 
     /// Import memory files from Claude's auto-memory into .ai/memory/.
-    pub fn import_claude(_project_root: &Path) -> Result<ImportResult, AisyncError> {
-        todo!("MemoryEngine::import_claude not yet implemented")
+    /// Returns list of imported filenames. Does NOT prompt -- that is CLI layer's job.
+    /// If a file already exists in .ai/memory/, includes it in a conflicts Vec for CLI to handle.
+    pub fn import_claude(project_root: &Path) -> Result<ImportResult, AisyncError> {
+        let claude_path = Self::claude_memory_path(project_root)?;
+
+        if !claude_path.exists() {
+            return Err(MemoryError::ClaudeMemoryNotFound {
+                path: claude_path.display().to_string(),
+            }.into());
+        }
+
+        let memory_dir = project_root.join(".ai/memory");
+        std::fs::create_dir_all(&memory_dir)
+            .map_err(MemoryError::WriteFailed)?;
+
+        let mut imported = Vec::new();
+        let mut conflicts = Vec::new();
+
+        let entries = std::fs::read_dir(&claude_path)
+            .map_err(MemoryError::ReadFailed)?;
+
+        for entry in entries {
+            let entry = entry.map_err(MemoryError::ReadFailed)?;
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+            if let Some(ext) = path.extension() {
+                if ext != "md" {
+                    continue;
+                }
+            } else {
+                continue;
+            }
+
+            let filename = entry.file_name().to_string_lossy().to_string();
+            let dest = memory_dir.join(&filename);
+
+            if dest.exists() {
+                conflicts.push(filename);
+            } else {
+                std::fs::copy(&path, &dest)
+                    .map_err(MemoryError::WriteFailed)?;
+                imported.push(filename);
+            }
+        }
+
+        imported.sort();
+        conflicts.sort();
+
+        Ok(ImportResult {
+            imported,
+            conflicts,
+            source_path: claude_path,
+        })
+    }
+
+    /// Sanitize a topic name into a valid filename.
+    /// Lowercase, hyphens for spaces, strip non-alphanumeric except hyphens.
+    fn sanitize_filename(topic: &str) -> String {
+        let mut result = String::new();
+        for ch in topic.chars() {
+            if ch.is_alphanumeric() {
+                result.push(ch.to_ascii_lowercase());
+            } else if ch == ' ' || ch == '_' {
+                if !result.ends_with('-') {
+                    result.push('-');
+                }
+            } else {
+                // Skip non-alphanumeric characters, but if we had content before
+                // and the next char is alphanumeric, we might want a separator
+                // Only add hyphen if result is non-empty and doesn't already end with one
+            }
+        }
+        // Trim trailing hyphens
+        result.trim_end_matches('-').to_string()
+    }
+
+    /// Convert a topic string to title case.
+    fn title_case(s: &str) -> String {
+        s.split_whitespace()
+            .map(|word| {
+                let mut chars = word.chars();
+                match chars.next() {
+                    None => String::new(),
+                    Some(first) => {
+                        let upper: String = first.to_uppercase().collect();
+                        let rest: String = chars.collect::<String>().to_lowercase();
+                        format!("{}{}", upper, rest)
+                    }
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
     }
 }
 
