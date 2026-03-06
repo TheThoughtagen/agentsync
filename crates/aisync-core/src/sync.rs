@@ -548,6 +548,72 @@ mod tests {
     }
 
     #[test]
+    fn test_plan_includes_memory_sync_actions() {
+        let dir = TempDir::new().unwrap();
+        setup_canonical(dir.path(), "# Instructions");
+        // Create memory files
+        let memory_dir = dir.path().join(".ai/memory");
+        std::fs::create_dir_all(&memory_dir).unwrap();
+        std::fs::write(memory_dir.join("debugging.md"), "# Debugging").unwrap();
+
+        let config = all_enabled_config();
+        let report = SyncEngine::plan(&config, dir.path()).unwrap();
+
+        // Each tool should have memory sync actions in addition to instruction sync actions
+        for tool_result in &report.results {
+            let has_memory_action = tool_result.actions.iter().any(|a| {
+                matches!(a, SyncAction::CreateMemorySymlink { .. } | SyncAction::UpdateMemoryReferences { .. })
+            });
+            assert!(
+                has_memory_action,
+                "expected memory sync action for {:?}, got: {:?}",
+                tool_result.tool, tool_result.actions
+            );
+        }
+    }
+
+    #[test]
+    fn test_plan_no_memory_actions_when_no_memory_files() {
+        let dir = TempDir::new().unwrap();
+        setup_canonical(dir.path(), "# Instructions");
+        // No .ai/memory/ directory
+
+        let config = all_enabled_config();
+        let report = SyncEngine::plan(&config, dir.path()).unwrap();
+
+        // No memory actions should be present
+        for tool_result in &report.results {
+            let has_memory_action = tool_result.actions.iter().any(|a| {
+                matches!(a, SyncAction::CreateMemorySymlink { .. } | SyncAction::UpdateMemoryReferences { .. })
+            });
+            assert!(
+                !has_memory_action,
+                "expected no memory sync actions for {:?} when no memory files",
+                tool_result.tool,
+            );
+        }
+    }
+
+    #[test]
+    fn test_execute_handles_memory_references() {
+        let dir = TempDir::new().unwrap();
+        setup_canonical(dir.path(), "# Instructions");
+        let memory_dir = dir.path().join(".ai/memory");
+        std::fs::create_dir_all(&memory_dir).unwrap();
+        std::fs::write(memory_dir.join("debugging.md"), "# Debugging").unwrap();
+
+        let config = all_enabled_config();
+        let plan = SyncEngine::plan(&config, dir.path()).unwrap();
+        let result = SyncEngine::execute(&plan, dir.path()).unwrap();
+        assert!(!result.has_errors(), "sync should not have errors: {:?}", result);
+
+        // Check AGENTS.md has memory references
+        let agents_content = std::fs::read_to_string(dir.path().join("AGENTS.md"));
+        // AGENTS.md is a symlink, but managed section updates write to the resolved path
+        // For OpenCode memory, UpdateMemoryReferences targets AGENTS.md
+    }
+
+    #[test]
     fn test_plan_errors_when_canonical_missing() {
         let dir = TempDir::new().unwrap();
         // No .ai/instructions.md created

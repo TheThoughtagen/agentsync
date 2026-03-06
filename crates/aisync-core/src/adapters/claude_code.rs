@@ -407,6 +407,94 @@ mod tests {
         assert_eq!(status.drift, DriftState::DanglingSymlink);
     }
 
+    // --- plan_memory_sync tests ---
+
+    #[test]
+    fn test_plan_memory_sync_creates_symlink_when_memory_exists() {
+        let dir = TempDir::new().unwrap();
+        let memory_dir = dir.path().join(".ai/memory");
+        std::fs::create_dir_all(&memory_dir).unwrap();
+        std::fs::write(memory_dir.join("debugging.md"), "# Debugging").unwrap();
+
+        let memory_files = vec![memory_dir.join("debugging.md")];
+        let actions = ClaudeCodeAdapter
+            .plan_memory_sync(dir.path(), &memory_files)
+            .unwrap();
+
+        assert_eq!(actions.len(), 1);
+        match &actions[0] {
+            SyncAction::CreateMemorySymlink { link, target } => {
+                assert!(link.to_string_lossy().contains(".claude/projects/"));
+                assert!(link.to_string_lossy().ends_with("/memory"));
+                assert_eq!(target, &dir.path().join(".ai/memory"));
+            }
+            other => panic!("expected CreateMemorySymlink, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_plan_memory_sync_empty_files_returns_empty() {
+        let dir = TempDir::new().unwrap();
+
+        let actions = ClaudeCodeAdapter
+            .plan_memory_sync(dir.path(), &[])
+            .unwrap();
+        assert!(actions.is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_plan_memory_sync_idempotent_correct_symlink() {
+        let dir = TempDir::new().unwrap();
+        let memory_dir = dir.path().join(".ai/memory");
+        std::fs::create_dir_all(&memory_dir).unwrap();
+        std::fs::write(memory_dir.join("topic.md"), "# Topic").unwrap();
+
+        // Create the Claude memory symlink manually
+        let claude_memory = crate::MemoryEngine::claude_memory_path(
+            &dir.path().canonicalize().unwrap(),
+        ).unwrap();
+        if let Some(parent) = claude_memory.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+        let target = dir.path().canonicalize().unwrap().join(".ai/memory");
+        std::os::unix::fs::symlink(&target, &claude_memory).unwrap();
+
+        let memory_files = vec![memory_dir.join("topic.md")];
+        let actions = ClaudeCodeAdapter
+            .plan_memory_sync(&dir.path().canonicalize().unwrap(), &memory_files)
+            .unwrap();
+        assert!(actions.is_empty(), "expected no actions for existing correct symlink, got {:?}", actions);
+    }
+
+    #[test]
+    fn test_plan_memory_sync_existing_dir_warns() {
+        let dir = TempDir::new().unwrap();
+        let memory_dir = dir.path().join(".ai/memory");
+        std::fs::create_dir_all(&memory_dir).unwrap();
+        std::fs::write(memory_dir.join("topic.md"), "# Topic").unwrap();
+
+        // Create a real (non-symlink) memory directory at Claude's path
+        let claude_memory = crate::MemoryEngine::claude_memory_path(
+            &dir.path().canonicalize().unwrap(),
+        ).unwrap();
+        std::fs::create_dir_all(&claude_memory).unwrap();
+        std::fs::write(claude_memory.join("existing.md"), "# Existing").unwrap();
+
+        let memory_files = vec![memory_dir.join("topic.md")];
+        let actions = ClaudeCodeAdapter
+            .plan_memory_sync(&dir.path().canonicalize().unwrap(), &memory_files)
+            .unwrap();
+
+        assert_eq!(actions.len(), 1);
+        match &actions[0] {
+            SyncAction::SkipExistingFile { reason, .. } => {
+                assert!(reason.contains("import"), "reason should mention import: {reason}");
+            }
+            other => panic!("expected SkipExistingFile, got {other:?}"),
+        }
+    }
+
     #[test]
     fn test_sync_status_drifted() {
         let dir = TempDir::new().unwrap();

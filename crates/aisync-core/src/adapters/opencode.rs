@@ -343,6 +343,48 @@ mod tests {
         assert_eq!(status.drift, DriftState::InSync);
     }
 
+    // --- plan_memory_sync tests ---
+
+    #[test]
+    fn test_plan_memory_sync_returns_update_memory_references() {
+        let dir = TempDir::new().unwrap();
+        let memory_dir = dir.path().join(".ai/memory");
+        std::fs::create_dir_all(&memory_dir).unwrap();
+        std::fs::write(memory_dir.join("debugging.md"), "# Debugging").unwrap();
+        std::fs::write(memory_dir.join("patterns.md"), "# Patterns").unwrap();
+
+        let memory_files = vec![
+            memory_dir.join("debugging.md"),
+            memory_dir.join("patterns.md"),
+        ];
+        let actions = OpenCodeAdapter
+            .plan_memory_sync(dir.path(), &memory_files)
+            .unwrap();
+
+        assert_eq!(actions.len(), 1);
+        match &actions[0] {
+            SyncAction::UpdateMemoryReferences { path, references, marker_start, marker_end } => {
+                assert!(path.ends_with("AGENTS.md"));
+                assert_eq!(references.len(), 2);
+                assert!(references[0].contains(".ai/memory/debugging.md"));
+                assert!(references[1].contains(".ai/memory/patterns.md"));
+                assert_eq!(marker_start, "<!-- aisync:memory -->");
+                assert_eq!(marker_end, "<!-- /aisync:memory -->");
+            }
+            other => panic!("expected UpdateMemoryReferences, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_plan_memory_sync_empty_files_returns_empty() {
+        let dir = TempDir::new().unwrap();
+
+        let actions = OpenCodeAdapter
+            .plan_memory_sync(dir.path(), &[])
+            .unwrap();
+        assert!(actions.is_empty());
+    }
+
     #[test]
     fn test_sync_status_dangling_symlink() {
         let dir = TempDir::new().unwrap();
