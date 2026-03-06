@@ -65,10 +65,10 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Distribution
 
 - [x] **DIST-01**: Installable via `cargo install aisync`
-- [ ] **DIST-02**: Homebrew tap (`brew install aisync`)
-- [ ] **DIST-03**: GitHub releases with pre-built binaries for macOS/Linux/Windows
-- [ ] **DIST-04**: Shell installer script (`curl | sh`)
-- [ ] **DIST-05**: Cross-platform CI testing (macOS, Linux, Windows)
+- [x] **DIST-02**: Homebrew tap (`brew install aisync`)
+- [x] **DIST-03**: GitHub releases with pre-built binaries for macOS/Linux/Windows
+- [x] **DIST-04**: Shell installer script (`curl | sh`)
+- [x] **DIST-05**: Cross-platform CI testing (macOS, Linux, Windows)
 
 ### Quality
 
@@ -161,10 +161,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | HOOK-06 | Phase 3 | Complete |
 | HOOK-07 | Phase 3 | Complete |
 | DIST-01 | Phase 5 | Complete |
-| DIST-02 | Phase 5 | Pending |
-| DIST-03 | Phase 5 | Pending |
-| DIST-04 | Phase 5 | Pending |
-| DIST-05 | Phase 5 | Pending |
+| DIST-02 | Phase 5 | Complete |
+| DIST-03 | Phase 5 | Complete |
+| DIST-04 | Phase 5 | Complete |
+| DIST-05 | Phase 5 | Complete |
 | QUAL-01 | Phase 5 | Complete |
 | QUAL-02 | Phase 5 | Complete |
 | QUAL-03 | Phase 5 | Complete |
