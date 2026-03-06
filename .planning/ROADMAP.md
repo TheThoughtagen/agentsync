@@ -81,12 +81,12 @@ Plans:
   3. User can run `aisync diff` to see a side-by-side comparison of canonical content vs each tool's native file
   4. User can run `aisync check` in CI and it exits non-zero if any tool is out of sync with `.ai/`
   5. Conditional sections (`<!-- aisync:claude-only -->`) in instructions.md are included only in the relevant tool's output
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 04-01: TBD
-- [ ] 04-02: TBD
-- [ ] 04-03: TBD
+- [ ] 04-01-PLAN.md — Workspace deps, conditional processor, diff engine, SyncEngine conditional wiring
+- [ ] 04-02-PLAN.md — Watch engine with forward/reverse sync and loop prevention
+- [ ] 04-03-PLAN.md — CLI commands: watch, diff, check
 
 ### Phase 5: Polish and Distribution
 **Goal**: aisync is installable via Homebrew, cargo install, and GitHub releases, with shell completions, polished error messages, and a comprehensive test suite
