@@ -2,6 +2,14 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::path::PathBuf;
 
+/// Event emitted by the watch engine for logging/display.
+#[derive(Debug, Clone)]
+pub enum WatchEvent {
+    ForwardSync { changed_path: PathBuf },
+    ReverseSync { tool: ToolKind, source_path: PathBuf },
+    Error { message: String },
+}
+
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 

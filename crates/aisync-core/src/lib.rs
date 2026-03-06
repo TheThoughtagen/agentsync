@@ -12,6 +12,7 @@ pub mod managed_section;
 pub mod memory;
 pub mod sync;
 pub mod types;
+pub mod watch;
 
 pub use adapter::{
     AnyAdapter, ClaudeCodeAdapter, CursorAdapter, DetectionResult, OpenCodeAdapter, ToolAdapter,
@@ -27,10 +28,12 @@ pub use error::{
 pub use gitignore::update_managed_section;
 pub use init::{ImportChoice, ImportSource, InitEngine, InitOptions};
 pub use sync::SyncEngine;
+pub use watch::WatchEngine;
 pub use memory::{ImportResult, MemoryEngine};
 pub use hooks::{HookEngine, HookSummary, VALID_EVENTS};
 pub use types::{
     content_hash, Confidence, DriftState, HookGroup, HookHandler, HookStatusReport,
     HookTranslation, HooksConfig, MemoryStatusReport, StatusReport, SyncAction, SyncReport,
     ToolDiff, ToolHookStatus, ToolKind, ToolMemoryStatus, ToolSyncResult, ToolSyncStatus,
+    WatchEvent,
 };
