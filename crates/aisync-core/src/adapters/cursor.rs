@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::adapter::{CursorAdapter, DetectionResult, ToolAdapter};
 use crate::config::SyncStrategy;
@@ -120,6 +120,34 @@ impl ToolAdapter for CursorAdapter {
         });
 
         Ok(actions)
+    }
+
+    fn plan_memory_sync(
+        &self,
+        project_root: &Path,
+        memory_files: &[PathBuf],
+    ) -> Result<Vec<SyncAction>, AisyncError> {
+        if memory_files.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let references: Vec<String> = memory_files
+            .iter()
+            .filter_map(|path| {
+                let name = path.file_stem()?.to_string_lossy().to_string();
+                let rel = path.strip_prefix(project_root)
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_else(|_| format!(".ai/memory/{}.md", name));
+                Some(format!("- [{}]({})", name, rel))
+            })
+            .collect();
+
+        Ok(vec![SyncAction::UpdateMemoryReferences {
+            path: project_root.join(MDC_REL),
+            references,
+            marker_start: "<!-- aisync:memory -->".to_string(),
+            marker_end: "<!-- /aisync:memory -->".to_string(),
+        }])
     }
 
     fn sync_status(
@@ -393,5 +421,36 @@ mod tests {
         let wrong_hash = content_hash(b"different content");
         let status = CursorAdapter.sync_status(dir.path(), &wrong_hash).unwrap();
         assert!(matches!(status.drift, DriftState::Drifted { .. }));
+    }
+
+    // --- translate_hooks tests ---
+
+    #[test]
+    fn test_translate_hooks_returns_unsupported() {
+        use crate::types::{HookGroup, HookHandler, HooksConfig, HookTranslation};
+        use std::collections::BTreeMap;
+
+        let mut events = BTreeMap::new();
+        events.insert(
+            "PreToolUse".to_string(),
+            vec![HookGroup {
+                matcher: None,
+                hooks: vec![HookHandler {
+                    hook_type: "command".to_string(),
+                    command: "echo test".to_string(),
+                    timeout: None,
+                }],
+            }],
+        );
+        let config = HooksConfig { events };
+
+        let result = CursorAdapter.translate_hooks(&config).unwrap();
+        match result {
+            HookTranslation::Unsupported { tool, reason } => {
+                assert_eq!(tool, ToolKind::Cursor);
+                assert!(reason.contains("Cursor does not support hooks"));
+            }
+            other => panic!("expected Unsupported, got {other:?}"),
+        }
     }
 }

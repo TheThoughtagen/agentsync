@@ -1,8 +1,9 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::adapter::{ClaudeCodeAdapter, DetectionResult, ToolAdapter};
 use crate::config::SyncStrategy;
 use crate::error::AisyncError;
+use crate::memory::MemoryEngine;
 use crate::types::{content_hash, Confidence, DriftState, SyncAction, ToolKind, ToolSyncStatus};
 
 /// The relative symlink target path from project root to canonical instructions.
@@ -102,6 +103,65 @@ impl ToolAdapter for ClaudeCodeAdapter {
         Ok(vec![SyncAction::CreateSymlink {
             link: link_path,
             target: target_rel.to_path_buf(),
+        }])
+    }
+
+    fn plan_memory_sync(
+        &self,
+        project_root: &Path,
+        memory_files: &[PathBuf],
+    ) -> Result<Vec<SyncAction>, AisyncError> {
+        if memory_files.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let claude_memory = MemoryEngine::claude_memory_path(project_root)?;
+        let target = project_root.join(".ai/memory");
+
+        // Check if the symlink already exists and is correct
+        if claude_memory.symlink_metadata().is_ok() {
+            let meta = claude_memory.symlink_metadata().map_err(|e| {
+                AisyncError::Adapter {
+                    tool: "claude-code".to_string(),
+                    source: crate::error::AdapterError::DetectionFailed(format!(
+                        "failed to read symlink metadata: {e}"
+                    )),
+                }
+            })?;
+
+            if meta.file_type().is_symlink() {
+                // Check if it points to the right target
+                if let Ok(current_target) = std::fs::read_link(&claude_memory) {
+                    // Canonicalize both for comparison
+                    let canonical_target = target.canonicalize().unwrap_or_else(|_| target.clone());
+                    let canonical_current = if current_target.is_absolute() {
+                        current_target.canonicalize().unwrap_or(current_target)
+                    } else {
+                        // Resolve relative to symlink parent
+                        if let Some(parent) = claude_memory.parent() {
+                            parent.join(&current_target).canonicalize().unwrap_or(current_target)
+                        } else {
+                            current_target
+                        }
+                    };
+                    if canonical_current == canonical_target {
+                        return Ok(vec![]);
+                    }
+                }
+            }
+
+            if meta.is_dir() {
+                // It's a real directory (not a symlink) with content
+                return Ok(vec![SyncAction::SkipExistingFile {
+                    path: claude_memory,
+                    reason: "existing Claude memory found, run `aisync memory import claude` first".to_string(),
+                }]);
+            }
+        }
+
+        Ok(vec![SyncAction::CreateMemorySymlink {
+            link: claude_memory,
+            target,
         }])
     }
 
@@ -515,5 +575,75 @@ mod tests {
             .sync_status(dir.path(), "wrong_hash_value")
             .unwrap();
         assert!(matches!(status.drift, DriftState::Drifted { .. }));
+    }
+
+    // --- translate_hooks tests ---
+
+    #[test]
+    fn test_translate_hooks_produces_valid_json() {
+        use crate::types::{HookGroup, HookHandler, HooksConfig, HookTranslation};
+        use std::collections::BTreeMap;
+
+        let mut events = BTreeMap::new();
+        events.insert(
+            "PreToolUse".to_string(),
+            vec![HookGroup {
+                matcher: Some("Edit".to_string()),
+                hooks: vec![HookHandler {
+                    hook_type: "command".to_string(),
+                    command: "npm run lint".to_string(),
+                    timeout: Some(10000),
+                }],
+            }],
+        );
+        let config = HooksConfig { events };
+
+        let result = ClaudeCodeAdapter.translate_hooks(&config).unwrap();
+        match result {
+            HookTranslation::Supported { tool, content, format } => {
+                assert_eq!(tool, ToolKind::ClaudeCode);
+                assert_eq!(format, "json");
+                let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+                let hooks = &parsed["hooks"]["PreToolUse"];
+                assert!(hooks.is_array());
+                assert_eq!(hooks[0]["matcher"], "Edit");
+                // Timeout should be in seconds (10000ms -> 10s)
+                assert_eq!(hooks[0]["hooks"][0]["timeout"], 10);
+                assert_eq!(hooks[0]["hooks"][0]["type"], "command");
+                assert_eq!(hooks[0]["hooks"][0]["command"], "npm run lint");
+            }
+            other => panic!("expected Supported, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_translate_hooks_omits_matcher_when_none() {
+        use crate::types::{HookGroup, HookHandler, HooksConfig, HookTranslation};
+        use std::collections::BTreeMap;
+
+        let mut events = BTreeMap::new();
+        events.insert(
+            "PostToolUse".to_string(),
+            vec![HookGroup {
+                matcher: None,
+                hooks: vec![HookHandler {
+                    hook_type: "command".to_string(),
+                    command: "cargo fmt".to_string(),
+                    timeout: None,
+                }],
+            }],
+        );
+        let config = HooksConfig { events };
+
+        let result = ClaudeCodeAdapter.translate_hooks(&config).unwrap();
+        match result {
+            HookTranslation::Supported { content, .. } => {
+                let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+                let group = &parsed["hooks"]["PostToolUse"][0];
+                // matcher key should be absent, not null
+                assert!(group.get("matcher").is_none(), "matcher should be absent when None");
+            }
+            other => panic!("expected Supported, got {other:?}"),
+        }
     }
 }

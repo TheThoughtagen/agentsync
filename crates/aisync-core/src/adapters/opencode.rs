@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::adapter::{DetectionResult, OpenCodeAdapter, ToolAdapter};
 use crate::config::SyncStrategy;
@@ -102,6 +102,34 @@ impl ToolAdapter for OpenCodeAdapter {
         Ok(vec![SyncAction::CreateSymlink {
             link: link_path,
             target: target_rel.to_path_buf(),
+        }])
+    }
+
+    fn plan_memory_sync(
+        &self,
+        project_root: &Path,
+        memory_files: &[PathBuf],
+    ) -> Result<Vec<SyncAction>, AisyncError> {
+        if memory_files.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let references: Vec<String> = memory_files
+            .iter()
+            .filter_map(|path| {
+                let name = path.file_stem()?.to_string_lossy().to_string();
+                let rel = path.strip_prefix(project_root)
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_else(|_| format!(".ai/memory/{}.md", name));
+                Some(format!("- [{}]({})", name, rel))
+            })
+            .collect();
+
+        Ok(vec![SyncAction::UpdateMemoryReferences {
+            path: project_root.join(TOOL_FILE),
+            references,
+            marker_start: "<!-- aisync:memory -->".to_string(),
+            marker_end: "<!-- /aisync:memory -->".to_string(),
         }])
     }
 
@@ -400,5 +428,120 @@ mod tests {
 
         let status = OpenCodeAdapter.sync_status(dir.path(), "abc123").unwrap();
         assert_eq!(status.drift, DriftState::DanglingSymlink);
+    }
+
+    // --- translate_hooks tests ---
+
+    #[test]
+    fn test_translate_hooks_produces_js_plugin_stub() {
+        use crate::types::{HookGroup, HookHandler, HooksConfig, HookTranslation};
+        use std::collections::BTreeMap;
+
+        let mut events = BTreeMap::new();
+        events.insert(
+            "PreToolUse".to_string(),
+            vec![HookGroup {
+                matcher: Some("Edit".to_string()),
+                hooks: vec![HookHandler {
+                    hook_type: "command".to_string(),
+                    command: "npm run lint".to_string(),
+                    timeout: Some(10000),
+                }],
+            }],
+        );
+        events.insert(
+            "PostToolUse".to_string(),
+            vec![HookGroup {
+                matcher: None,
+                hooks: vec![HookHandler {
+                    hook_type: "command".to_string(),
+                    command: "cargo fmt".to_string(),
+                    timeout: None,
+                }],
+            }],
+        );
+        let config = HooksConfig { events };
+
+        let result = OpenCodeAdapter.translate_hooks(&config).unwrap();
+        match result {
+            HookTranslation::Supported { tool, content, format } => {
+                assert_eq!(tool, ToolKind::OpenCode);
+                assert_eq!(format, "js");
+                assert!(content.contains("module.exports"));
+                assert!(content.contains("tool.execute.before"));
+                assert!(content.contains("tool.execute.after"));
+                assert!(content.contains("npm run lint"));
+                assert!(content.contains("cargo fmt"));
+            }
+            other => panic!("expected Supported, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_translate_hooks_skips_unsupported_events() {
+        use crate::types::{HookGroup, HookHandler, HooksConfig, HookTranslation};
+        use std::collections::BTreeMap;
+
+        let mut events = BTreeMap::new();
+        events.insert(
+            "Notification".to_string(),
+            vec![HookGroup {
+                matcher: None,
+                hooks: vec![HookHandler {
+                    hook_type: "command".to_string(),
+                    command: "notify-send done".to_string(),
+                    timeout: None,
+                }],
+            }],
+        );
+        events.insert(
+            "SubagentStop".to_string(),
+            vec![HookGroup {
+                matcher: None,
+                hooks: vec![HookHandler {
+                    hook_type: "command".to_string(),
+                    command: "echo subagent".to_string(),
+                    timeout: None,
+                }],
+            }],
+        );
+        let config = HooksConfig { events };
+
+        let result = OpenCodeAdapter.translate_hooks(&config).unwrap();
+        match result {
+            HookTranslation::Supported { content, .. } => {
+                assert!(content.contains("Unsupported: Notification"));
+                assert!(content.contains("Unsupported: SubagentStop"));
+            }
+            other => panic!("expected Supported, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_translate_hooks_maps_stop_event() {
+        use crate::types::{HookGroup, HookHandler, HooksConfig, HookTranslation};
+        use std::collections::BTreeMap;
+
+        let mut events = BTreeMap::new();
+        events.insert(
+            "Stop".to_string(),
+            vec![HookGroup {
+                matcher: None,
+                hooks: vec![HookHandler {
+                    hook_type: "command".to_string(),
+                    command: "echo stopped".to_string(),
+                    timeout: None,
+                }],
+            }],
+        );
+        let config = HooksConfig { events };
+
+        let result = OpenCodeAdapter.translate_hooks(&config).unwrap();
+        match result {
+            HookTranslation::Supported { content, .. } => {
+                assert!(content.contains("session.idle"));
+            }
+            other => panic!("expected Supported, got {other:?}"),
+        }
     }
 }
