@@ -228,7 +228,7 @@ mod tests {
     #[test]
     fn test_add_creates_topic_file_with_header() {
         let dir = TempDir::new().unwrap();
-        let path = MemoryEngine::add(dir.path(), "deployment notes").unwrap();
+        let path = MemoryEngine::add(dir.path(), "deployment notes", None).unwrap();
 
         assert!(path.exists());
         assert!(path.ends_with("deployment-notes.md"));
@@ -239,7 +239,7 @@ mod tests {
     #[test]
     fn test_add_sanitizes_filename() {
         let dir = TempDir::new().unwrap();
-        let path = MemoryEngine::add(dir.path(), "My Cool Topic! (v2)").unwrap();
+        let path = MemoryEngine::add(dir.path(), "My Cool Topic! (v2)", None).unwrap();
 
         let filename = path.file_name().unwrap().to_str().unwrap();
         assert_eq!(filename, "my-cool-topic-v2.md");
@@ -252,7 +252,7 @@ mod tests {
         fs::create_dir_all(&memory_dir).unwrap();
         fs::write(memory_dir.join("existing.md"), "# Existing").unwrap();
 
-        let result = MemoryEngine::add(dir.path(), "existing");
+        let result = MemoryEngine::add(dir.path(), "existing", None);
         assert!(result.is_err());
         let err = format!("{}", result.unwrap_err());
         assert!(err.contains("already exists"));
@@ -264,8 +264,27 @@ mod tests {
         // .ai/memory/ does not exist yet
         assert!(!dir.path().join(".ai/memory").exists());
 
-        MemoryEngine::add(dir.path(), "new topic").unwrap();
+        MemoryEngine::add(dir.path(), "new topic", None).unwrap();
         assert!(dir.path().join(".ai/memory").exists());
+    }
+
+    #[test]
+    fn test_add_with_content_includes_body() {
+        let dir = TempDir::new().unwrap();
+        let path = MemoryEngine::add(dir.path(), "debugging tips", Some("These are my debugging notes")).unwrap();
+
+        assert!(path.exists());
+        let content = fs::read_to_string(&path).unwrap();
+        assert_eq!(content, "# Debugging Tips\n\nThese are my debugging notes\n");
+    }
+
+    #[test]
+    fn test_add_with_empty_content_is_header_only() {
+        let dir = TempDir::new().unwrap();
+        let path = MemoryEngine::add(dir.path(), "empty content", Some("")).unwrap();
+
+        let content = fs::read_to_string(&path).unwrap();
+        assert_eq!(content, "# Empty Content\n");
     }
 
     // --- claude_project_key tests ---
@@ -360,17 +379,18 @@ mod tests {
     }
 
     #[test]
-    fn test_import_claude_errors_when_path_missing() {
+    fn test_import_claude_returns_empty_when_path_missing() {
         let dir = TempDir::new().unwrap();
         let project_root = dir.path().join("nonexistent-project");
         fs::create_dir_all(&project_root).unwrap();
 
-        // Don't create Claude memory dir -- should error
+        // Don't create Claude memory dir -- should return Ok with empty results
         let result = MemoryEngine::import_claude(
             &project_root.canonicalize().unwrap(),
         );
-        assert!(result.is_err());
-        let err = format!("{}", result.unwrap_err());
-        assert!(err.contains("claude memory path not found") || err.contains("ClaudeMemoryNotFound"));
+        assert!(result.is_ok());
+        let import_result = result.unwrap();
+        assert!(import_result.imported.is_empty());
+        assert!(import_result.conflicts.is_empty());
     }
 }
