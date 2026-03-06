@@ -11,7 +11,7 @@ keywords = ["ai", "sync", "cli", "claude", "cursor"]
 categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
-aisync-core = { path = "../aisync-core" }
+aisync-core = { path = "../aisync-core", version = "0.1.0" }
 clap = { workspace = true }
 dialoguer = { workspace = true }
 colored = { workspace = true }
