@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-last_updated: "2026-03-06T02:31:11Z"
+last_updated: "2026-03-06T02:38:55Z"
 progress:
   total_phases: 3
   completed_phases: 2
-  total_plans: 8
-  completed_plans: 8
+  total_plans: 10
+  completed_plans: 10
 ---
 
 # Project State
@@ -23,18 +23,18 @@ See: .planning/PROJECT.md (updated 2026-03-05)
 ## Current Position
 
 Phase: 3 of 5 (Memory and Hooks)
-Plan: 1 of 4 in current phase (03-01 complete)
+Plan: 3 of 4 in current phase (03-03 complete)
 Status: In Progress
-Last activity: 2026-03-06 -- Completed 03-01 (Foundation types and memory engine)
+Last activity: 2026-03-06 -- Completed 03-03 (Hook engine and adapter translations)
 
-Progress: [████████░░] 76%
+Progress: [█████████░] 83%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8
+- Total plans completed: 10
 - Average duration: 2.9min
-- Total execution time: 0.38 hours
+- Total execution time: 0.47 hours
 
 **By Phase:**
 
@@ -43,10 +43,10 @@ Progress: [████████░░] 76%
 | 01-foundation | 2 | 5min | 2.5min |
 | 02-core-sync-loop-mvp | 5 | 15min | 3.0min |
 
-| 03-memory-and-hooks | 1 | 4min | 4.0min |
+| 03-memory-and-hooks | 3 | 14min | 4.7min |
 
 **Recent Trend:**
-- Last 5 plans: 02-02 (5min), 02-04 (2min), 02-03 (3min), 02-05 (2min), 03-01 (4min)
+- Last 5 plans: 02-03 (3min), 02-05 (2min), 03-01 (4min), 03-02 (5min), 03-03 (5min)
 - Trend: stable
 
 ## Accumulated Context
@@ -78,6 +78,9 @@ Recent decisions affecting current work:
 - 03-01: MemoryEngine as struct with associated functions, matching SyncEngine pattern
 - 03-01: Claude project key uses slash-to-hyphen replacement matching real ~/.claude/projects/ structure
 - 03-01: import_claude returns conflicts for CLI layer to handle (no interactive prompting in core)
+- 03-03: HookEngine as struct with associated functions matching SyncEngine and MemoryEngine patterns
+- 03-03: TOML round-trip via serde flatten BTreeMap with toml::to_string_pretty
+- 03-03: OpenCode event mapping: PreToolUse->tool.execute.before, PostToolUse->tool.execute.after, Stop->session.idle
 
 ### Pending Todos
 
@@ -90,5 +93,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-06
-Stopped at: Completed 03-01-PLAN.md
-Resume file: .planning/phases/03-memory-and-hooks/03-01-SUMMARY.md
+Stopped at: Completed 03-03-PLAN.md
+Resume file: .planning/phases/03-memory-and-hooks/03-03-SUMMARY.md

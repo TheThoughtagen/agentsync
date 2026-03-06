@@ -54,13 +54,13 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Hooks
 
-- [ ] **HOOK-01**: Canonical hook definitions in `.ai/hooks/*.toml` with tool-agnostic schema
-- [ ] **HOOK-02**: Hook translation to Claude Code `.claude/settings.json` format
-- [ ] **HOOK-03**: Hook translation to OpenCode `opencode.json` plugin stubs
+- [x] **HOOK-01**: Canonical hook definitions in `.ai/hooks/*.toml` with tool-agnostic schema
+- [x] **HOOK-02**: Hook translation to Claude Code `.claude/settings.json` format
+- [x] **HOOK-03**: Hook translation to OpenCode `opencode.json` plugin stubs
 - [ ] **HOOK-04**: `aisync hooks list` shows all hooks and their tool translations
 - [ ] **HOOK-05**: `aisync hooks add <name>` creates canonical hook definition
 - [ ] **HOOK-06**: `aisync hooks translate <name>` previews each tool's version
-- [ ] **HOOK-07**: Warning surfaced for tools that don't support hooks (Cursor)
+- [x] **HOOK-07**: Warning surfaced for tools that don't support hooks (Cursor)
 
 ### Distribution
 
@@ -153,13 +153,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MEM-05 | Phase 3 | Complete |
 | MEM-06 | Phase 3 | Complete |
 | MEM-07 | Phase 3 | Pending |
-| HOOK-01 | Phase 3 | Pending |
-| HOOK-02 | Phase 3 | Pending |
-| HOOK-03 | Phase 3 | Pending |
+| HOOK-01 | Phase 3 | Complete |
+| HOOK-02 | Phase 3 | Complete |
+| HOOK-03 | Phase 3 | Complete |
 | HOOK-04 | Phase 3 | Pending |
 | HOOK-05 | Phase 3 | Pending |
 | HOOK-06 | Phase 3 | Pending |
-| HOOK-07 | Phase 3 | Pending |
+| HOOK-07 | Phase 3 | Complete |
 | DIST-01 | Phase 5 | Pending |
 | DIST-02 | Phase 5 | Pending |
 | DIST-03 | Phase 5 | Pending |
