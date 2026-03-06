@@ -100,12 +100,12 @@ Plans:
   3. All error messages are clear and actionable, with `--verbose` providing structured debug output
   4. CI matrix runs tests on macOS, Linux, and Windows, and all pass
   5. Integration tests exercise full init-sync-status workflows against fixture projects with multiple tool configurations
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 05-01: TBD
-- [ ] 05-02: TBD
-- [ ] 05-03: TBD
+- [ ] 05-01-PLAN.md — Shell completions (clap_complete) and Cargo.toml publishing metadata
+- [ ] 05-02-PLAN.md — Integration test suite (init, sync, status, round-trip)
+- [ ] 05-03-PLAN.md — Cross-platform CI and cargo-dist release automation
 
 ## Progress
 
