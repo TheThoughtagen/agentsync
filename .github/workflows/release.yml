@@ -1,0 +1,221 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get version from tag
+        id: get_version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+
+  build:
+    name: Build (${{ matrix.target }})
+    needs: create-release
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            archive: tar.gz
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            archive: tar.gz
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            archive: tar.gz
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            archive: zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }} --package aisync
+
+      - name: Package (Unix)
+        if: matrix.archive == 'tar.gz'
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar czf ../../../aisync-${{ needs.create-release.outputs.version }}-${{ matrix.target }}.tar.gz aisync
+          cd ../../..
+          shasum -a 256 aisync-${{ needs.create-release.outputs.version }}-${{ matrix.target }}.tar.gz > aisync-${{ needs.create-release.outputs.version }}-${{ matrix.target }}.tar.gz.sha256
+
+      - name: Package (Windows)
+        if: matrix.archive == 'zip'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "target/${{ matrix.target }}/release/aisync.exe" -DestinationPath "aisync-${{ needs.create-release.outputs.version }}-${{ matrix.target }}.zip"
+          $hash = (Get-FileHash "aisync-${{ needs.create-release.outputs.version }}-${{ matrix.target }}.zip" -Algorithm SHA256).Hash.ToLower()
+          "$hash  aisync-${{ needs.create-release.outputs.version }}-${{ matrix.target }}.zip" | Out-File -Encoding utf8 "aisync-${{ needs.create-release.outputs.version }}-${{ matrix.target }}.zip.sha256"
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            aisync-${{ needs.create-release.outputs.version }}-${{ matrix.target }}.*
+
+  shell-installer:
+    name: Generate Shell Installer
+    needs: create-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate install script
+        run: |
+          cat > install.sh << 'INSTALLER'
+          #!/bin/sh
+          set -eu
+
+          REPO="pmannion/agentsync"
+          BINARY="aisync"
+
+          # Detect platform
+          OS="$(uname -s)"
+          ARCH="$(uname -m)"
+
+          case "${OS}" in
+            Linux)  PLATFORM="x86_64-unknown-linux-gnu" ;;
+            Darwin)
+              case "${ARCH}" in
+                arm64|aarch64) PLATFORM="aarch64-apple-darwin" ;;
+                *)             PLATFORM="x86_64-apple-darwin" ;;
+              esac
+              ;;
+            *) echo "Unsupported OS: ${OS}"; exit 1 ;;
+          esac
+
+          # Get latest version if not specified
+          VERSION="${AISYNC_VERSION:-latest}"
+          if [ "${VERSION}" = "latest" ]; then
+            VERSION="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')"
+          fi
+
+          ARCHIVE="${BINARY}-${VERSION}-${PLATFORM}.tar.gz"
+          URL="https://github.com/${REPO}/releases/download/v${VERSION}/${ARCHIVE}"
+
+          echo "Downloading ${BINARY} v${VERSION} for ${PLATFORM}..."
+          TMPDIR="$(mktemp -d)"
+          curl -fsSL "${URL}" -o "${TMPDIR}/${ARCHIVE}"
+
+          # Verify checksum
+          CHECKSUM_URL="${URL}.sha256"
+          curl -fsSL "${CHECKSUM_URL}" -o "${TMPDIR}/${ARCHIVE}.sha256"
+          cd "${TMPDIR}"
+          if command -v shasum > /dev/null 2>&1; then
+            shasum -a 256 -c "${ARCHIVE}.sha256"
+          elif command -v sha256sum > /dev/null 2>&1; then
+            sha256sum -c "${ARCHIVE}.sha256"
+          else
+            echo "Warning: could not verify checksum (no shasum or sha256sum found)"
+          fi
+
+          # Extract and install
+          tar xzf "${ARCHIVE}"
+          INSTALL_DIR="${AISYNC_INSTALL_DIR:-/usr/local/bin}"
+          echo "Installing to ${INSTALL_DIR}..."
+          install -d "${INSTALL_DIR}"
+          install "${BINARY}" "${INSTALL_DIR}/${BINARY}"
+
+          # Cleanup
+          rm -rf "${TMPDIR}"
+
+          echo "${BINARY} v${VERSION} installed to ${INSTALL_DIR}/${BINARY}"
+          INSTALLER
+          chmod +x install.sh
+
+      - name: Upload installer
+        uses: softprops/action-gh-release@v2
+        with:
+          files: install.sh
+
+  homebrew:
+    name: Update Homebrew Formula
+    needs: [create-release, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate Homebrew formula
+        env:
+          VERSION: ${{ needs.create-release.outputs.version }}
+        run: |
+          # Download checksums
+          BASE_URL="https://github.com/pmannion/agentsync/releases/download/v${VERSION}"
+          mkdir -p dist
+
+          for target in x86_64-apple-darwin aarch64-apple-darwin x86_64-unknown-linux-gnu; do
+            curl -fsSL "${BASE_URL}/aisync-${VERSION}-${target}.tar.gz.sha256" -o "dist/${target}.sha256" || true
+          done
+
+          MAC_INTEL_SHA=$(cat dist/x86_64-apple-darwin.sha256 2>/dev/null | awk '{print $1}' || echo "PLACEHOLDER")
+          MAC_ARM_SHA=$(cat dist/aarch64-apple-darwin.sha256 2>/dev/null | awk '{print $1}' || echo "PLACEHOLDER")
+          LINUX_SHA=$(cat dist/x86_64-unknown-linux-gnu.sha256 2>/dev/null | awk '{print $1}' || echo "PLACEHOLDER")
+
+          cat > aisync.rb << FORMULA
+          class Aisync < Formula
+            desc "Sync AI tool configurations across Claude Code, Cursor, and OpenCode"
+            homepage "https://github.com/pmannion/agentsync"
+            version "${VERSION}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "${BASE_URL}/aisync-${VERSION}-aarch64-apple-darwin.tar.gz"
+                sha256 "${MAC_ARM_SHA}"
+              else
+                url "${BASE_URL}/aisync-${VERSION}-x86_64-apple-darwin.tar.gz"
+                sha256 "${MAC_INTEL_SHA}"
+              end
+            end
+
+            on_linux do
+              url "${BASE_URL}/aisync-${VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+              sha256 "${LINUX_SHA}"
+            end
+
+            def install
+              bin.install "aisync"
+
+              # Generate shell completions
+              generate_completions_from_executable(bin/"aisync", "completions")
+            end
+
+            test do
+              assert_match "aisync", shell_output("#{bin}/aisync --version")
+            end
+          end
+          FORMULA
+
+      - name: Upload Homebrew formula
+        uses: softprops/action-gh-release@v2
+        with:
+          files: aisync.rb
