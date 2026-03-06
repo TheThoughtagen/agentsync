@@ -3,6 +3,20 @@ use assert_fs::TempDir;
 use assert_fs::prelude::*;
 
 /// Standard multi-tool aisync.toml configuration for tests.
+/// Uses copy strategy on Windows since symlinks require elevated privileges.
+#[cfg(windows)]
+pub const STANDARD_CONFIG: &str = r#"schema_version = 1
+[defaults]
+sync_strategy = "copy"
+[tools.claude_code]
+enabled = true
+[tools.opencode]
+enabled = true
+[tools.cursor]
+enabled = true
+"#;
+
+#[cfg(not(windows))]
 pub const STANDARD_CONFIG: &str = r#"schema_version = 1
 [tools.claude_code]
 enabled = true
