@@ -594,6 +594,110 @@ mod tests {
         }
     }
 
+    // --- conditional content tests ---
+
+    #[cfg(unix)]
+    #[test]
+    fn test_plan_sync_no_conditionals_creates_symlink() {
+        // When canonical_content equals raw file content (no conditionals), plan_sync returns CreateSymlink
+        let dir = TempDir::new().unwrap();
+        let ai_dir = dir.path().join(".ai");
+        std::fs::create_dir_all(&ai_dir).unwrap();
+        let raw_content = "# Instructions\n\nShared content\n";
+        std::fs::write(ai_dir.join("instructions.md"), raw_content).unwrap();
+
+        // canonical_content == raw content (no conditionals applied)
+        let actions = ClaudeCodeAdapter
+            .plan_sync(dir.path(), raw_content, SyncStrategy::Symlink)
+            .unwrap();
+        assert_eq!(actions.len(), 1);
+        assert!(
+            matches!(&actions[0], SyncAction::CreateSymlink { .. }),
+            "expected CreateSymlink when no conditionals, got {:?}",
+            actions[0]
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_plan_sync_conditionals_applied_creates_file() {
+        // When canonical_content differs from raw file content (conditionals applied),
+        // plan_sync returns CreateFile with the processed content
+        let dir = TempDir::new().unwrap();
+        let ai_dir = dir.path().join(".ai");
+        std::fs::create_dir_all(&ai_dir).unwrap();
+        let raw_content = "# Instructions\n\n<!-- aisync:cursor-only -->\nCursor stuff\n<!-- /aisync:cursor-only -->\n\nShared\n";
+        std::fs::write(ai_dir.join("instructions.md"), raw_content).unwrap();
+
+        // Processed content for Claude (cursor-only section stripped)
+        let processed = "# Instructions\n\n\nShared\n";
+
+        let actions = ClaudeCodeAdapter
+            .plan_sync(dir.path(), processed, SyncStrategy::Symlink)
+            .unwrap();
+        assert_eq!(actions.len(), 1);
+        match &actions[0] {
+            SyncAction::CreateFile { path, content } => {
+                assert_eq!(path, &dir.path().join("CLAUDE.md"));
+                assert_eq!(content, processed);
+            }
+            other => panic!("expected CreateFile, got {other:?}"),
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_plan_sync_conditionals_idempotent_correct_file() {
+        // When CLAUDE.md is already a regular file with correct processed content, returns empty
+        let dir = TempDir::new().unwrap();
+        let ai_dir = dir.path().join(".ai");
+        std::fs::create_dir_all(&ai_dir).unwrap();
+        let raw_content = "# Instructions\n\n<!-- aisync:cursor-only -->\nCursor stuff\n<!-- /aisync:cursor-only -->\n\nShared\n";
+        std::fs::write(ai_dir.join("instructions.md"), raw_content).unwrap();
+
+        let processed = "# Instructions\n\n\nShared\n";
+        // Write CLAUDE.md as a regular file with processed content
+        std::fs::write(dir.path().join("CLAUDE.md"), processed).unwrap();
+
+        let actions = ClaudeCodeAdapter
+            .plan_sync(dir.path(), processed, SyncStrategy::Symlink)
+            .unwrap();
+        assert!(
+            actions.is_empty(),
+            "expected no actions when CLAUDE.md already has correct processed content, got {:?}",
+            actions
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_plan_sync_symlink_but_conditionals_now_apply() {
+        // When CLAUDE.md is a symlink but conditionals now apply, should remove + CreateFile
+        let dir = TempDir::new().unwrap();
+        let ai_dir = dir.path().join(".ai");
+        std::fs::create_dir_all(&ai_dir).unwrap();
+        let raw_content = "# Instructions\n\n<!-- aisync:cursor-only -->\nCursor stuff\n<!-- /aisync:cursor-only -->\n\nShared\n";
+        std::fs::write(ai_dir.join("instructions.md"), raw_content).unwrap();
+
+        // Create existing symlink
+        std::os::unix::fs::symlink(
+            Path::new(".ai/instructions.md"),
+            dir.path().join("CLAUDE.md"),
+        )
+        .unwrap();
+
+        let processed = "# Instructions\n\n\nShared\n";
+        let actions = ClaudeCodeAdapter
+            .plan_sync(dir.path(), processed, SyncStrategy::Symlink)
+            .unwrap();
+
+        // Should have actions to handle the transition from symlink to file
+        assert!(!actions.is_empty(), "expected actions to transition from symlink to file");
+        // Should end with CreateFile
+        let has_create_file = actions.iter().any(|a| matches!(a, SyncAction::CreateFile { .. }));
+        assert!(has_create_file, "expected CreateFile action, got {:?}", actions);
+    }
+
     #[test]
     fn test_sync_status_drifted() {
         let dir = TempDir::new().unwrap();
