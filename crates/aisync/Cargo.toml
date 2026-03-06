@@ -3,6 +3,12 @@ name = "aisync"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
+description = "Sync AI tool configurations across Claude Code, Cursor, and OpenCode"
+license = "MIT"
+repository = "https://github.com/pmannion/agentsync"
+readme = "../../README.md"
+keywords = ["ai", "sync", "cli", "claude", "cursor"]
+categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
 aisync-core = { path = "../aisync-core" }
@@ -14,3 +20,12 @@ notify = { workspace = true }
 notify-debouncer-mini = { workspace = true }
 ctrlc = { workspace = true }
 clap_complete = { workspace = true }
+
+[dev-dependencies]
+assert_cmd = "2.0"
+assert_fs = "1.1"
+predicates = "3.1"
+
+[[test]]
+name = "integration"
+path = "tests/integration/main.rs"
