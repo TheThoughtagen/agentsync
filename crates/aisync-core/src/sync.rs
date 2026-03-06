@@ -142,6 +142,13 @@ impl SyncEngine {
                                         .push(name.to_string_lossy().to_string());
                                 }
                             }
+                            SyncAction::CreateFile { path, .. } => {
+                                // Track aisync-managed files (e.g., CLAUDE.md with conditionals)
+                                if let Some(name) = path.file_name() {
+                                    gitignore_entries
+                                        .push(name.to_string_lossy().to_string());
+                                }
+                            }
                             SyncAction::GenerateMdc { output, .. } => {
                                 // Use relative path from project root
                                 if let Ok(rel) = output.strip_prefix(project_root) {
@@ -426,8 +433,23 @@ impl SyncEngine {
                     std::fs::create_dir_all(parent)
                         .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
                 }
+                // If path is a symlink, remove it first to avoid writing through
+                // the symlink to the target file (which would corrupt canonical).
+                if let Ok(meta) = path.symlink_metadata() {
+                    if meta.file_type().is_symlink() {
+                        std::fs::remove_file(path)
+                            .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
+                    }
+                }
                 std::fs::write(path, content)
                     .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
+                Ok(())
+            }
+            SyncAction::RemoveFile { path } => {
+                if path.symlink_metadata().is_ok() {
+                    std::fs::remove_file(path)
+                        .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
+                }
                 Ok(())
             }
             SyncAction::UpdateGitignore { path, entries } => {

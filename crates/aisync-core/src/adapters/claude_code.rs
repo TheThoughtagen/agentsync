@@ -11,6 +11,45 @@ const CANONICAL_REL: &str = ".ai/instructions.md";
 /// The tool-specific file name at project root.
 const TOOL_FILE: &str = "CLAUDE.md";
 
+impl ClaudeCodeAdapter {
+    /// Plan sync when conditionals are active (processed content differs from raw).
+    /// Returns CreateFile instead of symlinks, since the file content must be transformed.
+    fn plan_sync_with_conditionals(
+        &self,
+        link_path: &Path,
+        processed_content: &str,
+    ) -> Result<Vec<SyncAction>, AisyncError> {
+        if let Ok(meta) = link_path.symlink_metadata() {
+            if meta.file_type().is_symlink() {
+                // Existing symlink: transition to regular file.
+                // CreateFile executor removes symlinks before writing to avoid
+                // corrupting the canonical file through the symlink.
+                return Ok(vec![SyncAction::CreateFile {
+                    path: link_path.to_path_buf(),
+                    content: processed_content.to_string(),
+                }]);
+            }
+
+            // Regular file: check if content already matches (idempotent)
+            let existing = std::fs::read_to_string(link_path).unwrap_or_default();
+            if existing == processed_content {
+                return Ok(vec![]);
+            }
+            // Content differs, overwrite
+            return Ok(vec![SyncAction::CreateFile {
+                path: link_path.to_path_buf(),
+                content: processed_content.to_string(),
+            }]);
+        }
+
+        // File doesn't exist: create with processed content
+        Ok(vec![SyncAction::CreateFile {
+            path: link_path.to_path_buf(),
+            content: processed_content.to_string(),
+        }])
+    }
+}
+
 impl ToolAdapter for ClaudeCodeAdapter {
     fn name(&self) -> ToolKind {
         ToolKind::ClaudeCode
@@ -56,20 +95,32 @@ impl ToolAdapter for ClaudeCodeAdapter {
     fn plan_sync(
         &self,
         project_root: &Path,
-        _canonical_content: &str,
+        canonical_content: &str,
         _strategy: SyncStrategy,
     ) -> Result<Vec<SyncAction>, AisyncError> {
         let link_path = project_root.join(TOOL_FILE);
         let target_rel = Path::new(CANONICAL_REL);
 
-        // On Windows, always use Copy strategy (INST-04) -- handled by caller.
-        // Here we handle symlink logic for Unix.
+        // Determine whether conditionals changed the content by comparing
+        // against the raw canonical file on disk. If the raw file can't be read,
+        // assume no conditionals (symlink behavior).
+        let raw_path = project_root.join(CANONICAL_REL);
+        let conditionals_active = match std::fs::read_to_string(&raw_path) {
+            Ok(raw_content) => canonical_content != raw_content,
+            Err(_) => false, // Can't read raw file, assume no conditionals
+        };
+
+        if conditionals_active {
+            // Conditionals applied: we must write a regular file with processed content
+            // instead of symlinking to the raw canonical file.
+            return self.plan_sync_with_conditionals(&link_path, canonical_content);
+        }
+
+        // No conditionals: use symlink strategy (original behavior)
 
         if link_path.exists() || link_path.symlink_metadata().is_ok() {
-            // File or symlink exists
             if let Ok(meta) = link_path.symlink_metadata() {
                 if meta.file_type().is_symlink() {
-                    // Check where the symlink points
                     let current_target = std::fs::read_link(&link_path).map_err(|e| {
                         AisyncError::Adapter {
                             tool: "claude-code".to_string(),
@@ -79,16 +130,14 @@ impl ToolAdapter for ClaudeCodeAdapter {
                         }
                     })?;
                     if current_target == target_rel {
-                        // Already correct symlink -- idempotent, no action needed
                         return Ok(vec![]);
                     }
-                    // Symlink points elsewhere -- remove and relink
                     return Ok(vec![SyncAction::RemoveAndRelink {
                         link: link_path,
                         target: target_rel.to_path_buf(),
                     }]);
                 }
-                // Regular file -- skip (user must decide interactively)
+                // Regular file, no conditionals -- skip (user-managed file)
                 return Ok(vec![SyncAction::SkipExistingFile {
                     path: link_path,
                     reason: format!(
@@ -99,7 +148,6 @@ impl ToolAdapter for ClaudeCodeAdapter {
             }
         }
 
-        // File doesn't exist -- create symlink
         Ok(vec![SyncAction::CreateSymlink {
             link: link_path,
             target: target_rel.to_path_buf(),
