@@ -48,7 +48,7 @@ impl MemoryEngine {
 
     /// Create a new memory file .ai/memory/<topic>.md with "# <Topic>" header.
     /// Sanitizes topic name: lowercase, hyphens for spaces, strip non-alphanumeric except hyphens.
-    pub fn add(project_root: &Path, topic: &str) -> Result<PathBuf, AisyncError> {
+    pub fn add(project_root: &Path, topic: &str, content: Option<&str>) -> Result<PathBuf, AisyncError> {
         let memory_dir = project_root.join(".ai/memory");
         std::fs::create_dir_all(&memory_dir)
             .map_err(MemoryError::WriteFailed)?;
@@ -64,8 +64,11 @@ impl MemoryEngine {
         }
 
         let title = Self::title_case(topic);
-        let content = format!("# {}\n", title);
-        std::fs::write(&file_path, content)
+        let file_content = match content {
+            Some(c) if !c.is_empty() => format!("# {}\n\n{}\n", title, c),
+            _ => format!("# {}\n", title),
+        };
+        std::fs::write(&file_path, file_content)
             .map_err(MemoryError::WriteFailed)?;
 
         Ok(file_path)
@@ -99,9 +102,11 @@ impl MemoryEngine {
         let claude_path = Self::claude_memory_path(project_root)?;
 
         if !claude_path.exists() {
-            return Err(MemoryError::ClaudeMemoryNotFound {
-                path: claude_path.display().to_string(),
-            }.into());
+            return Ok(ImportResult {
+                imported: vec![],
+                conflicts: vec![],
+                source_path: claude_path,
+            });
         }
 
         let memory_dir = project_root.join(".ai/memory");
