@@ -38,6 +38,11 @@ enum Commands {
         #[command(subcommand)]
         action: MemoryAction,
     },
+    /// Manage hook definitions in .ai/hooks.toml
+    Hooks {
+        #[command(subcommand)]
+        action: HooksAction,
+    },
 }
 
 #[derive(Subcommand)]
@@ -58,6 +63,16 @@ pub enum MemoryAction {
     Export,
 }
 
+#[derive(Subcommand)]
+pub enum HooksAction {
+    /// List all hooks and per-tool support status
+    List,
+    /// Add a new hook definition interactively
+    Add,
+    /// Preview hook translations for all tools
+    Translate,
+}
+
 fn main() {
     let cli = Cli::parse();
     let result = match &cli.command {
@@ -65,6 +80,7 @@ fn main() {
         Commands::Sync { dry_run } => commands::sync::run_sync(*dry_run, cli.verbose),
         Commands::Status { json } => commands::status::run_status(*json, cli.verbose),
         Commands::Memory { action } => commands::memory::run_memory(action, cli.verbose),
+        Commands::Hooks { action } => commands::hooks::run_hooks(action, cli.verbose),
     };
     if let Err(e) = result {
         eprintln!("Error: {e}");

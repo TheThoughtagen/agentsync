@@ -3,9 +3,10 @@ use std::path::Path;
 use crate::adapter::{AnyAdapter, ClaudeCodeAdapter, CursorAdapter, OpenCodeAdapter, ToolAdapter};
 use crate::config::{AisyncConfig, SyncStrategy};
 use crate::error::{AisyncError, SyncError};
+use crate::hooks::HookEngine;
 use crate::types::{
-    content_hash, DriftState, StatusReport, SyncAction, SyncReport, ToolKind, ToolSyncResult,
-    ToolSyncStatus,
+    content_hash, DriftState, HookTranslation, StatusReport, SyncAction, SyncReport, ToolKind,
+    ToolSyncResult, ToolSyncStatus,
 };
 
 /// The sync engine orchestrates planning, executing, and checking status
@@ -63,6 +64,34 @@ impl SyncEngine {
                             tool: tool_kind,
                             reason: format!("memory sync failed: {e}"),
                         });
+                    }
+                }
+            }
+
+            // Plan hook translation (if hooks.toml exists)
+            if let Ok(hooks_config) = HookEngine::parse(project_root) {
+                match adapter.translate_hooks(&hooks_config) {
+                    Ok(HookTranslation::Supported { tool, content, .. }) => {
+                        let path = match tool {
+                            ToolKind::ClaudeCode => {
+                                project_root.join(".claude/settings.json")
+                            }
+                            ToolKind::OpenCode => {
+                                project_root.join(".opencode/plugins/aisync-hooks.js")
+                            }
+                            _ => continue, // Should not happen for supported
+                        };
+                        actions.push(SyncAction::WriteHookTranslation {
+                            path,
+                            content,
+                            tool,
+                        });
+                    }
+                    Ok(HookTranslation::Unsupported { tool, reason }) => {
+                        actions.push(SyncAction::WarnUnsupportedHooks { tool, reason });
+                    }
+                    Err(_) => {
+                        // Hook translation error is non-fatal
                     }
                 }
             }
@@ -271,13 +300,55 @@ impl SyncEngine {
                     .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
                 Ok(())
             }
-            SyncAction::WriteHookTranslation { path, content, .. } => {
+            SyncAction::WriteHookTranslation { path, content, tool } => {
                 if let Some(parent) = path.parent() {
                     std::fs::create_dir_all(parent)
                         .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
                 }
-                std::fs::write(path, content)
-                    .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
+                match tool {
+                    ToolKind::ClaudeCode => {
+                        // Merge hooks into existing settings.json if it exists
+                        let hooks_value: serde_json::Value =
+                            serde_json::from_str(content).map_err(|e| {
+                                AisyncError::Sync(SyncError::WriteFailed(
+                                    std::io::Error::new(
+                                        std::io::ErrorKind::InvalidData,
+                                        format!("failed to parse hook JSON: {e}"),
+                                    ),
+                                ))
+                            })?;
+                        let mut settings = if path.exists() {
+                            let existing = std::fs::read_to_string(path)
+                                .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
+                            serde_json::from_str::<serde_json::Value>(&existing).unwrap_or_else(
+                                |_| serde_json::Value::Object(serde_json::Map::new()),
+                            )
+                        } else {
+                            serde_json::Value::Object(serde_json::Map::new())
+                        };
+                        if let (Some(settings_map), Some(hooks_obj)) =
+                            (settings.as_object_mut(), hooks_value.get("hooks"))
+                        {
+                            settings_map
+                                .insert("hooks".to_string(), hooks_obj.clone());
+                        }
+                        let output = serde_json::to_string_pretty(&settings).map_err(|e| {
+                            AisyncError::Sync(SyncError::WriteFailed(
+                                std::io::Error::new(
+                                    std::io::ErrorKind::InvalidData,
+                                    format!("failed to serialize settings.json: {e}"),
+                                ),
+                            ))
+                        })?;
+                        std::fs::write(path, output)
+                            .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
+                    }
+                    _ => {
+                        // OpenCode and others: write directly
+                        std::fs::write(path, content)
+                            .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
+                    }
+                }
                 Ok(())
             }
             SyncAction::WarnUnsupportedHooks { .. } => {
