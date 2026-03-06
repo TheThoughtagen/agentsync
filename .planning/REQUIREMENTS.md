@@ -44,13 +44,13 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Memory
 
-- [ ] **MEM-01**: `.ai/memory/` files synced to Claude Code auto-memory path via symlink
-- [ ] **MEM-02**: Memory file references injected into AGENTS.md for OpenCode
-- [ ] **MEM-03**: Memory file references injected into .mdc rules for Cursor
+- [x] **MEM-01**: `.ai/memory/` files synced to Claude Code auto-memory path via symlink
+- [x] **MEM-02**: Memory file references injected into AGENTS.md for OpenCode
+- [x] **MEM-03**: Memory file references injected into .mdc rules for Cursor
 - [x] **MEM-04**: `aisync memory list` shows all memory files
 - [x] **MEM-05**: `aisync memory add <topic>` creates new memory file
 - [x] **MEM-06**: `aisync memory import claude` pulls Claude auto-memory updates into `.ai/memory/`
-- [ ] **MEM-07**: `aisync memory export` writes memory to all configured tools
+- [x] **MEM-07**: `aisync memory export` writes memory to all configured tools
 
 ### Hooks
 
@@ -146,13 +146,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ADPT-03 | Phase 2 | Complete |
 | ADPT-04 | Phase 1 | Complete |
 | ADPT-05 | Phase 1 | Complete |
-| MEM-01 | Phase 3 | Pending |
-| MEM-02 | Phase 3 | Pending |
-| MEM-03 | Phase 3 | Pending |
+| MEM-01 | Phase 3 | Complete |
+| MEM-02 | Phase 3 | Complete |
+| MEM-03 | Phase 3 | Complete |
 | MEM-04 | Phase 3 | Complete |
 | MEM-05 | Phase 3 | Complete |
 | MEM-06 | Phase 3 | Complete |
-| MEM-07 | Phase 3 | Pending |
+| MEM-07 | Phase 3 | Complete |
 | HOOK-01 | Phase 3 | Complete |
 | HOOK-02 | Phase 3 | Complete |
 | HOOK-03 | Phase 3 | Complete |
