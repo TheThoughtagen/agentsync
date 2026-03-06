@@ -63,25 +63,28 @@ impl WatchEngine {
                 })?;
         }
 
-        // Event loop
-        for events in rx {
+        // Event loop — uses recv_timeout so the running flag is checked every 500ms
+        // even when no filesystem events arrive (fixes Ctrl+C hang)
+        loop {
             if !running.load(SeqCst) {
                 break;
             }
 
-            if syncing.load(SeqCst) {
-                continue;
-            }
-
-            let events = match events {
-                Ok(events) => events,
-                Err(err) => {
+            let events = match rx.recv_timeout(Duration::from_millis(500)) {
+                Ok(Ok(events)) => events,
+                Ok(Err(err)) => {
                     event_callback(WatchEvent::Error {
                         message: format!("{err}"),
                     });
                     continue;
                 }
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
             };
+
+            if syncing.load(SeqCst) {
+                continue;
+            }
 
             if events.is_empty() {
                 continue;

@@ -92,6 +92,7 @@ pub enum SyncAction {
     UpdateGitignore { path: PathBuf, entries: Vec<String> },
     CreateDirectory { path: PathBuf },
     CreateFile { path: PathBuf, content: String },
+    RemoveFile { path: PathBuf },
     SkipExistingFile { path: PathBuf, reason: String },
     // Memory actions
     CreateMemorySymlink { link: PathBuf, target: PathBuf },
@@ -121,6 +122,9 @@ impl fmt::Display for SyncAction {
             }
             SyncAction::CreateFile { path, .. } => {
                 write!(f, "Would create file: {}", path.display())
+            }
+            SyncAction::RemoveFile { path } => {
+                write!(f, "Would remove file: {}", path.display())
             }
             SyncAction::SkipExistingFile { path, reason } => {
                 write!(f, "Would skip {}: {}", path.display(), reason)
