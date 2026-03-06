@@ -33,6 +33,29 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
+    /// Manage memory files in .ai/memory/
+    Memory {
+        #[command(subcommand)]
+        action: MemoryAction,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum MemoryAction {
+    /// List all memory files
+    List,
+    /// Add a new memory file
+    Add {
+        /// Topic name for the memory file
+        topic: String,
+    },
+    /// Import memory from a tool's native storage
+    Import {
+        /// Tool to import from (currently only "claude")
+        tool: String,
+    },
+    /// Export memory to all configured tools (same as sync for memory)
+    Export,
 }
 
 fn main() {
@@ -41,6 +64,7 @@ fn main() {
         Commands::Init => commands::init::run_init(cli.verbose),
         Commands::Sync { dry_run } => commands::sync::run_sync(*dry_run, cli.verbose),
         Commands::Status { json } => commands::status::run_status(*json, cli.verbose),
+        Commands::Memory { action } => commands::memory::run_memory(action, cli.verbose),
     };
     if let Err(e) = result {
         eprintln!("Error: {e}");
