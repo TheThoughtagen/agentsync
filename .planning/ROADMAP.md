@@ -60,14 +60,15 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. User can run `aisync memory add <topic>` to create a memory file in `.ai/memory/`, and `aisync sync` propagates it to Claude Code (symlink), OpenCode (AGENTS.md reference), and Cursor (.mdc reference)
   2. User can run `aisync memory import claude` to pull Claude auto-memory updates into `.ai/memory/`
-  3. User can define a hook in `.ai/hooks/pre-commit.toml` and see it translated to Claude Code settings.json format and OpenCode plugin stubs after sync
+  3. User can define a hook in `.ai/hooks.toml` and see it translated to Claude Code settings.json format and OpenCode plugin stubs after sync
   4. User can run `aisync hooks list` to see all hooks and their per-tool translation status, including warnings for tools that don't support hooks (Cursor)
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
-- [ ] 03-01: TBD
-- [ ] 03-02: TBD
-- [ ] 03-03: TBD
+- [ ] 03-01-PLAN.md — Foundation types, errors, managed sections, trait extension, memory engine
+- [ ] 03-02-PLAN.md — Adapter memory sync implementations, memory CLI subcommands
+- [ ] 03-03-PLAN.md — Hook engine, adapter hook translations
+- [ ] 03-04-PLAN.md — Hook CLI subcommands, sync engine hook integration, status extension
 
 ### Phase 4: Watch Mode and Bidirectional Sync
 **Goal**: Users can run a file-watching daemon that auto-syncs on changes, and edits to tool-native files reverse-sync back to the canonical `.ai/` directory
@@ -112,6 +113,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 |-------|----------------|--------|-----------|
 | 1. Foundation and Data Model | 0/2 | Not started | - |
 | 2. Core Sync Loop (MVP) | 0/4 | Not started | - |
-| 3. Memory and Hooks | 0/3 | Not started | - |
+| 3. Memory and Hooks | 0/4 | Not started | - |
 | 4. Watch Mode and Bidirectional Sync | 0/3 | Not started | - |
 | 5. Polish and Distribution | 0/3 | Not started | - |
