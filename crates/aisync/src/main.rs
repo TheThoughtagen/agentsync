@@ -43,6 +43,12 @@ enum Commands {
         #[command(subcommand)]
         action: HooksAction,
     },
+    /// Watch for file changes and auto-sync
+    Watch,
+    /// Compare canonical .ai/ content vs tool-native files
+    Diff,
+    /// Check sync state for CI (exits non-zero on drift)
+    Check,
 }
 
 #[derive(Subcommand)]
@@ -84,6 +90,9 @@ fn main() {
         Commands::Status { json } => commands::status::run_status(*json, cli.verbose),
         Commands::Memory { action } => commands::memory::run_memory(action, cli.verbose),
         Commands::Hooks { action } => commands::hooks::run_hooks(action, cli.verbose),
+        Commands::Watch => commands::watch::run_watch(cli.verbose),
+        Commands::Diff => commands::diff::run_diff(cli.verbose),
+        Commands::Check => commands::check::run_check(cli.verbose),
     };
     if let Err(e) = result {
         eprintln!("Error: {e}");
