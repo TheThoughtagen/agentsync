@@ -933,4 +933,86 @@ mod tests {
         let err = result.unwrap_err();
         assert!(format!("{err}").contains("canonical"));
     }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_conditional_sync_end_to_end_cursor_only_stripped_from_claude() {
+        let dir = TempDir::new().unwrap();
+        let content = "# Instructions\n\n<!-- aisync:cursor-only -->\nCursor-specific content\n<!-- /aisync:cursor-only -->\n\nShared content\n";
+        setup_canonical(dir.path(), content);
+
+        let config = all_enabled_config();
+        let plan = SyncEngine::plan(&config, dir.path()).unwrap();
+        let result = SyncEngine::execute(&plan, dir.path()).unwrap();
+        assert!(!result.has_errors(), "sync errors: {:?}", result);
+
+        // CLAUDE.md should NOT contain cursor-only content (regular file, not symlink)
+        let claude_md = dir.path().join("CLAUDE.md");
+        let claude_content = std::fs::read_to_string(&claude_md).unwrap();
+        assert!(!claude_content.contains("Cursor-specific content"),
+            "CLAUDE.md should NOT contain cursor-only content");
+        assert!(claude_content.contains("Shared content"),
+            "CLAUDE.md should contain shared content");
+        let meta = claude_md.symlink_metadata().unwrap();
+        assert!(!meta.file_type().is_symlink(),
+            "CLAUDE.md should be a regular file when conditionals are active");
+
+        // Cursor MDC should contain cursor-only content
+        let mdc_content = std::fs::read_to_string(dir.path().join(".cursor/rules/project.mdc")).unwrap();
+        assert!(mdc_content.contains("Cursor-specific content"),
+            "Cursor MDC should contain cursor-only content");
+
+        // AGENTS.md (OpenCode) should NOT contain cursor-only content
+        let agents_content = std::fs::read_to_string(dir.path().join("AGENTS.md")).unwrap();
+        assert!(!agents_content.contains("Cursor-specific content"),
+            "AGENTS.md should NOT contain cursor-only content");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_conditional_sync_end_to_end_claude_only_kept_in_claude() {
+        let dir = TempDir::new().unwrap();
+        let content = "# Instructions\n\n<!-- aisync:claude-only -->\nClaude-only content\n<!-- /aisync:claude-only -->\n\nShared content\n";
+        setup_canonical(dir.path(), content);
+
+        let config = all_enabled_config();
+        let plan = SyncEngine::plan(&config, dir.path()).unwrap();
+        let result = SyncEngine::execute(&plan, dir.path()).unwrap();
+        assert!(!result.has_errors(), "sync errors: {:?}", result);
+
+        // CLAUDE.md should contain claude-only content
+        let claude_content = std::fs::read_to_string(dir.path().join("CLAUDE.md")).unwrap();
+        assert!(claude_content.contains("Claude-only content"),
+            "CLAUDE.md should contain claude-only content");
+
+        // Cursor MDC should NOT contain claude-only content
+        let mdc_content = std::fs::read_to_string(dir.path().join(".cursor/rules/project.mdc")).unwrap();
+        assert!(!mdc_content.contains("Claude-only content"),
+            "Cursor MDC should NOT contain claude-only content");
+
+        // AGENTS.md should NOT contain claude-only content
+        let agents_content = std::fs::read_to_string(dir.path().join("AGENTS.md")).unwrap();
+        assert!(!agents_content.contains("Claude-only content"),
+            "AGENTS.md should NOT contain claude-only content");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_no_conditionals_claude_md_remains_symlink() {
+        let dir = TempDir::new().unwrap();
+        let content = "# Instructions\n\nNo conditional sections here.\n";
+        setup_canonical(dir.path(), content);
+
+        let config = all_enabled_config();
+        let plan = SyncEngine::plan(&config, dir.path()).unwrap();
+        let result = SyncEngine::execute(&plan, dir.path()).unwrap();
+        assert!(!result.has_errors(), "sync errors: {:?}", result);
+
+        let claude_md = dir.path().join("CLAUDE.md");
+        let meta = claude_md.symlink_metadata().unwrap();
+        assert!(meta.file_type().is_symlink(),
+            "CLAUDE.md should be a symlink when no conditionals are used");
+        let claude_content = std::fs::read_to_string(&claude_md).unwrap();
+        assert_eq!(claude_content, content);
+    }
 }

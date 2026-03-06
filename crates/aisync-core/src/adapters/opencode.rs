@@ -10,6 +10,38 @@ const CANONICAL_REL: &str = ".ai/instructions.md";
 /// The tool-specific file name at project root.
 const TOOL_FILE: &str = "AGENTS.md";
 
+impl OpenCodeAdapter {
+    /// Plan sync when conditionals are active (processed content differs from raw).
+    fn plan_sync_with_conditionals(
+        &self,
+        link_path: &Path,
+        processed_content: &str,
+    ) -> Result<Vec<SyncAction>, AisyncError> {
+        if let Ok(meta) = link_path.symlink_metadata() {
+            if meta.file_type().is_symlink() {
+                return Ok(vec![SyncAction::CreateFile {
+                    path: link_path.to_path_buf(),
+                    content: processed_content.to_string(),
+                }]);
+            }
+
+            let existing = std::fs::read_to_string(link_path).unwrap_or_default();
+            if existing == processed_content {
+                return Ok(vec![]);
+            }
+            return Ok(vec![SyncAction::CreateFile {
+                path: link_path.to_path_buf(),
+                content: processed_content.to_string(),
+            }]);
+        }
+
+        Ok(vec![SyncAction::CreateFile {
+            path: link_path.to_path_buf(),
+            content: processed_content.to_string(),
+        }])
+    }
+}
+
 impl ToolAdapter for OpenCodeAdapter {
     fn name(&self) -> ToolKind {
         ToolKind::OpenCode
@@ -64,11 +96,22 @@ impl ToolAdapter for OpenCodeAdapter {
     fn plan_sync(
         &self,
         project_root: &Path,
-        _canonical_content: &str,
+        canonical_content: &str,
         _strategy: SyncStrategy,
     ) -> Result<Vec<SyncAction>, AisyncError> {
         let link_path = project_root.join(TOOL_FILE);
         let target_rel = Path::new(CANONICAL_REL);
+
+        // Determine whether conditionals changed the content
+        let raw_path = project_root.join(CANONICAL_REL);
+        let conditionals_active = match std::fs::read_to_string(&raw_path) {
+            Ok(raw_content) => canonical_content != raw_content,
+            Err(_) => false,
+        };
+
+        if conditionals_active {
+            return self.plan_sync_with_conditionals(&link_path, canonical_content);
+        }
 
         if link_path.exists() || link_path.symlink_metadata().is_ok() {
             if let Ok(meta) = link_path.symlink_metadata() {
