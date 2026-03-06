@@ -12,6 +12,17 @@ use crate::error::{AisyncError, WatchError};
 use crate::sync::SyncEngine;
 use crate::types::{ToolKind, WatchEvent};
 
+/// Directories to watch and expected file paths for event filtering.
+/// Watching parent directories (instead of files directly) survives
+/// editor atomic saves (write temp + rename) that invalidate inode-based watches.
+#[derive(Debug)]
+pub(crate) struct WatchTargets {
+    /// Parent directories to register with the filesystem watcher.
+    pub watch_dirs: Vec<PathBuf>,
+    /// Expected tool-native file paths, used to filter directory events.
+    pub expected_files: Vec<PathBuf>,
+}
+
 /// The watch engine monitors filesystem changes and orchestrates
 /// forward sync (canonical -> tools) and reverse sync (tool-native -> canonical).
 pub struct WatchEngine;
@@ -49,21 +60,23 @@ impl WatchEngine {
                 })?;
         }
 
-        // Watch tool-native files (non-symlink only)
-        let tool_paths = Self::tool_watch_paths(config, project_root);
-        for path in &tool_paths {
+        // Watch tool-native file parent directories (non-symlink files only).
+        // Watching directories instead of files survives editor atomic saves
+        // (write temp + rename) that invalidate inode-based kqueue watches.
+        let watch_targets = Self::tool_watch_paths(config, project_root);
+        for dir in &watch_targets.watch_dirs {
             debouncer
                 .watcher()
-                .watch(path, RecursiveMode::NonRecursive)
+                .watch(dir, RecursiveMode::NonRecursive)
                 .map_err(|e| {
                     AisyncError::Watch(WatchError::WatchFailed(format!(
                         "failed to watch {}: {e}",
-                        path.display()
+                        dir.display()
                     )))
                 })?;
         }
 
-        // Event loop — uses recv_timeout so the running flag is checked every 500ms
+        // Event loop -- uses recv_timeout so the running flag is checked every 500ms
         // even when no filesystem events arrive (fixes Ctrl+C hang)
         loop {
             if !running.load(SeqCst) {
@@ -102,9 +115,16 @@ impl WatchEngine {
             });
 
             let is_tool_native = changed_paths.iter().any(|p| {
-                tool_paths.iter().any(|tp| {
-                    p.canonicalize().ok().as_ref() == tp.canonicalize().ok().as_ref()
-                        || p == tp
+                watch_targets.expected_files.iter().any(|expected| {
+                    // Match by filename in the same parent directory.
+                    // This works with directory-level watching because we get
+                    // events for all files in the watched directory, so we filter
+                    // to only the expected tool-native filenames.
+                    let same_name = p.file_name() == expected.file_name();
+                    let same_parent = p.parent() == expected.parent()
+                        || p.parent().and_then(|pp| pp.canonicalize().ok())
+                            == expected.parent().and_then(|ep| ep.canonicalize().ok());
+                    same_name && same_parent
                 })
             });
 
@@ -175,10 +195,13 @@ impl WatchEngine {
         Ok(())
     }
 
-    /// Determine tool-native file paths to watch.
-    /// Only returns paths that exist and are NOT symlinks.
-    pub(crate) fn tool_watch_paths(config: &AisyncConfig, project_root: &Path) -> Vec<PathBuf> {
-        let mut paths = Vec::new();
+    /// Determine tool-native watch targets.
+    /// Returns parent directories to watch (survives editor atomic saves)
+    /// and expected file paths for filtering events.
+    /// Only includes files that exist and are NOT symlinks.
+    pub(crate) fn tool_watch_paths(config: &AisyncConfig, project_root: &Path) -> WatchTargets {
+        let mut expected_files = Vec::new();
+        let mut watch_dirs = Vec::new();
 
         for (tool_kind, _adapter, _tool_config) in SyncEngine::enabled_tools(config) {
             let path = match tool_kind {
@@ -190,12 +213,24 @@ impl WatchEngine {
             // Only watch files that exist and are NOT symlinks
             if let Ok(meta) = path.symlink_metadata() {
                 if !meta.file_type().is_symlink() && meta.is_file() {
-                    paths.push(path);
+                    expected_files.push(path.clone());
+                    // Watch the parent directory instead of the file itself.
+                    // This survives editor atomic saves (write temp + rename)
+                    // that invalidate inode-based kqueue watches on macOS.
+                    if let Some(parent) = path.parent() {
+                        let parent_buf = parent.to_path_buf();
+                        if !watch_dirs.contains(&parent_buf) {
+                            watch_dirs.push(parent_buf);
+                        }
+                    }
                 }
             }
         }
 
-        paths
+        WatchTargets {
+            watch_dirs,
+            expected_files,
+        }
     }
 
     /// Reverse sync: read content from a changed tool-native file
@@ -287,7 +322,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tool_watch_paths_returns_existing_non_symlink_files() {
+    fn test_tool_watch_paths_returns_parent_dirs_and_expected_files() {
         let dir = TempDir::new().unwrap();
         let config = all_enabled_config();
 
@@ -295,12 +330,20 @@ mod tests {
         std::fs::write(dir.path().join("CLAUDE.md"), "# Claude").unwrap();
         std::fs::write(dir.path().join("AGENTS.md"), "# Agents").unwrap();
 
-        let paths = WatchEngine::tool_watch_paths(&config, dir.path());
+        let targets = WatchEngine::tool_watch_paths(&config, dir.path());
 
-        assert!(paths.contains(&dir.path().join("CLAUDE.md")));
-        assert!(paths.contains(&dir.path().join("AGENTS.md")));
-        // Cursor .mdc doesn't exist, so shouldn't be returned
-        assert!(!paths.contains(&dir.path().join(".cursor/rules/project.mdc")));
+        // Expected files should contain the tool file paths
+        assert!(targets.expected_files.contains(&dir.path().join("CLAUDE.md")));
+        assert!(targets.expected_files.contains(&dir.path().join("AGENTS.md")));
+        // Cursor .mdc doesn't exist, so shouldn't be in expected files
+        assert!(!targets.expected_files.contains(&dir.path().join(".cursor/rules/project.mdc")));
+
+        // Watch dirs should contain parent directories, not the files themselves
+        assert!(targets.watch_dirs.contains(&dir.path().to_path_buf()),
+            "watch_dirs should contain project root (parent of CLAUDE.md and AGENTS.md)");
+        // Both CLAUDE.md and AGENTS.md are in project root, so only one directory entry
+        assert_eq!(targets.watch_dirs.len(), 1,
+            "watch_dirs should deduplicate: CLAUDE.md and AGENTS.md share the same parent");
     }
 
     #[test]
@@ -326,15 +369,15 @@ mod tests {
         // Create AGENTS.md as regular file
         std::fs::write(dir.path().join("AGENTS.md"), "# Agents").unwrap();
 
-        let paths = WatchEngine::tool_watch_paths(&config, dir.path());
+        let targets = WatchEngine::tool_watch_paths(&config, dir.path());
 
-        // CLAUDE.md is a symlink, should NOT be in paths
+        // CLAUDE.md is a symlink, should NOT be in expected_files
         assert!(
-            !paths.contains(&dir.path().join("CLAUDE.md")),
-            "symlinked CLAUDE.md should not be in watch paths"
+            !targets.expected_files.contains(&dir.path().join("CLAUDE.md")),
+            "symlinked CLAUDE.md should not be in expected_files"
         );
-        // AGENTS.md is a regular file, should be in paths
-        assert!(paths.contains(&dir.path().join("AGENTS.md")));
+        // AGENTS.md is a regular file, should be in expected_files
+        assert!(targets.expected_files.contains(&dir.path().join("AGENTS.md")));
     }
 
     #[test]
@@ -343,8 +386,59 @@ mod tests {
         let config = all_enabled_config();
 
         // No tool files created
-        let paths = WatchEngine::tool_watch_paths(&config, dir.path());
-        assert!(paths.is_empty(), "expected no paths for missing files, got: {paths:?}");
+        let targets = WatchEngine::tool_watch_paths(&config, dir.path());
+        assert!(targets.expected_files.is_empty(), "expected no files for missing files");
+        assert!(targets.watch_dirs.is_empty(), "expected no dirs for missing files");
+    }
+
+    #[test]
+    fn test_tool_watch_paths_deduplicates_directories() {
+        let dir = TempDir::new().unwrap();
+        let config = all_enabled_config();
+
+        // Create CLAUDE.md and AGENTS.md in same directory (project root)
+        std::fs::write(dir.path().join("CLAUDE.md"), "# Claude").unwrap();
+        std::fs::write(dir.path().join("AGENTS.md"), "# Agents").unwrap();
+        // Create Cursor file in a different directory
+        let cursor_dir = dir.path().join(".cursor/rules");
+        std::fs::create_dir_all(&cursor_dir).unwrap();
+        std::fs::write(cursor_dir.join("project.mdc"), "# Cursor").unwrap();
+
+        let targets = WatchEngine::tool_watch_paths(&config, dir.path());
+
+        assert_eq!(targets.expected_files.len(), 3, "should have 3 expected files");
+        assert_eq!(targets.watch_dirs.len(), 2,
+            "should have 2 watch dirs (project root + .cursor/rules)");
+    }
+
+    #[test]
+    fn test_is_tool_native_matches_filename_in_parent() {
+        // Verify that the is_tool_native detection logic correctly identifies
+        // tool-native file changes by matching filename in the expected parent directory
+        let dir = TempDir::new().unwrap();
+        let config = all_enabled_config();
+
+        std::fs::write(dir.path().join("CLAUDE.md"), "# Claude").unwrap();
+
+        let targets = WatchEngine::tool_watch_paths(&config, dir.path());
+
+        // Simulate a changed path that matches expected tool file
+        let changed = dir.path().join("CLAUDE.md");
+        let is_match = targets.expected_files.iter().any(|expected| {
+            let same_name = changed.file_name() == expected.file_name();
+            let same_parent = changed.parent() == expected.parent();
+            same_name && same_parent
+        });
+        assert!(is_match, "CLAUDE.md in project root should match");
+
+        // A file with same name but in wrong directory should NOT match
+        let wrong_dir = dir.path().join("subdir/CLAUDE.md");
+        let is_wrong_match = targets.expected_files.iter().any(|expected| {
+            let same_name = wrong_dir.file_name() == expected.file_name();
+            let same_parent = wrong_dir.parent() == expected.parent();
+            same_name && same_parent
+        });
+        assert!(!is_wrong_match, "CLAUDE.md in wrong directory should not match");
     }
 
     #[test]
