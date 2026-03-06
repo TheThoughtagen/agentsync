@@ -1,9 +1,9 @@
 ---
-status: diagnosed
+status: resolved
 phase: 02-core-sync-loop-mvp
 source: 02-01-SUMMARY.md, 02-02-SUMMARY.md, 02-03-SUMMARY.md, 02-04-SUMMARY.md
 started: 2026-03-05T23:20:00Z
-updated: 2026-03-05T23:30:00Z
+updated: 2026-03-06T00:00:00Z
 ---
 
 ## Current Test
@@ -55,7 +55,7 @@ skipped: 0
 ## Gaps
 
 - truth: "Dry-run shows clear, actionable preview of planned sync actions per tool"
-  status: failed
+  status: resolved
   reason: "User reported: dry-run says 'Would skip ./CLAUDE.md: CLAUDE.md is a regular file, not managed by aisync' with no guidance on how to resolve"
   severity: minor
   test: 2
@@ -71,7 +71,7 @@ skipped: 0
   debug_session: ".planning/debug/sync-dryrun-skip-no-guidance.md"
 
 - truth: "Status command shows colored table with per-tool drift states (OK, DRIFTED, MISSING, etc.)"
-  status: failed
+  status: resolved
   reason: "User reported: no table — just shows 'All 3 tool(s) in sync' with no per-tool breakdown or drift states"
   severity: minor
   test: 4
