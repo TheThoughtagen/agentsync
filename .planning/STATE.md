@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: unknown
-last_updated: "2026-03-06T17:04:56.509Z"
+status: in-progress
+last_updated: "2026-03-06T17:25:00Z"
 progress:
-  total_phases: 4
+  total_phases: 5
   completed_phases: 4
-  total_plans: 17
-  completed_plans: 17
+  total_plans: 20
+  completed_plans: 19
 ---
 
 # Project State
@@ -18,23 +18,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-05)
 
 **Core value:** Every AI tool working on a project sees the same instructions, memory, and hooks -- always in sync, zero manual copying.
-**Current focus:** Phase 4: Watch Mode and Bidirectional Sync
+**Current focus:** Phase 5: Polish and Distribution
 
 ## Current Position
 
-Phase: 4 of 4 (Watch Mode and Bidirectional Sync)
-Plan: 5 of 5 in current phase (04-05 complete)
-Status: Phase 04 gap closure complete
-Last activity: 2026-03-06 -- Completed 04-05 (conditional section filtering for ClaudeCode and OpenCode)
+Phase: 5 of 5 (Polish and Distribution)
+Plan: 2 of 3 in current phase (05-02 complete)
+Status: Integration test suite complete
+Last activity: 2026-03-06 -- Completed 05-02 (integration test suite)
 
-Progress: [██████████] 100%
+Progress: [█████████ ] 95%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 11
-- Average duration: 2.7min
-- Total execution time: 0.48 hours
+- Total plans completed: 13
+- Average duration: 2.5min
+- Total execution time: 0.55 hours
 
 **By Phase:**
 
@@ -45,9 +45,10 @@ Progress: [██████████] 100%
 
 | 03-memory-and-hooks | 3 | 14min | 4.7min |
 | 04-watch-mode | 3 | 7min | 2.3min |
+| 05-polish | 2 | 4min | 2.0min |
 
 **Recent Trend:**
-- Last 5 plans: 03-02 (5min), 03-03 (5min), 04-01 (3min), 04-02 (3min), 04-03 (1min)
+- Last 5 plans: 04-01 (3min), 04-02 (3min), 04-03 (1min), 05-01 (2min), 05-02 (2min)
 - Trend: stable
 
 ## Accumulated Context
@@ -103,6 +104,11 @@ Recent decisions affecting current work:
 - 04-04: Directory-level watching survives editor atomic saves on macOS kqueue
 - [Phase 04]: Compare processed content against raw .ai/instructions.md to detect active conditionals
 - [Phase 04]: CreateFile executor removes existing symlinks to prevent writing through to canonical
+- 05-01: Completions subcommand hidden from --help (power-user feature)
+- 05-01: aisync-core marked publish = false as internal library
+- 05-01: Created README.md for cargo package metadata requirement
+- 05-02: Single integration test binary with mod-based organization for fast compilation
+- 05-02: Shared helpers (setup_project, aisync_cmd, STANDARD_CONFIG) reduce test boilerplate
 
 ### Pending Todos
 
@@ -115,5 +121,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-06
-Stopped at: Completed 04-05-PLAN.md (conditional section filtering for ClaudeCode and OpenCode)
-Resume file: .planning/phases/04-watch-mode-bidirectional-sync/04-05-SUMMARY.md
+Stopped at: Completed 05-01-PLAN.md (shell completions and publishing metadata)
+Resume file: .planning/phases/05-polish-and-distribution/05-01-SUMMARY.md

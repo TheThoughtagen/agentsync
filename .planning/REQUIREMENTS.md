@@ -18,7 +18,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **CLI-07**: User can run `aisync check` to validate sync state in CI (exit non-zero on drift)
 - [x] **CLI-08**: `aisync.toml` config file with `schema_version`, per-tool settings, sync strategy
 - [x] **CLI-09**: All sync operations are idempotent — running twice produces the same result
-- [ ] **CLI-10**: Shell completions generated for bash, zsh, and fish
+- [x] **CLI-10**: Shell completions generated for bash, zsh, and fish
 - [x] **CLI-11**: Clear error messages with `--verbose` flag for debugging
 
 ### Instructions Sync
@@ -64,7 +64,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Distribution
 
-- [ ] **DIST-01**: Installable via `cargo install aisync`
+- [x] **DIST-01**: Installable via `cargo install aisync`
 - [ ] **DIST-02**: Homebrew tap (`brew install aisync`)
 - [ ] **DIST-03**: GitHub releases with pre-built binaries for macOS/Linux/Windows
 - [ ] **DIST-04**: Shell installer script (`curl | sh`)
@@ -129,7 +129,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CLI-07 | Phase 4 | Complete |
 | CLI-08 | Phase 1 | Complete |
 | CLI-09 | Phase 2 | Complete |
-| CLI-10 | Phase 5 | Pending |
+| CLI-10 | Phase 5 | Complete |
 | CLI-11 | Phase 2 | Complete |
 | INST-01 | Phase 2 | Complete |
 | INST-02 | Phase 2 | Complete |
@@ -160,7 +160,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | HOOK-05 | Phase 3 | Complete |
 | HOOK-06 | Phase 3 | Complete |
 | HOOK-07 | Phase 3 | Complete |
-| DIST-01 | Phase 5 | Pending |
+| DIST-01 | Phase 5 | Complete |
 | DIST-02 | Phase 5 | Pending |
 | DIST-03 | Phase 5 | Pending |
 | DIST-04 | Phase 5 | Pending |
