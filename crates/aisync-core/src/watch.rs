@@ -253,3 +253,138 @@ impl WatchEngine {
             || changed.canonicalize().ok() == expected.canonicalize().ok()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{AisyncConfig, DefaultsConfig, SyncStrategy, ToolConfig, ToolsConfig};
+    use tempfile::TempDir;
+
+    fn all_enabled_config() -> AisyncConfig {
+        AisyncConfig {
+            schema_version: 1,
+            defaults: DefaultsConfig {
+                sync_strategy: SyncStrategy::Symlink,
+            },
+            tools: ToolsConfig {
+                claude_code: Some(ToolConfig {
+                    enabled: true,
+                    sync_strategy: Some(SyncStrategy::Symlink),
+                }),
+                cursor: Some(ToolConfig {
+                    enabled: true,
+                    sync_strategy: Some(SyncStrategy::Generate),
+                }),
+                opencode: Some(ToolConfig {
+                    enabled: true,
+                    sync_strategy: Some(SyncStrategy::Symlink),
+                }),
+            },
+        }
+    }
+
+    #[test]
+    fn test_tool_watch_paths_returns_existing_non_symlink_files() {
+        let dir = TempDir::new().unwrap();
+        let config = all_enabled_config();
+
+        // Create regular (non-symlink) tool files
+        std::fs::write(dir.path().join("CLAUDE.md"), "# Claude").unwrap();
+        std::fs::write(dir.path().join("AGENTS.md"), "# Agents").unwrap();
+
+        let paths = WatchEngine::tool_watch_paths(&config, dir.path());
+
+        assert!(paths.contains(&dir.path().join("CLAUDE.md")));
+        assert!(paths.contains(&dir.path().join("AGENTS.md")));
+        // Cursor .mdc doesn't exist, so shouldn't be returned
+        assert!(!paths.contains(&dir.path().join(".cursor/rules/project.mdc")));
+    }
+
+    #[test]
+    fn test_tool_watch_paths_skips_symlinked_files() {
+        let dir = TempDir::new().unwrap();
+        let config = all_enabled_config();
+
+        // Create canonical file
+        let ai_dir = dir.path().join(".ai");
+        std::fs::create_dir_all(&ai_dir).unwrap();
+        std::fs::write(ai_dir.join("instructions.md"), "# Instructions").unwrap();
+
+        // Create CLAUDE.md as a symlink to canonical
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(
+                ai_dir.join("instructions.md"),
+                dir.path().join("CLAUDE.md"),
+            )
+            .unwrap();
+        }
+
+        // Create AGENTS.md as regular file
+        std::fs::write(dir.path().join("AGENTS.md"), "# Agents").unwrap();
+
+        let paths = WatchEngine::tool_watch_paths(&config, dir.path());
+
+        // CLAUDE.md is a symlink, should NOT be in paths
+        assert!(
+            !paths.contains(&dir.path().join("CLAUDE.md")),
+            "symlinked CLAUDE.md should not be in watch paths"
+        );
+        // AGENTS.md is a regular file, should be in paths
+        assert!(paths.contains(&dir.path().join("AGENTS.md")));
+    }
+
+    #[test]
+    fn test_tool_watch_paths_skips_missing_files() {
+        let dir = TempDir::new().unwrap();
+        let config = all_enabled_config();
+
+        // No tool files created
+        let paths = WatchEngine::tool_watch_paths(&config, dir.path());
+        assert!(paths.is_empty(), "expected no paths for missing files, got: {paths:?}");
+    }
+
+    #[test]
+    fn test_reverse_sync_updates_canonical() {
+        let dir = TempDir::new().unwrap();
+        let config = all_enabled_config();
+
+        // Set up canonical with old content
+        let ai_dir = dir.path().join(".ai");
+        std::fs::create_dir_all(&ai_dir).unwrap();
+        std::fs::write(ai_dir.join("instructions.md"), "old content").unwrap();
+
+        // Create CLAUDE.md as regular file with new content
+        std::fs::write(dir.path().join("CLAUDE.md"), "new content from claude").unwrap();
+
+        let changed = vec![dir.path().join("CLAUDE.md")];
+        let result = WatchEngine::reverse_sync(&config, dir.path(), &changed).unwrap();
+
+        // Should have returned a ReverseSync event
+        assert!(result.is_some(), "expected ReverseSync event");
+        if let Some(WatchEvent::ReverseSync { tool, .. }) = result {
+            assert_eq!(tool, ToolKind::ClaudeCode);
+        }
+
+        // Canonical should now have the new content
+        let canonical = std::fs::read_to_string(ai_dir.join("instructions.md")).unwrap();
+        assert_eq!(canonical, "new content from claude");
+    }
+
+    #[test]
+    fn test_reverse_sync_noop_when_identical() {
+        let dir = TempDir::new().unwrap();
+        let config = all_enabled_config();
+
+        // Set up canonical and tool file with same content
+        let ai_dir = dir.path().join(".ai");
+        std::fs::create_dir_all(&ai_dir).unwrap();
+        std::fs::write(ai_dir.join("instructions.md"), "same content").unwrap();
+        std::fs::write(dir.path().join("CLAUDE.md"), "same content").unwrap();
+
+        let changed = vec![dir.path().join("CLAUDE.md")];
+        let result = WatchEngine::reverse_sync(&config, dir.path(), &changed).unwrap();
+
+        assert!(result.is_none(), "expected no event when content is identical");
+    }
+}
