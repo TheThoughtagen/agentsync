@@ -72,9 +72,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Quality
 
-- [ ] **QUAL-01**: Unit tests for each adapter's read/write/translate logic
-- [ ] **QUAL-02**: Integration tests with fixture projects simulating multi-tool setups
-- [ ] **QUAL-03**: Round-trip tests for instructions translation (canonical → native → canonical)
+- [x] **QUAL-01**: Unit tests for each adapter's read/write/translate logic
+- [x] **QUAL-02**: Integration tests with fixture projects simulating multi-tool setups
+- [x] **QUAL-03**: Round-trip tests for instructions translation (canonical → native → canonical)
 
 ## v2 Requirements
 
@@ -165,9 +165,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DIST-03 | Phase 5 | Pending |
 | DIST-04 | Phase 5 | Pending |
 | DIST-05 | Phase 5 | Pending |
-| QUAL-01 | Phase 5 | Pending |
-| QUAL-02 | Phase 5 | Pending |
-| QUAL-03 | Phase 5 | Pending |
+| QUAL-01 | Phase 5 | Complete |
+| QUAL-02 | Phase 5 | Complete |
+| QUAL-03 | Phase 5 | Complete |
 
 **Coverage:**
 - v1 requirements: 43 total
