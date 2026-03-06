@@ -13,3 +13,4 @@ serde_json = { workspace = true }
 notify = { workspace = true }
 notify-debouncer-mini = { workspace = true }
 ctrlc = { workspace = true }
+clap_complete = { workspace = true }

@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 
 mod commands;
 
@@ -49,6 +49,12 @@ enum Commands {
     Diff,
     /// Check sync state for CI (exits non-zero on drift)
     Check,
+    /// Generate shell completions
+    #[command(hide = true)]
+    Completions {
+        /// Shell to generate completions for (bash, zsh, fish)
+        shell: clap_complete::Shell,
+    },
 }
 
 #[derive(Subcommand)]
@@ -93,6 +99,11 @@ fn main() {
         Commands::Watch => commands::watch::run_watch(cli.verbose),
         Commands::Diff => commands::diff::run_diff(cli.verbose),
         Commands::Check => commands::check::run_check(cli.verbose),
+        Commands::Completions { shell } => {
+            let mut cmd = Cli::command();
+            clap_complete::generate(*shell, &mut cmd, "aisync", &mut std::io::stdout());
+            Ok(())
+        }
     };
     if let Err(e) = result {
         eprintln!("Error: {e}");
