@@ -1,0 +1,25 @@
+# Build
+target/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Internal planning
+.planning/
+
+# Local user preferences
+.claude/settings.local.json
+
+# Internal docs
+PRD.md
+
+# aisync-managed
+.cursor/rules/project.mdc
+# /aisync-managed
