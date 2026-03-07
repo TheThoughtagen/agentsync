@@ -396,6 +396,7 @@ mod tests {
 
     // --- plan_memory_sync tests ---
 
+    #[cfg(unix)]
     #[test]
     fn test_plan_memory_sync_returns_update_memory_references() {
         let dir = TempDir::new().unwrap();

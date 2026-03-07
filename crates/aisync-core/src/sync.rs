@@ -663,6 +663,7 @@ mod tests {
         assert_eq!(report.results[0].tool, ToolKind::ClaudeCode);
     }
 
+    #[cfg(unix)]
     #[test]
     fn test_execute_creates_symlinks_and_mdc() {
         let dir = TempDir::new().unwrap();
@@ -780,6 +781,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     #[test]
     fn test_status_in_sync_after_execute() {
         let dir = TempDir::new().unwrap();
@@ -794,6 +796,7 @@ mod tests {
         assert!(status.all_in_sync());
     }
 
+    #[cfg(unix)]
     #[test]
     fn test_idempotent_double_execute() {
         let dir = TempDir::new().unwrap();

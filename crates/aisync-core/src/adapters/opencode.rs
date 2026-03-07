@@ -420,6 +420,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     #[test]
     fn test_plan_sync_correct_symlink_returns_empty() {
         let dir = TempDir::new().unwrap();
@@ -467,6 +468,7 @@ mod tests {
         assert_eq!(status.drift, DriftState::Missing);
     }
 
+    #[cfg(unix)]
     #[test]
     fn test_sync_status_in_sync() {
         let dir = TempDir::new().unwrap();
@@ -493,6 +495,7 @@ mod tests {
 
     // --- plan_memory_sync tests ---
 
+    #[cfg(unix)]
     #[test]
     fn test_plan_memory_sync_returns_update_memory_references() {
         let dir = TempDir::new().unwrap();
@@ -536,6 +539,7 @@ mod tests {
         assert!(actions.is_empty());
     }
 
+    #[cfg(unix)]
     #[test]
     fn test_sync_status_dangling_symlink() {
         let dir = TempDir::new().unwrap();

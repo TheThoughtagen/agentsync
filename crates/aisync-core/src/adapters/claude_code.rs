@@ -443,6 +443,7 @@ mod tests {
         assert_eq!(content, Some("# My Instructions".to_string()));
     }
 
+    #[cfg(unix)]
     #[test]
     fn test_read_instructions_follows_symlinks() {
         let dir = TempDir::new().unwrap();
@@ -490,6 +491,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     #[test]
     fn test_plan_sync_correct_symlink_returns_empty() {
         let dir = TempDir::new().unwrap();
@@ -527,6 +529,7 @@ mod tests {
         assert!(matches!(&actions[0], SyncAction::SkipExistingFile { .. }));
     }
 
+    #[cfg(unix)]
     #[test]
     fn test_plan_sync_wrong_symlink_returns_relink() {
         let dir = TempDir::new().unwrap();
@@ -557,6 +560,7 @@ mod tests {
         assert_eq!(status.drift, DriftState::Missing);
     }
 
+    #[cfg(unix)]
     #[test]
     fn test_sync_status_in_sync() {
         let dir = TempDir::new().unwrap();
@@ -582,6 +586,7 @@ mod tests {
         assert_eq!(status.drift, DriftState::InSync);
     }
 
+    #[cfg(unix)]
     #[test]
     fn test_sync_status_dangling_symlink() {
         let dir = TempDir::new().unwrap();
@@ -603,6 +608,7 @@ mod tests {
 
     // --- plan_memory_sync tests ---
 
+    #[cfg(unix)]
     #[test]
     fn test_plan_memory_sync_creates_symlink_when_memory_exists() {
         let dir = TempDir::new().unwrap();
@@ -805,6 +811,7 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
     #[test]
     fn test_sync_status_drifted() {
         let dir = TempDir::new().unwrap();

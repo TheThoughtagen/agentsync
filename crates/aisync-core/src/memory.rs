@@ -301,6 +301,7 @@ mod tests {
 
     // --- claude_project_key tests ---
 
+    #[cfg(unix)]
     #[test]
     fn test_claude_project_key_replaces_slashes() {
         let dir = TempDir::new().unwrap();
@@ -317,6 +318,7 @@ mod tests {
 
     // --- claude_memory_path tests ---
 
+    #[cfg(unix)]
     #[test]
     fn test_claude_memory_path_format() {
         let dir = TempDir::new().unwrap();
