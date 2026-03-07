@@ -96,7 +96,7 @@ impl ToolAdapter for ClaudeCodeAdapter {
         &self,
         project_root: &Path,
         canonical_content: &str,
-        _strategy: SyncStrategy,
+        strategy: SyncStrategy,
     ) -> Result<Vec<SyncAction>, AisyncError> {
         let link_path = project_root.join(TOOL_FILE);
         let target_rel = Path::new(CANONICAL_REL);
@@ -110,13 +110,12 @@ impl ToolAdapter for ClaudeCodeAdapter {
             Err(_) => false, // Can't read raw file, assume no conditionals
         };
 
-        if conditionals_active {
-            // Conditionals applied: we must write a regular file with processed content
-            // instead of symlinking to the raw canonical file.
+        if conditionals_active || strategy == SyncStrategy::Copy {
+            // Conditionals applied or copy strategy: write a regular file with content
             return self.plan_sync_with_conditionals(&link_path, canonical_content);
         }
 
-        // No conditionals: use symlink strategy (original behavior)
+        // No conditionals + symlink strategy: use symlink
 
         if link_path.exists() || link_path.symlink_metadata().is_ok() {
             if let Ok(meta) = link_path.symlink_metadata() {
@@ -271,6 +270,7 @@ impl ToolAdapter for ClaudeCodeAdapter {
         &self,
         project_root: &Path,
         canonical_hash: &str,
+        strategy: SyncStrategy,
     ) -> Result<ToolSyncStatus, AisyncError> {
         let path = project_root.join(TOOL_FILE);
 
@@ -280,7 +280,7 @@ impl ToolAdapter for ClaudeCodeAdapter {
             Err(_) => {
                 return Ok(ToolSyncStatus {
                     tool: ToolKind::ClaudeCode,
-                    strategy: SyncStrategy::Symlink,
+                    strategy,
                     drift: DriftState::Missing,
                     details: None,
                 });
@@ -292,7 +292,7 @@ impl ToolAdapter for ClaudeCodeAdapter {
             if !path.exists() {
                 return Ok(ToolSyncStatus {
                     tool: ToolKind::ClaudeCode,
-                    strategy: SyncStrategy::Symlink,
+                    strategy,
                     drift: DriftState::DanglingSymlink,
                     details: Some("symlink target does not exist".to_string()),
                 });
@@ -310,14 +310,14 @@ impl ToolAdapter for ClaudeCodeAdapter {
             if hash == canonical_hash {
                 return Ok(ToolSyncStatus {
                     tool: ToolKind::ClaudeCode,
-                    strategy: SyncStrategy::Symlink,
+                    strategy,
                     drift: DriftState::InSync,
                     details: None,
                 });
             }
             return Ok(ToolSyncStatus {
                 tool: ToolKind::ClaudeCode,
-                strategy: SyncStrategy::Symlink,
+                strategy,
                 drift: DriftState::Drifted {
                     reason: "content hash mismatch".to_string(),
                 },
@@ -334,6 +334,27 @@ impl ToolAdapter for ClaudeCodeAdapter {
             )),
         })?;
         let hash = content_hash(&content);
+        if strategy == SyncStrategy::Copy {
+            // Copy strategy: regular file is expected, just check content
+            let drift = if hash == canonical_hash {
+                DriftState::InSync
+            } else {
+                DriftState::Drifted {
+                    reason: "content hash mismatch".to_string(),
+                }
+            };
+            return Ok(ToolSyncStatus {
+                tool: ToolKind::ClaudeCode,
+                strategy,
+                drift,
+                details: if hash != canonical_hash {
+                    Some(format!("expected {canonical_hash}, got {hash}"))
+                } else {
+                    None
+                },
+            });
+        }
+        // Symlink strategy but found regular file
         let drift = if hash == canonical_hash {
             DriftState::Drifted {
                 reason: "file is not a symlink (wrong strategy)".to_string(),
@@ -345,7 +366,7 @@ impl ToolAdapter for ClaudeCodeAdapter {
         };
         Ok(ToolSyncStatus {
             tool: ToolKind::ClaudeCode,
-            strategy: SyncStrategy::Symlink,
+            strategy,
             drift,
             details: Some(format!("regular file, hash: {hash}")),
         })
@@ -529,7 +550,9 @@ mod tests {
     fn test_sync_status_missing() {
         let dir = TempDir::new().unwrap();
 
-        let status = ClaudeCodeAdapter.sync_status(dir.path(), "abc123").unwrap();
+        let status = ClaudeCodeAdapter
+            .sync_status(dir.path(), "abc123", SyncStrategy::Symlink)
+            .unwrap();
         assert_eq!(status.tool, ToolKind::ClaudeCode);
         assert_eq!(status.drift, DriftState::Missing);
     }
@@ -553,7 +576,9 @@ mod tests {
             .unwrap();
         }
 
-        let status = ClaudeCodeAdapter.sync_status(dir.path(), &hash).unwrap();
+        let status = ClaudeCodeAdapter
+            .sync_status(dir.path(), &hash, SyncStrategy::Symlink)
+            .unwrap();
         assert_eq!(status.drift, DriftState::InSync);
     }
 
@@ -570,7 +595,9 @@ mod tests {
             .unwrap();
         }
 
-        let status = ClaudeCodeAdapter.sync_status(dir.path(), "abc123").unwrap();
+        let status = ClaudeCodeAdapter
+            .sync_status(dir.path(), "abc123", SyncStrategy::Symlink)
+            .unwrap();
         assert_eq!(status.drift, DriftState::DanglingSymlink);
     }
 
@@ -795,7 +822,7 @@ mod tests {
         }
 
         let status = ClaudeCodeAdapter
-            .sync_status(dir.path(), "wrong_hash_value")
+            .sync_status(dir.path(), "wrong_hash_value", SyncStrategy::Symlink)
             .unwrap();
         assert!(matches!(status.drift, DriftState::Drifted { .. }));
     }

@@ -97,7 +97,7 @@ impl ToolAdapter for OpenCodeAdapter {
         &self,
         project_root: &Path,
         canonical_content: &str,
-        _strategy: SyncStrategy,
+        strategy: SyncStrategy,
     ) -> Result<Vec<SyncAction>, AisyncError> {
         let link_path = project_root.join(TOOL_FILE);
         let target_rel = Path::new(CANONICAL_REL);
@@ -109,9 +109,12 @@ impl ToolAdapter for OpenCodeAdapter {
             Err(_) => false,
         };
 
-        if conditionals_active {
+        if conditionals_active || strategy == SyncStrategy::Copy {
+            // Conditionals applied or copy strategy: write a regular file with content
             return self.plan_sync_with_conditionals(&link_path, canonical_content);
         }
+
+        // No conditionals + symlink strategy: use symlink
 
         if link_path.exists() || link_path.symlink_metadata().is_ok() {
             if let Ok(meta) = link_path.symlink_metadata() {
@@ -229,6 +232,7 @@ impl ToolAdapter for OpenCodeAdapter {
         &self,
         project_root: &Path,
         canonical_hash: &str,
+        strategy: SyncStrategy,
     ) -> Result<ToolSyncStatus, AisyncError> {
         let path = project_root.join(TOOL_FILE);
 
@@ -237,7 +241,7 @@ impl ToolAdapter for OpenCodeAdapter {
             Err(_) => {
                 return Ok(ToolSyncStatus {
                     tool: ToolKind::OpenCode,
-                    strategy: SyncStrategy::Symlink,
+                    strategy,
                     drift: DriftState::Missing,
                     details: None,
                 });
@@ -248,7 +252,7 @@ impl ToolAdapter for OpenCodeAdapter {
             if !path.exists() {
                 return Ok(ToolSyncStatus {
                     tool: ToolKind::OpenCode,
-                    strategy: SyncStrategy::Symlink,
+                    strategy,
                     drift: DriftState::DanglingSymlink,
                     details: Some("symlink target does not exist".to_string()),
                 });
@@ -265,14 +269,14 @@ impl ToolAdapter for OpenCodeAdapter {
             if hash == canonical_hash {
                 return Ok(ToolSyncStatus {
                     tool: ToolKind::OpenCode,
-                    strategy: SyncStrategy::Symlink,
+                    strategy,
                     drift: DriftState::InSync,
                     details: None,
                 });
             }
             return Ok(ToolSyncStatus {
                 tool: ToolKind::OpenCode,
-                strategy: SyncStrategy::Symlink,
+                strategy,
                 drift: DriftState::Drifted {
                     reason: "content hash mismatch".to_string(),
                 },
@@ -280,7 +284,7 @@ impl ToolAdapter for OpenCodeAdapter {
             });
         }
 
-        // Regular file
+        // Regular file -- hash and compare
         let content = std::fs::read(&path).map_err(|e| AisyncError::Adapter {
             tool: "opencode".to_string(),
             source: crate::error::AdapterError::DetectionFailed(format!(
@@ -289,6 +293,26 @@ impl ToolAdapter for OpenCodeAdapter {
             )),
         })?;
         let hash = content_hash(&content);
+        if strategy == SyncStrategy::Copy {
+            let drift = if hash == canonical_hash {
+                DriftState::InSync
+            } else {
+                DriftState::Drifted {
+                    reason: "content hash mismatch".to_string(),
+                }
+            };
+            return Ok(ToolSyncStatus {
+                tool: ToolKind::OpenCode,
+                strategy,
+                drift,
+                details: if hash != canonical_hash {
+                    Some(format!("expected {canonical_hash}, got {hash}"))
+                } else {
+                    None
+                },
+            });
+        }
+        // Symlink strategy but found regular file
         let drift = if hash == canonical_hash {
             DriftState::Drifted {
                 reason: "file is not a symlink (wrong strategy)".to_string(),
@@ -300,7 +324,7 @@ impl ToolAdapter for OpenCodeAdapter {
         };
         Ok(ToolSyncStatus {
             tool: ToolKind::OpenCode,
-            strategy: SyncStrategy::Symlink,
+            strategy,
             drift,
             details: Some(format!("regular file, hash: {hash}")),
         })
@@ -436,7 +460,9 @@ mod tests {
     fn test_sync_status_missing() {
         let dir = TempDir::new().unwrap();
 
-        let status = OpenCodeAdapter.sync_status(dir.path(), "abc123").unwrap();
+        let status = OpenCodeAdapter
+            .sync_status(dir.path(), "abc123", SyncStrategy::Symlink)
+            .unwrap();
         assert_eq!(status.tool, ToolKind::OpenCode);
         assert_eq!(status.drift, DriftState::Missing);
     }
@@ -459,7 +485,9 @@ mod tests {
             .unwrap();
         }
 
-        let status = OpenCodeAdapter.sync_status(dir.path(), &hash).unwrap();
+        let status = OpenCodeAdapter
+            .sync_status(dir.path(), &hash, SyncStrategy::Symlink)
+            .unwrap();
         assert_eq!(status.drift, DriftState::InSync);
     }
 
@@ -521,7 +549,9 @@ mod tests {
             .unwrap();
         }
 
-        let status = OpenCodeAdapter.sync_status(dir.path(), "abc123").unwrap();
+        let status = OpenCodeAdapter
+            .sync_status(dir.path(), "abc123", SyncStrategy::Symlink)
+            .unwrap();
         assert_eq!(status.drift, DriftState::DanglingSymlink);
     }
 

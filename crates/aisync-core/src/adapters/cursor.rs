@@ -161,6 +161,7 @@ impl ToolAdapter for CursorAdapter {
         &self,
         project_root: &Path,
         canonical_hash: &str,
+        _strategy: SyncStrategy,
     ) -> Result<ToolSyncStatus, AisyncError> {
         let path = project_root.join(MDC_REL);
 
@@ -369,7 +370,9 @@ mod tests {
     fn test_sync_status_missing() {
         let dir = TempDir::new().unwrap();
 
-        let status = CursorAdapter.sync_status(dir.path(), "abc123").unwrap();
+        let status = CursorAdapter
+            .sync_status(dir.path(), "abc123", SyncStrategy::Generate)
+            .unwrap();
         assert_eq!(status.tool, ToolKind::Cursor);
         assert_eq!(status.drift, DriftState::Missing);
     }
@@ -386,7 +389,7 @@ mod tests {
 
         let canonical_hash = content_hash(canonical.as_bytes());
         let status = CursorAdapter
-            .sync_status(dir.path(), &canonical_hash)
+            .sync_status(dir.path(), &canonical_hash, SyncStrategy::Generate)
             .unwrap();
         assert_eq!(status.drift, DriftState::InSync);
     }
@@ -441,7 +444,9 @@ mod tests {
         std::fs::write(rules_dir.join("project.mdc"), &mdc_content).unwrap();
 
         let wrong_hash = content_hash(b"different content");
-        let status = CursorAdapter.sync_status(dir.path(), &wrong_hash).unwrap();
+        let status = CursorAdapter
+            .sync_status(dir.path(), &wrong_hash, SyncStrategy::Generate)
+            .unwrap();
         assert!(matches!(status.drift, DriftState::Drifted { .. }));
     }
 

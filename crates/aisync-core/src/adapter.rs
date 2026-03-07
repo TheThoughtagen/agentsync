@@ -49,8 +49,9 @@ pub trait ToolAdapter {
         &self,
         project_root: &Path,
         canonical_hash: &str,
+        strategy: crate::config::SyncStrategy,
     ) -> Result<crate::types::ToolSyncStatus, AisyncError> {
-        let _ = (project_root, canonical_hash);
+        let _ = (project_root, canonical_hash, strategy);
         todo!("Adapter sync_status not yet implemented")
     }
 
@@ -148,11 +149,12 @@ impl ToolAdapter for AnyAdapter {
         &self,
         project_root: &Path,
         canonical_hash: &str,
+        strategy: crate::config::SyncStrategy,
     ) -> Result<crate::types::ToolSyncStatus, AisyncError> {
         match self {
-            AnyAdapter::ClaudeCode(a) => a.sync_status(project_root, canonical_hash),
-            AnyAdapter::Cursor(a) => a.sync_status(project_root, canonical_hash),
-            AnyAdapter::OpenCode(a) => a.sync_status(project_root, canonical_hash),
+            AnyAdapter::ClaudeCode(a) => a.sync_status(project_root, canonical_hash, strategy),
+            AnyAdapter::Cursor(a) => a.sync_status(project_root, canonical_hash, strategy),
+            AnyAdapter::OpenCode(a) => a.sync_status(project_root, canonical_hash, strategy),
         }
     }
 

@@ -2,7 +2,7 @@ use std::path::Path;
 
 use crate::adapter::{AnyAdapter, ClaudeCodeAdapter, CursorAdapter, OpenCodeAdapter, ToolAdapter};
 use crate::conditional::ConditionalProcessor;
-use crate::config::{AisyncConfig, SyncStrategy};
+use crate::config::AisyncConfig;
 use crate::error::{AisyncError, SyncError};
 use crate::hooks::HookEngine;
 use crate::types::{
@@ -190,13 +190,16 @@ impl SyncEngine {
 
         let mut tools = Vec::new();
 
-        for (tool_kind, adapter, _) in Self::enabled_tools(config) {
-            match adapter.sync_status(project_root, &hash) {
+        for (tool_kind, adapter, tool_config_opt) in Self::enabled_tools(config) {
+            let strategy = tool_config_opt
+                .map(|tc| tc.effective_sync_strategy(&config.defaults))
+                .unwrap_or(config.defaults.sync_strategy);
+            match adapter.sync_status(project_root, &hash, strategy) {
                 Ok(status) => tools.push(status),
                 Err(_) => {
                     tools.push(ToolSyncStatus {
                         tool: tool_kind,
-                        strategy: SyncStrategy::Symlink,
+                        strategy,
                         drift: DriftState::NotConfigured,
                         details: Some("failed to check status".to_string()),
                     });
@@ -582,7 +585,7 @@ impl SyncEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::{AisyncConfig, DefaultsConfig, ToolConfig, ToolsConfig};
+    use crate::config::{AisyncConfig, DefaultsConfig, SyncStrategy, ToolConfig, ToolsConfig};
     use tempfile::TempDir;
 
     fn setup_canonical(dir: &Path, content: &str) {
