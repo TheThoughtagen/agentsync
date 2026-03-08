@@ -329,18 +329,112 @@ mod tests {
     }
 
     #[test]
-    fn test_tool_kind_clone_copy() {
+    fn test_tool_kind_clone() {
         let t = ToolKind::Cursor;
-        let t2 = t; // Copy
-        let t3 = t.clone(); // Clone
+        let t2 = t.clone(); // Clone (no longer Copy)
         assert_eq!(t, t2);
-        assert_eq!(t, t3);
     }
 
     #[test]
     fn test_tool_kind_debug() {
         let debug = format!("{:?}", ToolKind::OpenCode);
         assert_eq!(debug, "OpenCode");
+    }
+
+    #[test]
+    fn test_tool_kind_custom_variant() {
+        let custom = ToolKind::Custom("windsurf".to_string());
+        assert_eq!(custom, ToolKind::Custom("windsurf".to_string()));
+        assert_ne!(custom, ToolKind::ClaudeCode);
+        let debug = format!("{:?}", custom);
+        assert!(debug.contains("Custom"));
+        assert!(debug.contains("windsurf"));
+    }
+
+    #[test]
+    fn test_tool_kind_as_str() {
+        assert_eq!(ToolKind::ClaudeCode.as_str(), "claude-code");
+        assert_eq!(ToolKind::Cursor.as_str(), "cursor");
+        assert_eq!(ToolKind::OpenCode.as_str(), "opencode");
+        assert_eq!(
+            ToolKind::Custom("windsurf".to_string()).as_str(),
+            "windsurf"
+        );
+    }
+
+    #[test]
+    fn test_tool_kind_display() {
+        assert_eq!(format!("{}", ToolKind::ClaudeCode), "claude-code");
+        assert_eq!(format!("{}", ToolKind::Cursor), "cursor");
+        assert_eq!(format!("{}", ToolKind::OpenCode), "opencode");
+        assert_eq!(
+            format!("{}", ToolKind::Custom("windsurf".to_string())),
+            "windsurf"
+        );
+    }
+
+    #[test]
+    fn test_tool_kind_serialize() {
+        assert_eq!(
+            serde_json::to_string(&ToolKind::ClaudeCode).unwrap(),
+            "\"claude-code\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ToolKind::Cursor).unwrap(),
+            "\"cursor\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ToolKind::OpenCode).unwrap(),
+            "\"opencode\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ToolKind::Custom("windsurf".to_string())).unwrap(),
+            "\"windsurf\""
+        );
+    }
+
+    #[test]
+    fn test_tool_kind_deserialize() {
+        assert_eq!(
+            serde_json::from_str::<ToolKind>("\"claude-code\"").unwrap(),
+            ToolKind::ClaudeCode
+        );
+        assert_eq!(
+            serde_json::from_str::<ToolKind>("\"cursor\"").unwrap(),
+            ToolKind::Cursor
+        );
+        assert_eq!(
+            serde_json::from_str::<ToolKind>("\"opencode\"").unwrap(),
+            ToolKind::OpenCode
+        );
+        assert_eq!(
+            serde_json::from_str::<ToolKind>("\"windsurf\"").unwrap(),
+            ToolKind::Custom("windsurf".to_string())
+        );
+    }
+
+    #[test]
+    fn test_tool_kind_serde_roundtrip() {
+        let variants = vec![
+            ToolKind::ClaudeCode,
+            ToolKind::Cursor,
+            ToolKind::OpenCode,
+            ToolKind::Custom("windsurf".to_string()),
+        ];
+        for v in variants {
+            let json = serde_json::to_string(&v).unwrap();
+            let back: ToolKind = serde_json::from_str(&json).unwrap();
+            assert_eq!(v, back);
+        }
+    }
+
+    #[test]
+    fn test_tool_kind_deserialize_normalizes_known() {
+        // Deserializing known tool names should produce the named variant, not Custom
+        let claude: ToolKind = serde_json::from_str("\"claude-code\"").unwrap();
+        assert!(matches!(claude, ToolKind::ClaudeCode));
+        // Not Custom("claude-code")
+        assert!(!matches!(claude, ToolKind::Custom(_)));
     }
 
     #[test]
