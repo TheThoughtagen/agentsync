@@ -1,3 +1,4 @@
+pub mod add_tool;
 pub mod check;
 pub mod diff;
 pub mod hooks;

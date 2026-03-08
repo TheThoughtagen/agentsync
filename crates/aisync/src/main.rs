@@ -43,6 +43,13 @@ enum Commands {
         #[command(subcommand)]
         action: HooksAction,
     },
+    /// Add detected but unconfigured tools to your project
+    #[command(name = "add-tool")]
+    AddTool {
+        /// Specific tool to add (bypasses interactive selection)
+        #[arg(long)]
+        tool: Option<String>,
+    },
     /// Watch for file changes and auto-sync
     Watch,
     /// Compare canonical .ai/ content vs tool-native files
@@ -96,6 +103,7 @@ fn main() {
         Commands::Status { json } => commands::status::run_status(*json, cli.verbose),
         Commands::Memory { action } => commands::memory::run_memory(action, cli.verbose),
         Commands::Hooks { action } => commands::hooks::run_hooks(action, cli.verbose),
+        Commands::AddTool { tool } => commands::add_tool::run_add_tool(tool.as_deref(), cli.verbose),
         Commands::Watch => commands::watch::run_watch(cli.verbose),
         Commands::Diff => commands::diff::run_diff(cli.verbose),
         Commands::Check => commands::check::run_check(cli.verbose),
