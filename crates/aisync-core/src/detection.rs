@@ -23,7 +23,7 @@ impl DetectionEngine {
         }
 
         let mut results = Vec::new();
-        for adapter in AnyAdapter::all() {
+        for adapter in AnyAdapter::all_builtin() {
             match adapter.detect(project_root) {
                 Ok(result) if result.detected => results.push(result),
                 Ok(_) => {} // Not detected, skip

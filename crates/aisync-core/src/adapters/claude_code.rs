@@ -55,6 +55,18 @@ impl ToolAdapter for ClaudeCodeAdapter {
         ToolKind::ClaudeCode
     }
 
+    fn display_name(&self) -> &str {
+        "Claude Code"
+    }
+
+    fn native_instruction_path(&self) -> &str {
+        "CLAUDE.md"
+    }
+
+    fn conditional_tags(&self) -> &[&str] {
+        &["claude-only", "claude-code-only"]
+    }
+
     fn detect(&self, project_root: &Path) -> Result<DetectionResult, AisyncError> {
         let mut markers = Vec::new();
         let claude_md = project_root.join(TOOL_FILE);

@@ -21,6 +21,22 @@ impl ToolAdapter for CursorAdapter {
         ToolKind::Cursor
     }
 
+    fn display_name(&self) -> &str {
+        "Cursor"
+    }
+
+    fn native_instruction_path(&self) -> &str {
+        ".cursor/rules/project.mdc"
+    }
+
+    fn conditional_tags(&self) -> &[&str] {
+        &["cursor-only"]
+    }
+
+    fn default_sync_strategy(&self) -> crate::config::SyncStrategy {
+        crate::config::SyncStrategy::Generate
+    }
+
     fn detect(&self, project_root: &Path) -> Result<DetectionResult, AisyncError> {
         let mut markers = Vec::new();
         let mut version_hint = None;

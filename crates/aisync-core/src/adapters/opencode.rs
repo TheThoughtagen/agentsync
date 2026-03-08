@@ -47,6 +47,18 @@ impl ToolAdapter for OpenCodeAdapter {
         ToolKind::OpenCode
     }
 
+    fn display_name(&self) -> &str {
+        "OpenCode"
+    }
+
+    fn native_instruction_path(&self) -> &str {
+        "AGENTS.md"
+    }
+
+    fn conditional_tags(&self) -> &[&str] {
+        &["opencode-only"]
+    }
+
     fn detect(&self, project_root: &Path) -> Result<DetectionResult, AisyncError> {
         let mut markers = Vec::new();
         let opencode_json = project_root.join("opencode.json");
