@@ -1,12 +1,12 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.1
-milestone_name: "Adapter Expansion & Plugin SDK"
-status: active
-last_updated: "2026-03-08"
+milestone_name: Adapter Expansion & Plugin SDK
+status: unknown
+last_updated: "2026-03-08T18:22:19.647Z"
 progress:
-  total_phases: 6
-  completed_phases: 0
+  total_phases: 1
+  completed_phases: 1
   total_plans: 3
   completed_plans: 3
 ---
