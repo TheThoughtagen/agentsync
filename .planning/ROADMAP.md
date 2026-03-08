@@ -43,9 +43,9 @@
 **Plans**: 3 plans
 
 Plans:
-- [ ] 06-01-PLAN.md — ToolKind Custom(String) variant + Copy-to-Clone migration
-- [ ] 06-02-PLAN.md — ToolAdapter trait expansion, dispatch macro, Plugin variant, display name consolidation
-- [ ] 06-03-PLAN.md — ToolsConfig BTreeMap migration + enabled_tools refactor
+- [x] 06-01-PLAN.md — ToolKind Custom(String) variant + Copy-to-Clone migration
+- [x] 06-02-PLAN.md — ToolAdapter trait expansion, dispatch macro, Plugin variant, display name consolidation
+- [x] 06-03-PLAN.md — ToolsConfig BTreeMap migration + enabled_tools refactor
 
 ### Phase 7: Windsurf & Codex Adapters
 **Goal**: Users with Windsurf or Codex installed get automatic sync from `.ai/` to their tool's native format
@@ -57,11 +57,11 @@ Plans:
   3. When both Codex and OpenCode are present, `aisync status` shows both tools detected and `aisync sync` produces a single non-duplicated AGENTS.md action
   4. Legacy `.windsurfrules` file is detected with a migration hint to the modern `.windsurf/rules/` format
   5. Content exceeding tool limits (Windsurf 12K chars, Codex 32 KiB) triggers a visible warning
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 07-01: TBD
-- [ ] 07-02: TBD
+- [ ] 07-01-PLAN.md — ToolKind variants, adapter registration, WindsurfAdapter + CodexAdapter implementations
+- [ ] 07-02-PLAN.md — SyncEngine AGENTS.md deduplication + content size limit warnings
 
 ### Phase 8: Add-Tool Command
 **Goal**: Users can adopt new AI tools mid-project without manual config editing or full re-initialization
@@ -125,8 +125,8 @@ Plans:
 | 3. Memory and Hooks | v1.0 | 5/5 | Complete | 2026-03-06 |
 | 4. Watch Mode and Bidirectional Sync | v1.0 | 5/5 | Complete | 2026-03-06 |
 | 5. Polish and Distribution | v1.0 | 3/3 | Complete | 2026-03-06 |
-| 6. Core Refactoring | v1.1 | 0/TBD | Not started | - |
-| 7. Windsurf & Codex Adapters | v1.1 | 0/TBD | Not started | - |
+| 6. Core Refactoring | v1.1 | 3/3 | Complete | 2026-03-08 |
+| 7. Windsurf & Codex Adapters | v1.1 | 0/2 | Not started | - |
 | 8. Add-Tool Command | v1.1 | 0/TBD | Not started | - |
 | 9. Plugin SDK Crate Extraction | v1.1 | 0/TBD | Not started | - |
 | 10. Declarative TOML Adapters | v1.1 | 0/TBD | Not started | - |
