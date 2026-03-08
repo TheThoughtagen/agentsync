@@ -6,11 +6,11 @@ use std::time::Duration;
 use notify::RecursiveMode;
 use notify_debouncer_mini::new_debouncer;
 
-use crate::adapter::{AnyAdapter, ClaudeCodeAdapter, CursorAdapter, OpenCodeAdapter, ToolAdapter};
+use crate::adapter::{AnyAdapter, ToolAdapter};
 use crate::config::AisyncConfig;
 use crate::error::{AisyncError, WatchError};
 use crate::sync::SyncEngine;
-use crate::types::{ToolKind, WatchEvent};
+use crate::types::WatchEvent;
 
 /// Directories to watch and expected file paths for event filtering.
 /// Watching parent directories (instead of files directly) survives
@@ -197,13 +197,9 @@ impl WatchEngine {
         let mut expected_files = Vec::new();
         let mut watch_dirs = Vec::new();
 
-        for (tool_kind, _adapter, _tool_config) in SyncEngine::enabled_tools(config) {
-            let path = match &tool_kind {
-                ToolKind::ClaudeCode => project_root.join("CLAUDE.md"),
-                ToolKind::Cursor => project_root.join(".cursor/rules/project.mdc"),
-                ToolKind::OpenCode => project_root.join("AGENTS.md"),
-                ToolKind::Custom(name) => project_root.join(format!("{}.md", name)),
-            };
+        for (_tool_kind, adapter, _tool_config) in SyncEngine::enabled_tools(config) {
+            let watch_paths = adapter.watch_paths();
+            let path = project_root.join(watch_paths.first().unwrap_or(&""));
 
             // Only watch files that exist and are NOT symlinks
             if let Ok(meta) = path.symlink_metadata() {
@@ -239,24 +235,16 @@ impl WatchEngine {
         let canonical_content = std::fs::read_to_string(&canonical_path).unwrap_or_default();
 
         for changed_path in changed_paths {
-            // Determine which tool this path belongs to
-            let (tool_kind, adapter) =
-                if Self::path_matches(changed_path, project_root, "CLAUDE.md") {
-                    (
-                        ToolKind::ClaudeCode,
-                        AnyAdapter::ClaudeCode(ClaudeCodeAdapter),
-                    )
-                } else if Self::path_matches(changed_path, project_root, "AGENTS.md") {
-                    (ToolKind::OpenCode, AnyAdapter::OpenCode(OpenCodeAdapter))
-                } else if Self::path_matches(
-                    changed_path,
-                    project_root,
-                    ".cursor/rules/project.mdc",
-                ) {
-                    (ToolKind::Cursor, AnyAdapter::Cursor(CursorAdapter))
-                } else {
-                    continue;
-                };
+            // Determine which tool this path belongs to by checking all built-in adapters
+            let matched = AnyAdapter::all_builtin().into_iter().find(|adapter| {
+                Self::path_matches(changed_path, project_root, adapter.native_instruction_path())
+            });
+
+            let adapter = match matched {
+                Some(a) => a,
+                None => continue,
+            };
+            let tool_kind = adapter.name();
 
             // Read tool-native content via adapter
             let tool_content = match adapter.read_instructions(project_root) {
@@ -298,6 +286,7 @@ impl WatchEngine {
 mod tests {
     use super::*;
     use crate::config::{AisyncConfig, DefaultsConfig, SyncStrategy, ToolConfig, ToolsConfig};
+    use crate::types::ToolKind;
     use tempfile::TempDir;
 
     fn all_enabled_config() -> AisyncConfig {

@@ -3,7 +3,7 @@ use std::path::Path;
 use colored::Colorize;
 
 use aisync_core::{
-    AnyAdapter, HookEngine, HookTranslation, HooksConfig, ToolAdapter, ToolKind, VALID_EVENTS,
+    AnyAdapter, HookEngine, HookTranslation, HooksConfig, ToolAdapter, VALID_EVENTS,
 };
 
 use crate::HooksAction;
@@ -73,7 +73,7 @@ fn run_list(project_root: &Path, verbose: bool) -> Result<(), Box<dyn std::error
 
 fn print_tool_support(config: &HooksConfig) {
     for adapter in AnyAdapter::all_builtin() {
-        let tool_name = tool_display_name(&adapter.name());
+        let tool_name = adapter.display_name();
         let translation = adapter.translate_hooks(config);
         match translation {
             Ok(HookTranslation::Supported { .. }) => {
@@ -166,7 +166,7 @@ fn run_translate(project_root: &Path, verbose: bool) -> Result<(), Box<dyn std::
     HookEngine::validate(&config)?;
 
     for adapter in AnyAdapter::all_builtin() {
-        let tool_name = tool_display_name(&adapter.name());
+        let tool_name = adapter.display_name();
         let translation = adapter.translate_hooks(&config)?;
 
         match translation {
@@ -190,13 +190,4 @@ fn run_translate(project_root: &Path, verbose: bool) -> Result<(), Box<dyn std::
     }
 
     Ok(())
-}
-
-fn tool_display_name(tool: &ToolKind) -> String {
-    match tool {
-        ToolKind::ClaudeCode => "Claude Code".to_string(),
-        ToolKind::Cursor => "Cursor".to_string(),
-        ToolKind::OpenCode => "OpenCode".to_string(),
-        ToolKind::Custom(name) => name.clone(),
-    }
 }

@@ -1,3 +1,4 @@
+use crate::adapter::ToolAdapter;
 use crate::types::ToolKind;
 
 /// Processes conditional sections in instruction content.
@@ -10,7 +11,7 @@ impl ConditionalProcessor {
     /// Process content for a specific tool, including matching sections
     /// and stripping non-matching sections. Marker lines are always removed.
     pub fn process(content: &str, tool: ToolKind) -> String {
-        let matching_tags = Self::tool_tag_names(tool);
+        let matching_tags = Self::tool_tag_names(&tool);
         let mut output = Vec::new();
         let mut skip_depth: usize = 0;
 
@@ -47,13 +48,15 @@ impl ConditionalProcessor {
         result
     }
 
-    /// Returns the tag names that match a given tool.
-    fn tool_tag_names(tool: ToolKind) -> Vec<&'static str> {
+    /// Returns the tag names that match a given tool, using adapter metadata.
+    /// Custom tools with no adapter return empty tags.
+    fn tool_tag_names(tool: &ToolKind) -> Vec<&'static str> {
+        use crate::adapter::{ClaudeCodeAdapter, CursorAdapter, OpenCodeAdapter};
         match tool {
-            ToolKind::ClaudeCode => vec!["claude-only", "claude-code-only"],
-            ToolKind::Cursor => vec!["cursor-only"],
-            ToolKind::OpenCode => vec!["opencode-only"],
-            ToolKind::Custom(_) => vec![], // Custom tools have no conditional sections
+            ToolKind::ClaudeCode => ClaudeCodeAdapter.conditional_tags().to_vec(),
+            ToolKind::Cursor => CursorAdapter.conditional_tags().to_vec(),
+            ToolKind::OpenCode => OpenCodeAdapter.conditional_tags().to_vec(),
+            ToolKind::Custom(_) => vec![],
         }
     }
 

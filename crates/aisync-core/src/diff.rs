@@ -7,7 +7,7 @@ use crate::conditional::ConditionalProcessor;
 use crate::config::AisyncConfig;
 use crate::error::{AisyncError, SyncError};
 use crate::sync::SyncEngine;
-use crate::types::{ToolDiff, ToolKind};
+use crate::types::ToolDiff;
 
 /// Engine for computing diffs between canonical instructions and tool-native files.
 pub struct DiffEngine;
@@ -29,7 +29,7 @@ impl DiffEngine {
         let mut diffs = Vec::new();
 
         for (tool_kind, adapter, _) in SyncEngine::enabled_tools(config) {
-            let tool_file = Self::tool_file_name(&tool_kind).to_string();
+            let tool_file = adapter.native_instruction_path().to_string();
 
             // Apply conditional processing for this tool
             let expected_content =
@@ -62,21 +62,13 @@ impl DiffEngine {
         Ok(diffs)
     }
 
-    /// Returns the conventional file name for a tool's instructions.
-    fn tool_file_name(tool: &ToolKind) -> &'static str {
-        match tool {
-            ToolKind::ClaudeCode => "CLAUDE.md",
-            ToolKind::Cursor => ".cursor/rules/project.mdc",
-            ToolKind::OpenCode => "AGENTS.md",
-            ToolKind::Custom(_) => "instructions.md",
-        }
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::config::{AisyncConfig, DefaultsConfig, SyncStrategy, ToolConfig, ToolsConfig};
+    use crate::types::ToolKind;
     use tempfile::TempDir;
 
     fn setup_canonical(dir: &Path, content: &str) {

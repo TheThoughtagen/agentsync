@@ -49,6 +49,19 @@ impl ToolKind {
             ToolKind::Custom(s) => s.as_str(),
         }
     }
+
+    /// Returns a human-readable display name for this tool kind.
+    ///
+    /// For built-in tools, returns the conventional display name.
+    /// For custom tools, returns the custom name as-is.
+    pub fn display_name(&self) -> &str {
+        match self {
+            ToolKind::ClaudeCode => "Claude Code",
+            ToolKind::Cursor => "Cursor",
+            ToolKind::OpenCode => "OpenCode",
+            ToolKind::Custom(s) => s.as_str(),
+        }
+    }
 }
 
 impl fmt::Display for ToolKind {

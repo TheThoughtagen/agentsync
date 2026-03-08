@@ -4,18 +4,7 @@ use std::path::Path;
 use colored::Colorize;
 use dialoguer::{Confirm, Select};
 
-use aisync_core::types::ToolKind;
 use aisync_core::{InitEngine, InitOptions};
-
-/// Format a ToolKind for display.
-fn tool_display_name(tool: &ToolKind) -> String {
-    match tool {
-        ToolKind::ClaudeCode => "Claude Code".to_string(),
-        ToolKind::Cursor => "Cursor".to_string(),
-        ToolKind::OpenCode => "OpenCode".to_string(),
-        ToolKind::Custom(name) => name.clone(),
-    }
-}
 
 /// Run the `aisync init` command with interactive prompts.
 pub fn run_init(verbose: bool) -> Result<(), Box<dyn std::error::Error>> {
@@ -67,7 +56,7 @@ pub fn run_init(verbose: bool) -> Result<(), Box<dyn std::error::Error>> {
             "No AI tools detected. Proceeding with empty configuration.".yellow()
         );
     } else {
-        let tool_names: Vec<String> = detected.iter().map(|d| tool_display_name(&d.tool)).collect();
+        let tool_names: Vec<&str> = detected.iter().map(|d| d.tool.display_name()).collect();
         println!("{} {}", "Found:".green(), tool_names.join(", ").green());
 
         if verbose {
@@ -164,7 +153,7 @@ fn resolve_import(
         let first = &sources[0];
         eprintln!(
             "Importing instructions from {} ({})",
-            tool_display_name(&first.tool),
+            first.tool.display_name(),
             first.source_path.display()
         );
         return Ok(Some(first.content.clone()));
@@ -175,7 +164,7 @@ fn resolve_import(
             let source = &sources[0];
             let prompt = format!(
                 "Import instructions from {} ({})?",
-                tool_display_name(&source.tool),
+                source.tool.display_name(),
                 source.source_path.display()
             );
             let confirmed = Confirm::new()
@@ -196,7 +185,7 @@ fn resolve_import(
                 println!(
                     "\n  {}. {} ({})",
                     i + 1,
-                    tool_display_name(&source.tool),
+                    source.tool.display_name(),
                     source.source_path.display()
                 );
                 // Show first 5 lines as preview
@@ -211,7 +200,7 @@ fn resolve_import(
 
             let mut items: Vec<String> = sources
                 .iter()
-                .map(|s| tool_display_name(&s.tool))
+                .map(|s| s.tool.display_name().to_string())
                 .collect();
             items.push("Start fresh (empty)".to_string());
 

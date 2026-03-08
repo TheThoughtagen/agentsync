@@ -60,13 +60,7 @@ impl InitEngine {
         for result in detected {
             let adapter = Self::adapter_for_tool(&result.tool);
             if let Ok(Some(content)) = adapter.read_instructions(project_root) {
-                // Determine the source path based on tool kind
-                let source_path = match &result.tool {
-                    ToolKind::ClaudeCode => project_root.join("CLAUDE.md"),
-                    ToolKind::Cursor => project_root.join(".cursor/rules/project.mdc"),
-                    ToolKind::OpenCode => project_root.join("AGENTS.md"),
-                    ToolKind::Custom(name) => project_root.join(format!("{}.md", name)),
-                };
+                let source_path = project_root.join(adapter.native_instruction_path());
                 sources.push(ImportSource {
                     tool: result.tool.clone(),
                     content,
@@ -125,15 +119,10 @@ impl InitEngine {
 
     /// Get the appropriate adapter for a tool kind.
     fn adapter_for_tool(tool: &ToolKind) -> AnyAdapter {
-        match tool {
-            ToolKind::ClaudeCode => AnyAdapter::ClaudeCode(crate::adapter::ClaudeCodeAdapter),
-            ToolKind::Cursor => AnyAdapter::Cursor(crate::adapter::CursorAdapter),
-            ToolKind::OpenCode => AnyAdapter::OpenCode(crate::adapter::OpenCodeAdapter),
-            ToolKind::Custom(_) => {
-                // For now, custom tools don't have adapters; use ClaudeCode as fallback
-                AnyAdapter::ClaudeCode(crate::adapter::ClaudeCodeAdapter)
-            }
-        }
+        AnyAdapter::for_tool(tool).unwrap_or_else(|| {
+            // For custom tools, fallback to ClaudeCode adapter until adapter registry exists
+            AnyAdapter::ClaudeCode(crate::adapter::ClaudeCodeAdapter)
+        })
     }
 
     /// Build an AisyncConfig from detected tools.
@@ -141,15 +130,18 @@ impl InitEngine {
         let mut tools = ToolsConfig::default();
 
         for result in detected_tools {
-            let tool_config = match &result.tool {
-                ToolKind::Cursor => ToolConfig {
+            let adapter = Self::adapter_for_tool(&result.tool);
+            let default_strategy = adapter.default_sync_strategy();
+            let tool_config = if default_strategy != SyncStrategy::Symlink {
+                ToolConfig {
                     enabled: true,
-                    sync_strategy: Some(SyncStrategy::Generate),
-                },
-                _ => ToolConfig {
+                    sync_strategy: Some(default_strategy),
+                }
+            } else {
+                ToolConfig {
                     enabled: true,
                     sync_strategy: None,
-                },
+                }
             };
 
             match &result.tool {

@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use aisync_core::{AisyncConfig, DriftState, SyncEngine, ToolKind};
+use aisync_core::{AisyncConfig, DriftState, SyncEngine};
 
 pub fn run_check(verbose: bool) -> Result<(), Box<dyn std::error::Error>> {
     let config_path = Path::new("aisync.toml");
@@ -29,7 +29,7 @@ pub fn run_check(verbose: bool) -> Result<(), Box<dyn std::error::Error>> {
             continue;
         }
 
-        let tool_name = tool_display_name(&tool_status.tool);
+        let tool_name = tool_status.tool.display_name();
         let drift_info = match &tool_status.drift {
             DriftState::Drifted { reason } => format!("drifted - {reason}"),
             DriftState::Missing => "missing".to_string(),
@@ -47,13 +47,4 @@ pub fn run_check(verbose: bool) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     std::process::exit(1);
-}
-
-fn tool_display_name(tool: &ToolKind) -> String {
-    match tool {
-        ToolKind::ClaudeCode => "Claude Code".to_string(),
-        ToolKind::Cursor => "Cursor".to_string(),
-        ToolKind::OpenCode => "OpenCode".to_string(),
-        ToolKind::Custom(name) => name.clone(),
-    }
 }

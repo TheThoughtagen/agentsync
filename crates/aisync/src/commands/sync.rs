@@ -2,7 +2,7 @@ use std::path::Path;
 
 use colored::Colorize;
 
-use aisync_core::{AisyncConfig, SyncAction, SyncEngine, SyncReport, ToolKind};
+use aisync_core::{AisyncConfig, SyncAction, SyncEngine, SyncReport};
 
 pub fn run_sync(dry_run: bool, verbose: bool) -> Result<(), Box<dyn std::error::Error>> {
     let config_path = Path::new("aisync.toml");
@@ -47,7 +47,7 @@ pub fn run_sync(dry_run: bool, verbose: bool) -> Result<(), Box<dyn std::error::
 
 fn print_dry_run(report: &SyncReport, verbose: bool) {
     for tool_result in &report.results {
-        let tool_name = tool_display_name(&tool_result.tool);
+        let tool_name = tool_result.tool.display_name();
 
         if let Some(err) = &tool_result.error {
             println!("  {} {}: {}", "x".red(), tool_name, err);
@@ -132,7 +132,7 @@ fn print_results(report: &SyncReport, verbose: bool) {
     let mut error_count = 0u32;
 
     for tool_result in &report.results {
-        let tool_name = tool_display_name(&tool_result.tool);
+        let tool_name = tool_result.tool.display_name();
 
         if let Some(err) = &tool_result.error {
             error_count += 1;
@@ -217,15 +217,6 @@ fn print_action_details(action: &SyncAction) {
             eprintln!("      [verbose] content length: {} bytes", content.len());
         }
         _ => {}
-    }
-}
-
-fn tool_display_name(tool: &ToolKind) -> String {
-    match tool {
-        ToolKind::ClaudeCode => "Claude Code".to_string(),
-        ToolKind::Cursor => "Cursor".to_string(),
-        ToolKind::OpenCode => "OpenCode".to_string(),
-        ToolKind::Custom(name) => name.clone(),
     }
 }
 
