@@ -26,7 +26,7 @@ Requirements for Adapter Expansion & Plugin SDK milestone. Each maps to roadmap 
 ### Add Tool
 
 - [x] **TOOL-01**: `aisync add-tool` auto-detects tools not yet configured in aisync.toml
-- [ ] **TOOL-02**: User interactively selects which detected tools to add
+- [x] **TOOL-02**: User interactively selects which detected tools to add
 - [x] **TOOL-03**: Selected tools are added to aisync.toml and synced immediately
 - [x] **TOOL-04**: Partial sync runs only for newly added tools (not full re-sync)
 
@@ -89,7 +89,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ADPT-05 | Phase 7 | Complete |
 | ADPT-06 | Phase 7 | Complete |
 | TOOL-01 | Phase 8 | Complete |
-| TOOL-02 | Phase 8 | Pending |
+| TOOL-02 | Phase 8 | Complete |
 | TOOL-03 | Phase 8 | Complete |
 | TOOL-04 | Phase 8 | Complete |
 | SDK-01 | Phase 9 | Pending |

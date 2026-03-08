@@ -8,7 +8,7 @@ progress:
   total_phases: 2
   completed_phases: 2
   total_plans: 7
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # Project State
@@ -23,19 +23,19 @@ See: .planning/PROJECT.md (updated 2026-03-07)
 ## Current Position
 
 Phase: 8 of 11 (Add Tool Command) -- third of 6 v1.1 phases
-Plan: 1 of 2 complete
-Status: In Progress
-Last activity: 2026-03-08 -- Completed 08-01 (Add Tool Core Engine)
+Plan: 2 of 2 complete
+Status: Complete
+Last activity: 2026-03-08 -- Completed 08-02 (Add Tool CLI Command)
 
-Progress: [█████████░] 86%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
 - Total plans completed: 25 (20 v1.0 + 5 v1.1)
-- v1.1 plans completed: 6
+- v1.1 plans completed: 7
 - Average duration: 7min
-- Total execution time: 33min
+- Total execution time: 36min
 
 ## Accumulated Context
 
@@ -48,6 +48,8 @@ Progress: [█████████░] 86%
 - Refactor ToolAdapter trait BEFORE adding new adapters (eliminates shotgun surgery)
 - Custom(String) variant returns empty conditional tag names -- no tool-specific sections for custom tools yet
 - tool_display_name returns String (not &'static str) to support Custom variant dynamic names
+- Tool name parsing in add-tool CLI uses match statement (simpler than lookup table, avoids clippy type_complexity)
+- Non-interactive add-tool lists unconfigured tools with --tool hint (no error on piped stdin)
 - Custom tools use ClaudeCode adapter as fallback in init until adapter registry exists
 - Plugin variant uses Arc<dyn ToolAdapter> for Clone+Send+Sync compatibility
 - ToolKind::display_name() added as bridging pattern for call sites without adapter access
@@ -76,6 +78,6 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-08
-Stopped at: Completed 08-01-PLAN.md
-Resume file: .planning/phases/08-add-tool-command/08-01-SUMMARY.md
-Next: 08-02 (Add Tool CLI Command)
+Stopped at: Completed 08-02-PLAN.md
+Resume file: .planning/phases/08-add-tool-command/08-02-SUMMARY.md
+Next: Phase 9 (Adapter Trait Refactor)
