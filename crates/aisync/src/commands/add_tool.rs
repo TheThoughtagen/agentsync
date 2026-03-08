@@ -6,27 +6,18 @@ use dialoguer::MultiSelect;
 
 use aisync_core::{AddToolEngine, AisyncConfig, SyncAction, SyncEngine, ToolKind};
 
-/// Known tool names accepted by the `--tool` flag.
-const KNOWN_TOOLS: &[(&str, fn() -> ToolKind)] = &[
-    ("claude-code", || ToolKind::ClaudeCode),
-    ("cursor", || ToolKind::Cursor),
-    ("opencode", || ToolKind::OpenCode),
-    ("windsurf", || ToolKind::Windsurf),
-    ("codex", || ToolKind::Codex),
-];
-
 /// Parse a tool name string into a `ToolKind`, returning an error message if unknown.
 fn parse_tool_name(name: &str) -> Result<ToolKind, String> {
-    for (key, ctor) in KNOWN_TOOLS {
-        if *key == name {
-            return Ok(ctor());
-        }
+    match name {
+        "claude-code" => Ok(ToolKind::ClaudeCode),
+        "cursor" => Ok(ToolKind::Cursor),
+        "opencode" => Ok(ToolKind::OpenCode),
+        "windsurf" => Ok(ToolKind::Windsurf),
+        "codex" => Ok(ToolKind::Codex),
+        _ => Err(format!(
+            "Unknown tool: {name}. Available: claude-code, cursor, opencode, windsurf, codex"
+        )),
     }
-    let available: Vec<&str> = KNOWN_TOOLS.iter().map(|(k, _)| *k).collect();
-    Err(format!(
-        "Unknown tool: {name}. Available: {}",
-        available.join(", ")
-    ))
 }
 
 /// Run the `aisync add-tool` command.
@@ -82,9 +73,9 @@ fn run_non_interactive(
         eprintln!("[verbose] Adding tool: {}", tool_kind.display_name());
     }
 
-    AddToolEngine::add_tools(config, &[tool_kind.clone()], project_root)?;
+    AddToolEngine::add_tools(config, std::slice::from_ref(&tool_kind), project_root)?;
 
-    let report = SyncEngine::plan_for_tools(config, project_root, &[tool_kind.clone()])?;
+    let report = SyncEngine::plan_for_tools(config, project_root, std::slice::from_ref(&tool_kind))?;
     let executed = SyncEngine::execute(&report, project_root)?;
 
     let action_count = count_filesystem_actions(&executed.results.iter().flat_map(|r| &r.actions).collect::<Vec<_>>());
