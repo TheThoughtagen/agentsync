@@ -28,11 +28,57 @@ pub fn content_hash(content: &[u8]) -> String {
 }
 
 /// Identifies which AI coding tool is being managed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+///
+/// Known tools have named variants; arbitrary tools use `Custom(String)`.
+/// Serializes as lowercase hyphenated strings (e.g., "claude-code", "cursor").
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ToolKind {
     ClaudeCode,
     Cursor,
     OpenCode,
+    Custom(String),
+}
+
+impl ToolKind {
+    /// Returns the canonical string representation of this tool kind.
+    pub fn as_str(&self) -> &str {
+        match self {
+            ToolKind::ClaudeCode => "claude-code",
+            ToolKind::Cursor => "cursor",
+            ToolKind::OpenCode => "opencode",
+            ToolKind::Custom(s) => s.as_str(),
+        }
+    }
+}
+
+impl fmt::Display for ToolKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl Serialize for ToolKind {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for ToolKind {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Ok(match s.as_str() {
+            "claude-code" => ToolKind::ClaudeCode,
+            "cursor" => ToolKind::Cursor,
+            "opencode" => ToolKind::OpenCode,
+            _ => ToolKind::Custom(s),
+        })
+    }
 }
 
 /// Confidence level for tool detection results.
