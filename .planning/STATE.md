@@ -8,7 +8,7 @@ progress:
   total_phases: 6
   completed_phases: 0
   total_plans: 3
-  completed_plans: 1
+  completed_plans: 2
 ---
 
 # Project State
@@ -23,19 +23,19 @@ See: .planning/PROJECT.md (updated 2026-03-07)
 ## Current Position
 
 Phase: 6 of 11 (Core Refactoring) -- first of 6 v1.1 phases
-Plan: 1 of 3 complete
+Plan: 2 of 3 complete
 Status: Executing
-Last activity: 2026-03-08 -- Completed 06-01 (ToolKind Custom + Clone migration)
+Last activity: 2026-03-08 -- Completed 06-02 (ToolAdapter trait expansion + dispatch macro)
 
-Progress: [███░░░░░░░] 33%
+Progress: [██████░░░░] 67%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 21 (20 v1.0 + 1 v1.1)
-- v1.1 plans completed: 1
+- Total plans completed: 22 (20 v1.0 + 2 v1.1)
+- v1.1 plans completed: 2
 - Average duration: 7min
-- Total execution time: 7min
+- Total execution time: 15min
 
 ## Accumulated Context
 
@@ -49,6 +49,9 @@ Progress: [███░░░░░░░] 33%
 - Custom(String) variant returns empty conditional tag names -- no tool-specific sections for custom tools yet
 - tool_display_name returns String (not &'static str) to support Custom variant dynamic names
 - Custom tools use ClaudeCode adapter as fallback in init until adapter registry exists
+- Plugin variant uses Arc<dyn ToolAdapter> for Clone+Send+Sync compatibility
+- ToolKind::display_name() added as bridging pattern for call sites without adapter access
+- todo!() defaults replaced with safe returns (Ok(None), Ok(vec![]), NotConfigured)
 
 ### Pending Todos
 
@@ -62,6 +65,6 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-08
-Stopped at: Completed 06-01-PLAN.md
-Resume file: .planning/phases/06-core-refactoring/06-01-SUMMARY.md
-Next: Execute 06-02-PLAN.md (ToolAdapter trait expansion)
+Stopped at: Completed 06-02-PLAN.md
+Resume file: .planning/phases/06-core-refactoring/06-02-SUMMARY.md
+Next: Execute 06-03-PLAN.md (SyncEngine refactoring)
