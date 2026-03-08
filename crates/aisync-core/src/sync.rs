@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::adapter::{AnyAdapter, ToolAdapter};
 use crate::conditional::ConditionalProcessor;
@@ -105,7 +105,33 @@ impl SyncEngine {
             });
         }
 
+        Self::deduplicate_actions(&mut results);
+
         Ok(SyncReport { results })
+    }
+
+    /// Deduplicate sync actions that target the same output path.
+    /// When multiple tools produce CreateSymlink or CreateFile for the same path,
+    /// only the first tool's action is kept. This handles the Codex+OpenCode
+    /// AGENTS.md case where both tools legitimately target the same file.
+    fn deduplicate_actions(results: &mut [ToolSyncResult]) {
+        use std::collections::HashSet;
+        let mut claimed_paths: HashSet<PathBuf> = HashSet::new();
+        for result in results.iter_mut() {
+            result.actions.retain(|action| {
+                let path = match action {
+                    SyncAction::CreateSymlink { link, .. } => Some(link.clone()),
+                    SyncAction::CreateFile { path, .. } => Some(path.clone()),
+                    SyncAction::RemoveAndRelink { link, .. } => Some(link.clone()),
+                    _ => None,
+                };
+                if let Some(p) = path {
+                    claimed_paths.insert(p) // returns true if newly inserted (keep), false if duplicate (remove)
+                } else {
+                    true // keep non-path actions (warnings, directory creation, etc.)
+                }
+            });
+        }
     }
 
     /// Execute a planned sync. Mutates the filesystem.
@@ -890,6 +916,119 @@ mod tests {
 
         assert_eq!(claude_content1, claude_content2);
         assert_eq!(mdc_content1, mdc_content2);
+    }
+
+    #[test]
+    fn test_plan_deduplicates_agents_md_with_codex_and_opencode() {
+        let dir = TempDir::new().unwrap();
+        setup_canonical(dir.path(), "# Instructions");
+
+        // Enable both codex and opencode (both target AGENTS.md)
+        let mut tools = ToolsConfig::default();
+        tools.set_tool("codex".into(), ToolConfig {
+            enabled: true,
+            sync_strategy: Some(SyncStrategy::Symlink),
+        });
+        tools.set_tool("opencode".into(), ToolConfig {
+            enabled: true,
+            sync_strategy: Some(SyncStrategy::Symlink),
+        });
+        // Disable others to simplify
+        tools.set_tool("claude-code".into(), ToolConfig {
+            enabled: false,
+            sync_strategy: None,
+        });
+        tools.set_tool("cursor".into(), ToolConfig {
+            enabled: false,
+            sync_strategy: None,
+        });
+        tools.set_tool("windsurf".into(), ToolConfig {
+            enabled: false,
+            sync_strategy: None,
+        });
+
+        let config = AisyncConfig {
+            schema_version: 1,
+            defaults: DefaultsConfig {
+                sync_strategy: SyncStrategy::Symlink,
+            },
+            tools,
+        };
+
+        let report = SyncEngine::plan(&config, dir.path()).unwrap();
+
+        // Both tools should appear in results
+        assert_eq!(report.results.len(), 2);
+
+        // Count total AGENTS.md CreateSymlink actions across all results
+        let agents_symlink_count: usize = report
+            .results
+            .iter()
+            .flat_map(|r| &r.actions)
+            .filter(|a| match a {
+                SyncAction::CreateSymlink { link, .. } => {
+                    link.file_name().map_or(false, |n| n == "AGENTS.md")
+                }
+                _ => false,
+            })
+            .count();
+
+        assert_eq!(
+            agents_symlink_count, 1,
+            "expected exactly one AGENTS.md symlink action, got {agents_symlink_count}"
+        );
+    }
+
+    #[test]
+    fn test_plan_no_dedup_for_different_paths() {
+        let dir = TempDir::new().unwrap();
+        setup_canonical(dir.path(), "# Instructions");
+
+        // Enable windsurf and cursor (different output paths)
+        let mut tools = ToolsConfig::default();
+        tools.set_tool("windsurf".into(), ToolConfig {
+            enabled: true,
+            sync_strategy: Some(SyncStrategy::Generate),
+        });
+        tools.set_tool("cursor".into(), ToolConfig {
+            enabled: true,
+            sync_strategy: Some(SyncStrategy::Generate),
+        });
+        tools.set_tool("claude-code".into(), ToolConfig {
+            enabled: false,
+            sync_strategy: None,
+        });
+        tools.set_tool("opencode".into(), ToolConfig {
+            enabled: false,
+            sync_strategy: None,
+        });
+        tools.set_tool("codex".into(), ToolConfig {
+            enabled: false,
+            sync_strategy: None,
+        });
+
+        let config = AisyncConfig {
+            schema_version: 1,
+            defaults: DefaultsConfig {
+                sync_strategy: SyncStrategy::Generate,
+            },
+            tools,
+        };
+
+        let report = SyncEngine::plan(&config, dir.path()).unwrap();
+
+        // Both tools should have actions (no false dedup)
+        for result in &report.results {
+            let has_create = result
+                .actions
+                .iter()
+                .any(|a| matches!(a, SyncAction::CreateFile { .. } | SyncAction::GenerateMdc { .. }));
+            assert!(
+                has_create,
+                "expected create action for {:?}, got {:?}",
+                result.tool, result.actions
+            );
+        }
     }
 
     #[test]

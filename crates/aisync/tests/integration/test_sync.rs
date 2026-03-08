@@ -1,7 +1,7 @@
 use assert_fs::prelude::*;
 use predicates::prelude::*;
 
-use crate::helpers::{STANDARD_CONFIG, aisync_cmd, setup_project};
+use crate::helpers::{aisync_cmd, setup_project, STANDARD_CONFIG};
 
 #[test]
 fn test_sync_creates_tool_files() {
@@ -159,4 +159,43 @@ fn test_check_exits_nonzero_on_drift() {
         .current_dir(temp.path())
         .assert()
         .code(1);
+}
+
+#[test]
+fn test_sync_codex_opencode_deduplication() {
+    // Config with both codex and opencode enabled
+    let config = r#"schema_version = 1
+[tools.codex]
+enabled = true
+[tools.opencode]
+enabled = true
+[tools.claude-code]
+enabled = false
+[tools.cursor]
+enabled = false
+[tools.windsurf]
+enabled = false
+"#;
+
+    let temp = setup_project(config, "# Shared Instructions\n");
+
+    // Create .codex/ directory so Codex adapter detects it
+    temp.child(".codex").create_dir_all().unwrap();
+
+    // Dry run should show AGENTS.md exactly once (not twice)
+    let output = aisync_cmd()
+        .args(["sync", "--dry-run"])
+        .current_dir(temp.path())
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).unwrap();
+
+    // Count occurrences of AGENTS.md in the output
+    let agents_count = stdout.matches("AGENTS.md").count();
+    assert!(
+        agents_count <= 1,
+        "expected AGENTS.md to appear at most once in dry-run output, got {agents_count}. Output:\n{stdout}"
+    );
 }
