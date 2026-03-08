@@ -3,7 +3,10 @@ use std::path::{Path, PathBuf};
 use crate::adapter::{CodexAdapter, DetectionResult, ToolAdapter};
 use crate::config::SyncStrategy;
 use crate::error::AisyncError;
-use crate::types::{Confidence, DriftState, SyncAction, ToolKind, ToolSyncStatus, content_hash};
+use crate::types::{
+    Confidence, DriftState, HookTranslation, HooksConfig, SyncAction, ToolKind, ToolSyncStatus,
+    content_hash,
+};
 
 /// The relative symlink target path from project root to canonical instructions.
 const CANONICAL_REL: &str = ".ai/instructions.md";
@@ -60,14 +63,40 @@ impl ToolAdapter for CodexAdapter {
     }
 
     fn detect(&self, project_root: &Path) -> Result<DetectionResult, AisyncError> {
-        let _ = project_root;
-        Ok(DetectionResult {
-            tool: ToolKind::Codex,
-            detected: false,
-            confidence: Confidence::High,
-            markers_found: vec![],
-            version_hint: None,
-        })
+        let codex_dir = project_root.join(".codex");
+
+        if codex_dir.is_dir() {
+            Ok(DetectionResult {
+                tool: ToolKind::Codex,
+                detected: true,
+                confidence: Confidence::High,
+                markers_found: vec![codex_dir],
+                version_hint: None,
+            })
+        } else {
+            Ok(DetectionResult {
+                tool: ToolKind::Codex,
+                detected: false,
+                confidence: Confidence::High,
+                markers_found: vec![],
+                version_hint: None,
+            })
+        }
+    }
+
+    fn read_instructions(&self, project_root: &Path) -> Result<Option<String>, AisyncError> {
+        let path = project_root.join(TOOL_FILE);
+        if !path.exists() {
+            return Ok(None);
+        }
+        let content = std::fs::read_to_string(&path).map_err(|e| AisyncError::Adapter {
+            tool: "codex".to_string(),
+            source: crate::error::AdapterError::DetectionFailed(format!(
+                "failed to read {}: {e}",
+                path.display()
+            )),
+        })?;
+        Ok(Some(content))
     }
 
     fn plan_sync(
@@ -77,7 +106,7 @@ impl ToolAdapter for CodexAdapter {
         strategy: SyncStrategy,
     ) -> Result<Vec<SyncAction>, AisyncError> {
         let link_path = project_root.join(TOOL_FILE);
-        let target_rel = std::path::Path::new(CANONICAL_REL);
+        let target_rel = Path::new(CANONICAL_REL);
 
         // Determine whether conditionals changed the content
         let raw_path = project_root.join(CANONICAL_REL);
@@ -90,6 +119,7 @@ impl ToolAdapter for CodexAdapter {
             return self.plan_sync_with_conditionals(&link_path, canonical_content);
         }
 
+        // No conditionals + symlink strategy: use symlink
         if link_path.exists() || link_path.symlink_metadata().is_ok() {
             if let Ok(meta) = link_path.symlink_metadata() {
                 if meta.file_type().is_symlink() {
@@ -177,7 +207,7 @@ impl ToolAdapter for CodexAdapter {
             });
         }
 
-        // Regular file
+        // Regular file -- hash and compare
         let content = std::fs::read(&path).map_err(|e| AisyncError::Adapter {
             tool: "codex".to_string(),
             source: crate::error::AdapterError::DetectionFailed(format!(
@@ -250,5 +280,262 @@ impl ToolAdapter for CodexAdapter {
             marker_start: "<!-- aisync:memory -->".to_string(),
             marker_end: "<!-- /aisync:memory -->".to_string(),
         }])
+    }
+
+    fn translate_hooks(&self, _hooks: &HooksConfig) -> Result<HookTranslation, AisyncError> {
+        Ok(HookTranslation::Unsupported {
+            tool: ToolKind::Codex,
+            reason: "Codex does not support hooks".to_string(),
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    // --- detect tests ---
+
+    #[test]
+    fn test_name_returns_codex() {
+        assert_eq!(CodexAdapter.name(), ToolKind::Codex);
+    }
+
+    #[test]
+    fn test_detects_codex_dir() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".codex")).unwrap();
+
+        let result = CodexAdapter.detect(dir.path()).unwrap();
+        assert!(result.detected);
+        assert_eq!(result.confidence, Confidence::High);
+        assert_eq!(result.markers_found.len(), 1);
+    }
+
+    #[test]
+    fn test_not_detected_empty_dir() {
+        let dir = TempDir::new().unwrap();
+
+        let result = CodexAdapter.detect(dir.path()).unwrap();
+        assert!(!result.detected);
+        assert!(result.markers_found.is_empty());
+    }
+
+    #[test]
+    fn test_agents_md_alone_not_detected() {
+        // AGENTS.md alone should NOT trigger Codex detection
+        // (that's OpenCode's medium-confidence detection territory)
+        let dir = TempDir::new().unwrap();
+        std::fs::write(dir.path().join("AGENTS.md"), "# Agents").unwrap();
+
+        let result = CodexAdapter.detect(dir.path()).unwrap();
+        assert!(!result.detected);
+    }
+
+    // --- read_instructions tests ---
+
+    #[test]
+    fn test_read_instructions_reads_content() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(dir.path().join("AGENTS.md"), "# Agent Instructions").unwrap();
+
+        let content = CodexAdapter.read_instructions(dir.path()).unwrap();
+        assert_eq!(content, Some("# Agent Instructions".to_string()));
+    }
+
+    #[test]
+    fn test_read_instructions_returns_none_when_missing() {
+        let dir = TempDir::new().unwrap();
+
+        let content = CodexAdapter.read_instructions(dir.path()).unwrap();
+        assert_eq!(content, None);
+    }
+
+    // --- plan_sync tests ---
+
+    #[test]
+    fn test_plan_sync_creates_symlink_when_missing() {
+        let dir = TempDir::new().unwrap();
+
+        let actions = CodexAdapter
+            .plan_sync(dir.path(), "content", SyncStrategy::Symlink)
+            .unwrap();
+        assert_eq!(actions.len(), 1);
+        match &actions[0] {
+            SyncAction::CreateSymlink { link, target } => {
+                assert_eq!(link, &dir.path().join("AGENTS.md"));
+                assert_eq!(target, Path::new(".ai/instructions.md"));
+            }
+            other => panic!("expected CreateSymlink, got {other:?}"),
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_plan_sync_correct_symlink_returns_empty() {
+        let dir = TempDir::new().unwrap();
+        let ai_dir = dir.path().join(".ai");
+        std::fs::create_dir(&ai_dir).unwrap();
+        std::fs::write(ai_dir.join("instructions.md"), "content").unwrap();
+
+        std::os::unix::fs::symlink(
+            Path::new(".ai/instructions.md"),
+            dir.path().join("AGENTS.md"),
+        )
+        .unwrap();
+
+        let actions = CodexAdapter
+            .plan_sync(dir.path(), "content", SyncStrategy::Symlink)
+            .unwrap();
+        assert!(actions.is_empty());
+    }
+
+    #[test]
+    fn test_plan_sync_regular_file_returns_skip() {
+        let dir = TempDir::new().unwrap();
+        std::fs::write(dir.path().join("AGENTS.md"), "user content").unwrap();
+
+        let actions = CodexAdapter
+            .plan_sync(dir.path(), "content", SyncStrategy::Symlink)
+            .unwrap();
+        assert_eq!(actions.len(), 1);
+        assert!(matches!(&actions[0], SyncAction::SkipExistingFile { .. }));
+    }
+
+    // --- sync_status tests ---
+
+    #[test]
+    fn test_sync_status_missing() {
+        let dir = TempDir::new().unwrap();
+
+        let status = CodexAdapter
+            .sync_status(dir.path(), "abc123", SyncStrategy::Symlink)
+            .unwrap();
+        assert_eq!(status.tool, ToolKind::Codex);
+        assert_eq!(status.drift, DriftState::Missing);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_sync_status_in_sync() {
+        let dir = TempDir::new().unwrap();
+        let ai_dir = dir.path().join(".ai");
+        std::fs::create_dir(&ai_dir).unwrap();
+        let content = "canonical content";
+        std::fs::write(ai_dir.join("instructions.md"), content).unwrap();
+        let hash = content_hash(content.as_bytes());
+
+        std::os::unix::fs::symlink(
+            Path::new(".ai/instructions.md"),
+            dir.path().join("AGENTS.md"),
+        )
+        .unwrap();
+
+        let status = CodexAdapter
+            .sync_status(dir.path(), &hash, SyncStrategy::Symlink)
+            .unwrap();
+        assert_eq!(status.drift, DriftState::InSync);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_sync_status_dangling_symlink() {
+        let dir = TempDir::new().unwrap();
+
+        std::os::unix::fs::symlink(
+            Path::new(".ai/instructions.md"),
+            dir.path().join("AGENTS.md"),
+        )
+        .unwrap();
+
+        let status = CodexAdapter
+            .sync_status(dir.path(), "abc123", SyncStrategy::Symlink)
+            .unwrap();
+        assert_eq!(status.drift, DriftState::DanglingSymlink);
+    }
+
+    // --- plan_memory_sync tests ---
+
+    #[cfg(unix)]
+    #[test]
+    fn test_plan_memory_sync_returns_update_memory_references() {
+        let dir = TempDir::new().unwrap();
+        let memory_dir = dir.path().join(".ai/memory");
+        std::fs::create_dir_all(&memory_dir).unwrap();
+        std::fs::write(memory_dir.join("debugging.md"), "# Debugging").unwrap();
+
+        let memory_files = vec![memory_dir.join("debugging.md")];
+        let actions = CodexAdapter
+            .plan_memory_sync(dir.path(), &memory_files)
+            .unwrap();
+
+        assert_eq!(actions.len(), 1);
+        match &actions[0] {
+            SyncAction::UpdateMemoryReferences {
+                path,
+                references,
+                marker_start,
+                marker_end,
+            } => {
+                assert!(path.ends_with("AGENTS.md"));
+                assert_eq!(references.len(), 1);
+                assert!(references[0].contains(".ai/memory/debugging.md"));
+                assert_eq!(marker_start, "<!-- aisync:memory -->");
+                assert_eq!(marker_end, "<!-- /aisync:memory -->");
+            }
+            other => panic!("expected UpdateMemoryReferences, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_plan_memory_sync_empty_files_returns_empty() {
+        let dir = TempDir::new().unwrap();
+
+        let actions = CodexAdapter.plan_memory_sync(dir.path(), &[]).unwrap();
+        assert!(actions.is_empty());
+    }
+
+    // --- translate_hooks tests ---
+
+    #[test]
+    fn test_translate_hooks_returns_unsupported() {
+        use crate::types::{HookGroup, HookHandler};
+        use std::collections::BTreeMap;
+
+        let mut events = BTreeMap::new();
+        events.insert(
+            "PreToolUse".to_string(),
+            vec![HookGroup {
+                matcher: None,
+                hooks: vec![HookHandler {
+                    hook_type: "command".to_string(),
+                    command: "echo test".to_string(),
+                    timeout: None,
+                }],
+            }],
+        );
+        let config = HooksConfig { events };
+
+        let result = CodexAdapter.translate_hooks(&config).unwrap();
+        match result {
+            HookTranslation::Unsupported { tool, reason } => {
+                assert_eq!(tool, ToolKind::Codex);
+                assert!(reason.contains("Codex does not support hooks"));
+            }
+            other => panic!("expected Unsupported, got {other:?}"),
+        }
+    }
+
+    // --- default_sync_strategy test ---
+
+    #[test]
+    fn test_default_sync_strategy_is_symlink() {
+        assert_eq!(CodexAdapter.default_sync_strategy(), SyncStrategy::Symlink);
+    }
+
+    #[test]
+    fn test_conditional_tags() {
+        assert_eq!(CodexAdapter.conditional_tags(), &["codex-only"]);
     }
 }
