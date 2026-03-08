@@ -38,7 +38,8 @@ impl SyncEngine {
             let mut actions = Vec::new();
 
             // Apply conditional processing for this tool
-            let tool_content = ConditionalProcessor::process(&canonical_content, tool_kind);
+            let tool_content =
+                ConditionalProcessor::process(&canonical_content, tool_kind.clone());
 
             // Plan instruction sync
             match adapter.plan_sync(project_root, &tool_content, strategy) {
@@ -64,7 +65,7 @@ impl SyncEngine {
                     Err(e) => {
                         // Memory sync errors are non-fatal; log but continue
                         actions.push(SyncAction::WarnUnsupportedHooks {
-                            tool: tool_kind,
+                            tool: tool_kind.clone(),
                             reason: format!("memory sync failed: {e}"),
                         });
                     }
@@ -75,7 +76,7 @@ impl SyncEngine {
             if let Ok(hooks_config) = HookEngine::parse(project_root) {
                 match adapter.translate_hooks(&hooks_config) {
                     Ok(HookTranslation::Supported { tool, content, .. }) => {
-                        let path = match tool {
+                        let path = match &tool {
                             ToolKind::ClaudeCode => project_root.join(".claude/settings.json"),
                             ToolKind::OpenCode => {
                                 project_root.join(".opencode/plugins/aisync-hooks.js")
@@ -159,7 +160,7 @@ impl SyncEngine {
             }
 
             executed_results.push(ToolSyncResult {
-                tool: tool_result.tool,
+                tool: tool_result.tool.clone(),
                 actions: executed_actions,
                 error: tool_error,
             });
@@ -238,7 +239,7 @@ impl SyncEngine {
         let mut per_tool = Vec::new();
 
         for (tool_kind, _adapter, _) in Self::enabled_tools(config) {
-            let (synced, details) = match tool_kind {
+            let (synced, details) = match &tool_kind {
                 ToolKind::ClaudeCode => {
                     match crate::memory::MemoryEngine::claude_memory_path(project_root) {
                         Ok(claude_memory) => {
@@ -287,6 +288,9 @@ impl SyncEngine {
                         (false, Some("project.mdc not found".to_string()))
                     }
                 }
+                ToolKind::Custom(_) => {
+                    (false, Some("memory sync not supported for custom tools".to_string()))
+                }
             };
 
             per_tool.push(crate::types::ToolMemoryStatus {
@@ -320,7 +324,7 @@ impl SyncEngine {
             let translation = adapter.translate_hooks(&hooks_config);
             let (supported, translated, details) = match translation {
                 Ok(HookTranslation::Supported { .. }) => {
-                    let is_translated = match tool_kind {
+                    let is_translated = match &tool_kind {
                         ToolKind::ClaudeCode => {
                             let settings = project_root.join(".claude/settings.json");
                             if settings.exists() {
@@ -337,7 +341,7 @@ impl SyncEngine {
                         _ => false,
                     };
                     let detail = if is_translated {
-                        match tool_kind {
+                        match &tool_kind {
                             ToolKind::ClaudeCode => Some("settings.json".to_string()),
                             ToolKind::OpenCode => Some("aisync-hooks.js".to_string()),
                             _ => None,
@@ -626,7 +630,7 @@ mod tests {
         let report = SyncEngine::plan(&config, dir.path()).unwrap();
 
         assert_eq!(report.results.len(), 3);
-        let tools: Vec<ToolKind> = report.results.iter().map(|r| r.tool).collect();
+        let tools: Vec<ToolKind> = report.results.iter().map(|r| r.tool.clone()).collect();
         assert!(tools.contains(&ToolKind::ClaudeCode));
         assert!(tools.contains(&ToolKind::Cursor));
         assert!(tools.contains(&ToolKind::OpenCode));

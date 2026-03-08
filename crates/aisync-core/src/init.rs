@@ -58,16 +58,17 @@ impl InitEngine {
         let mut sources = Vec::new();
 
         for result in detected {
-            let adapter = Self::adapter_for_tool(result.tool);
+            let adapter = Self::adapter_for_tool(&result.tool);
             if let Ok(Some(content)) = adapter.read_instructions(project_root) {
                 // Determine the source path based on tool kind
-                let source_path = match result.tool {
+                let source_path = match &result.tool {
                     ToolKind::ClaudeCode => project_root.join("CLAUDE.md"),
                     ToolKind::Cursor => project_root.join(".cursor/rules/project.mdc"),
                     ToolKind::OpenCode => project_root.join("AGENTS.md"),
+                    ToolKind::Custom(name) => project_root.join(format!("{}.md", name)),
                 };
                 sources.push(ImportSource {
-                    tool: result.tool,
+                    tool: result.tool.clone(),
                     content,
                     source_path,
                 });
@@ -123,11 +124,15 @@ impl InitEngine {
     }
 
     /// Get the appropriate adapter for a tool kind.
-    fn adapter_for_tool(tool: ToolKind) -> AnyAdapter {
+    fn adapter_for_tool(tool: &ToolKind) -> AnyAdapter {
         match tool {
             ToolKind::ClaudeCode => AnyAdapter::ClaudeCode(crate::adapter::ClaudeCodeAdapter),
             ToolKind::Cursor => AnyAdapter::Cursor(crate::adapter::CursorAdapter),
             ToolKind::OpenCode => AnyAdapter::OpenCode(crate::adapter::OpenCodeAdapter),
+            ToolKind::Custom(_) => {
+                // For now, custom tools don't have adapters; use ClaudeCode as fallback
+                AnyAdapter::ClaudeCode(crate::adapter::ClaudeCodeAdapter)
+            }
         }
     }
 
@@ -136,7 +141,7 @@ impl InitEngine {
         let mut tools = ToolsConfig::default();
 
         for result in detected_tools {
-            let tool_config = match result.tool {
+            let tool_config = match &result.tool {
                 ToolKind::Cursor => ToolConfig {
                     enabled: true,
                     sync_strategy: Some(SyncStrategy::Generate),
@@ -147,10 +152,11 @@ impl InitEngine {
                 },
             };
 
-            match result.tool {
+            match &result.tool {
                 ToolKind::ClaudeCode => tools.claude_code = Some(tool_config),
                 ToolKind::Cursor => tools.cursor = Some(tool_config),
                 ToolKind::OpenCode => tools.opencode = Some(tool_config),
+                ToolKind::Custom(_) => {} // Custom tools not yet supported in config
             }
         }
 
@@ -293,7 +299,7 @@ mod tests {
         let sources = InitEngine::find_import_sources(dir.path(), &detected);
 
         assert_eq!(sources.len(), 3);
-        let tools: Vec<ToolKind> = sources.iter().map(|s| s.tool).collect();
+        let tools: Vec<ToolKind> = sources.iter().map(|s| s.tool.clone()).collect();
         assert!(tools.contains(&ToolKind::ClaudeCode));
         assert!(tools.contains(&ToolKind::Cursor));
         assert!(tools.contains(&ToolKind::OpenCode));

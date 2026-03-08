@@ -198,10 +198,11 @@ impl WatchEngine {
         let mut watch_dirs = Vec::new();
 
         for (tool_kind, _adapter, _tool_config) in SyncEngine::enabled_tools(config) {
-            let path = match tool_kind {
+            let path = match &tool_kind {
                 ToolKind::ClaudeCode => project_root.join("CLAUDE.md"),
                 ToolKind::Cursor => project_root.join(".cursor/rules/project.mdc"),
                 ToolKind::OpenCode => project_root.join("AGENTS.md"),
+                ToolKind::Custom(name) => project_root.join(format!("{}.md", name)),
             };
 
             // Only watch files that exist and are NOT symlinks

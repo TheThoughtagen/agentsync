@@ -51,7 +51,7 @@ fn print_status_table(status: &StatusReport, verbose: bool) {
 
     // Always iterate and print each tool row
     for tool_status in &status.tools {
-        let tool_name = tool_display_name(tool_status.tool);
+        let tool_name = tool_display_name(&tool_status.tool);
         let strategy = strategy_display_name(tool_status.strategy);
         let (status_str, details) = drift_display(&tool_status.drift, &tool_status.details);
 
@@ -113,11 +113,12 @@ fn drift_display(drift: &DriftState, details: &Option<String>) -> (String, Strin
     }
 }
 
-fn tool_display_name(tool: ToolKind) -> &'static str {
+fn tool_display_name(tool: &ToolKind) -> String {
     match tool {
-        ToolKind::ClaudeCode => "Claude Code",
-        ToolKind::Cursor => "Cursor",
-        ToolKind::OpenCode => "OpenCode",
+        ToolKind::ClaudeCode => "Claude Code".to_string(),
+        ToolKind::Cursor => "Cursor".to_string(),
+        ToolKind::OpenCode => "OpenCode".to_string(),
+        ToolKind::Custom(name) => name.clone(),
     }
 }
 
@@ -135,7 +136,7 @@ fn print_memory_status(memory: &MemoryStatusReport) {
         format!("Memory Files: {} files in .ai/memory/", memory.file_count).bold()
     );
     for tool_status in &memory.per_tool {
-        let tool_name = tool_display_name(tool_status.tool);
+        let tool_name = tool_display_name(&tool_status.tool);
         let detail = tool_status.details.as_deref().unwrap_or("");
         if tool_status.synced {
             println!(
@@ -161,7 +162,7 @@ fn print_hook_status(hooks: &HookStatusReport) {
         format!("Hooks: {} hooks in .ai/hooks.toml", hooks.hook_count).bold()
     );
     for tool_status in &hooks.per_tool {
-        let tool_name = tool_display_name(tool_status.tool);
+        let tool_name = tool_display_name(&tool_status.tool);
         let detail = tool_status.details.as_deref().unwrap_or("");
         if !tool_status.supported {
             println!(

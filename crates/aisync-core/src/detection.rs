@@ -77,7 +77,7 @@ mod tests {
         let results = DetectionEngine::scan(dir.path()).unwrap();
         assert_eq!(results.len(), 3);
 
-        let tools: Vec<ToolKind> = results.iter().map(|r| r.tool).collect();
+        let tools: Vec<ToolKind> = results.iter().map(|r| r.tool.clone()).collect();
         assert!(tools.contains(&ToolKind::ClaudeCode));
         assert!(tools.contains(&ToolKind::Cursor));
         assert!(tools.contains(&ToolKind::OpenCode));

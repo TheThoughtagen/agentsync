@@ -47,7 +47,7 @@ pub fn run_sync(dry_run: bool, verbose: bool) -> Result<(), Box<dyn std::error::
 
 fn print_dry_run(report: &SyncReport, verbose: bool) {
     for tool_result in &report.results {
-        let tool_name = tool_display_name(tool_result.tool);
+        let tool_name = tool_display_name(&tool_result.tool);
 
         if let Some(err) = &tool_result.error {
             println!("  {} {}: {}", "x".red(), tool_name, err);
@@ -132,7 +132,7 @@ fn print_results(report: &SyncReport, verbose: bool) {
     let mut error_count = 0u32;
 
     for tool_result in &report.results {
-        let tool_name = tool_display_name(tool_result.tool);
+        let tool_name = tool_display_name(&tool_result.tool);
 
         if let Some(err) = &tool_result.error {
             error_count += 1;
@@ -220,11 +220,12 @@ fn print_action_details(action: &SyncAction) {
     }
 }
 
-fn tool_display_name(tool: ToolKind) -> &'static str {
+fn tool_display_name(tool: &ToolKind) -> String {
     match tool {
-        ToolKind::ClaudeCode => "Claude Code",
-        ToolKind::Cursor => "Cursor",
-        ToolKind::OpenCode => "OpenCode",
+        ToolKind::ClaudeCode => "Claude Code".to_string(),
+        ToolKind::Cursor => "Cursor".to_string(),
+        ToolKind::OpenCode => "OpenCode".to_string(),
+        ToolKind::Custom(name) => name.clone(),
     }
 }
 

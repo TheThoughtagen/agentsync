@@ -29,7 +29,7 @@ pub fn run_check(verbose: bool) -> Result<(), Box<dyn std::error::Error>> {
             continue;
         }
 
-        let tool_name = tool_display_name(tool_status.tool);
+        let tool_name = tool_display_name(&tool_status.tool);
         let drift_info = match &tool_status.drift {
             DriftState::Drifted { reason } => format!("drifted - {reason}"),
             DriftState::Missing => "missing".to_string(),
@@ -49,10 +49,11 @@ pub fn run_check(verbose: bool) -> Result<(), Box<dyn std::error::Error>> {
     std::process::exit(1);
 }
 
-fn tool_display_name(tool: ToolKind) -> &'static str {
+fn tool_display_name(tool: &ToolKind) -> String {
     match tool {
-        ToolKind::ClaudeCode => "Claude Code",
-        ToolKind::Cursor => "Cursor",
-        ToolKind::OpenCode => "OpenCode",
+        ToolKind::ClaudeCode => "Claude Code".to_string(),
+        ToolKind::Cursor => "Cursor".to_string(),
+        ToolKind::OpenCode => "OpenCode".to_string(),
+        ToolKind::Custom(name) => name.clone(),
     }
 }

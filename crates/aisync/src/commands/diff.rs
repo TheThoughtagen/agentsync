@@ -27,7 +27,7 @@ pub fn run_diff(verbose: bool) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     for tool_diff in &diffs {
-        let tool_name = tool_display_name(tool_diff.tool);
+        let tool_name = tool_display_name(&tool_diff.tool);
 
         if tool_diff.has_changes {
             println!("{}", format!("--- {tool_name} ---").bold());
@@ -40,10 +40,11 @@ pub fn run_diff(verbose: bool) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn tool_display_name(tool: ToolKind) -> &'static str {
+fn tool_display_name(tool: &ToolKind) -> String {
     match tool {
-        ToolKind::ClaudeCode => "Claude Code",
-        ToolKind::Cursor => "Cursor",
-        ToolKind::OpenCode => "OpenCode",
+        ToolKind::ClaudeCode => "Claude Code".to_string(),
+        ToolKind::Cursor => "Cursor".to_string(),
+        ToolKind::OpenCode => "OpenCode".to_string(),
+        ToolKind::Custom(name) => name.clone(),
     }
 }

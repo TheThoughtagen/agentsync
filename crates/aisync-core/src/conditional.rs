@@ -53,6 +53,7 @@ impl ConditionalProcessor {
             ToolKind::ClaudeCode => vec!["claude-only", "claude-code-only"],
             ToolKind::Cursor => vec!["cursor-only"],
             ToolKind::OpenCode => vec!["opencode-only"],
+            ToolKind::Custom(_) => vec![], // Custom tools have no conditional sections
         }
     }
 
@@ -152,7 +153,7 @@ mod tests {
     fn test_common_content_preserved_for_all_tools() {
         let input = "# Title\n\nThis is common content.\n\n## Usage\n\nAll tools see this.\n";
         for tool in [ToolKind::ClaudeCode, ToolKind::Cursor, ToolKind::OpenCode] {
-            let result = ConditionalProcessor::process(input, tool);
+            let result = ConditionalProcessor::process(input, tool.clone());
             assert_eq!(
                 result, input,
                 "common content should be unchanged for {:?}",
