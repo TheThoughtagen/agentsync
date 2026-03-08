@@ -71,10 +71,11 @@ Plans:
   1. Running `aisync add-tool` in a project with unconfigured tools shows which tools are available to add
   2. User can interactively select tools and they are added to `aisync.toml` with default settings
   3. After adding a tool, only that tool's files are synced (no full re-sync of existing tools)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 08-01: TBD
+- [ ] 08-01-PLAN.md — AddToolEngine core logic + SyncEngine partial sync (plan_for_tools)
+- [ ] 08-02-PLAN.md — CLI add-tool command with interactive/non-interactive modes + integration tests
 
 ### Phase 9: Plugin SDK Crate Extraction
 **Goal**: Community developers can depend on published `aisync-types` and `aisync-adapter` crates to build custom adapters in Rust
@@ -127,7 +128,7 @@ Plans:
 | 5. Polish and Distribution | v1.0 | 3/3 | Complete | 2026-03-06 |
 | 6. Core Refactoring | v1.1 | 3/3 | Complete | 2026-03-08 |
 | 7. Windsurf & Codex Adapters | 2/2 | Complete   | 2026-03-08 | - |
-| 8. Add-Tool Command | v1.1 | 0/TBD | Not started | - |
+| 8. Add-Tool Command | v1.1 | 0/2 | Not started | - |
 | 9. Plugin SDK Crate Extraction | v1.1 | 0/TBD | Not started | - |
 | 10. Declarative TOML Adapters | v1.1 | 0/TBD | Not started | - |
 | 11. Compile-Time Registration | v1.1 | 0/TBD | Not started | - |
