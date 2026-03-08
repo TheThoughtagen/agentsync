@@ -114,7 +114,7 @@ mod tests {
         SyncEngine::execute(&plan, dir.path()).unwrap();
 
         let diffs = DiffEngine::diff_all(&config, dir.path()).unwrap();
-        assert_eq!(diffs.len(), 3);
+        assert_eq!(diffs.len(), 5);
 
         // Claude and OpenCode are symlinks -- should be in sync
         let claude_diff = diffs

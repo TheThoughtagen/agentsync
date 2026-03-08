@@ -288,6 +288,35 @@ impl SyncEngine {
                         (false, Some("project.mdc not found".to_string()))
                     }
                 }
+                ToolKind::Windsurf => {
+                    let md = project_root.join(".windsurf/rules/project.md");
+                    if md.exists() {
+                        let content = std::fs::read_to_string(&md).unwrap_or_default();
+                        if content.contains("<!-- aisync:memory -->") {
+                            (true, Some("references in project.md".to_string()))
+                        } else {
+                            (
+                                false,
+                                Some("no memory references in project.md".to_string()),
+                            )
+                        }
+                    } else {
+                        (false, Some("project.md not found".to_string()))
+                    }
+                }
+                ToolKind::Codex => {
+                    let agents_md = project_root.join("AGENTS.md");
+                    if agents_md.exists() {
+                        let content = std::fs::read_to_string(&agents_md).unwrap_or_default();
+                        if content.contains("<!-- aisync:memory -->") {
+                            (true, Some("references in AGENTS.md".to_string()))
+                        } else {
+                            (false, Some("no memory references in AGENTS.md".to_string()))
+                        }
+                    } else {
+                        (false, Some("AGENTS.md not found".to_string()))
+                    }
+                }
                 ToolKind::Custom(_) => {
                     (false, Some("memory sync not supported for custom tools".to_string()))
                 }
@@ -373,6 +402,12 @@ impl SyncEngine {
     fn execute_action(action: &SyncAction) -> Result<(), AisyncError> {
         match action {
             SyncAction::CreateSymlink { link, target } => {
+                // If symlink already exists and points to the correct target, skip
+                if let Ok(existing_target) = std::fs::read_link(link) {
+                    if existing_target == *target {
+                        return Ok(());
+                    }
+                }
                 #[cfg(unix)]
                 {
                     std::os::unix::fs::symlink(target, link)
@@ -604,11 +639,13 @@ mod tests {
         let config = all_enabled_config();
         let report = SyncEngine::plan(&config, dir.path()).unwrap();
 
-        assert_eq!(report.results.len(), 3);
+        assert_eq!(report.results.len(), 5);
         let tools: Vec<ToolKind> = report.results.iter().map(|r| r.tool.clone()).collect();
         assert!(tools.contains(&ToolKind::ClaudeCode));
         assert!(tools.contains(&ToolKind::Cursor));
         assert!(tools.contains(&ToolKind::OpenCode));
+        assert!(tools.contains(&ToolKind::Windsurf));
+        assert!(tools.contains(&ToolKind::Codex));
     }
 
     #[test]
@@ -632,6 +669,14 @@ mod tests {
                     sync_strategy: None,
                 });
                 t.set_tool("opencode".into(), ToolConfig {
+                    enabled: false,
+                    sync_strategy: None,
+                });
+                t.set_tool("windsurf".into(), ToolConfig {
+                    enabled: false,
+                    sync_strategy: None,
+                });
+                t.set_tool("codex".into(), ToolConfig {
                     enabled: false,
                     sync_strategy: None,
                 });
@@ -755,7 +800,7 @@ mod tests {
         let config = all_enabled_config();
         let status = SyncEngine::status(&config, dir.path()).unwrap();
 
-        assert_eq!(status.tools.len(), 3);
+        assert_eq!(status.tools.len(), 5);
         // All should be Missing since nothing is synced yet
         for tool_status in &status.tools {
             assert_eq!(tool_status.drift, DriftState::Missing);

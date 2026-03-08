@@ -120,6 +120,12 @@ pub struct CursorAdapter;
 #[derive(Debug, Clone)]
 pub struct OpenCodeAdapter;
 
+#[derive(Debug, Clone)]
+pub struct WindsurfAdapter;
+
+#[derive(Debug, Clone)]
+pub struct CodexAdapter;
+
 /// Macro to dispatch a method call through all AnyAdapter variants.
 ///
 /// Adding a new built-in variant requires adding one line per variant here.
@@ -130,6 +136,8 @@ macro_rules! dispatch_adapter {
             AnyAdapter::ClaudeCode($inner) => $body,
             AnyAdapter::Cursor($inner) => $body,
             AnyAdapter::OpenCode($inner) => $body,
+            AnyAdapter::Windsurf($inner) => $body,
+            AnyAdapter::Codex($inner) => $body,
             AnyAdapter::Plugin($inner) => $body,
         }
     };
@@ -144,6 +152,8 @@ pub enum AnyAdapter {
     ClaudeCode(ClaudeCodeAdapter),
     Cursor(CursorAdapter),
     OpenCode(OpenCodeAdapter),
+    Windsurf(WindsurfAdapter),
+    Codex(CodexAdapter),
     Plugin(Arc<dyn ToolAdapter>),
 }
 
@@ -153,6 +163,8 @@ impl fmt::Debug for AnyAdapter {
             AnyAdapter::ClaudeCode(a) => f.debug_tuple("ClaudeCode").field(a).finish(),
             AnyAdapter::Cursor(a) => f.debug_tuple("Cursor").field(a).finish(),
             AnyAdapter::OpenCode(a) => f.debug_tuple("OpenCode").field(a).finish(),
+            AnyAdapter::Windsurf(a) => f.debug_tuple("Windsurf").field(a).finish(),
+            AnyAdapter::Codex(a) => f.debug_tuple("Codex").field(a).finish(),
             AnyAdapter::Plugin(_) => f.debug_tuple("Plugin").field(&"dyn ToolAdapter").finish(),
         }
     }
@@ -164,6 +176,8 @@ impl Clone for AnyAdapter {
             AnyAdapter::ClaudeCode(a) => AnyAdapter::ClaudeCode(a.clone()),
             AnyAdapter::Cursor(a) => AnyAdapter::Cursor(a.clone()),
             AnyAdapter::OpenCode(a) => AnyAdapter::OpenCode(a.clone()),
+            AnyAdapter::Windsurf(a) => AnyAdapter::Windsurf(a.clone()),
+            AnyAdapter::Codex(a) => AnyAdapter::Codex(a.clone()),
             AnyAdapter::Plugin(a) => AnyAdapter::Plugin(Arc::clone(a)),
         }
     }
@@ -176,6 +190,8 @@ impl AnyAdapter {
             AnyAdapter::ClaudeCode(ClaudeCodeAdapter),
             AnyAdapter::Cursor(CursorAdapter),
             AnyAdapter::OpenCode(OpenCodeAdapter),
+            AnyAdapter::Windsurf(WindsurfAdapter),
+            AnyAdapter::Codex(CodexAdapter),
         ]
     }
 
@@ -186,6 +202,8 @@ impl AnyAdapter {
             ToolKind::ClaudeCode => Some(AnyAdapter::ClaudeCode(ClaudeCodeAdapter)),
             ToolKind::Cursor => Some(AnyAdapter::Cursor(CursorAdapter)),
             ToolKind::OpenCode => Some(AnyAdapter::OpenCode(OpenCodeAdapter)),
+            ToolKind::Windsurf => Some(AnyAdapter::Windsurf(WindsurfAdapter)),
+            ToolKind::Codex => Some(AnyAdapter::Codex(CodexAdapter)),
             ToolKind::Custom(_) => None,
         }
     }
@@ -264,9 +282,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_all_builtin_returns_three() {
+    fn test_all_builtin_returns_five() {
         let adapters = AnyAdapter::all_builtin();
-        assert_eq!(adapters.len(), 3);
+        assert_eq!(adapters.len(), 5);
     }
 
     #[test]
@@ -288,6 +306,20 @@ mod tests {
         let adapter = AnyAdapter::for_tool(&ToolKind::OpenCode);
         assert!(adapter.is_some());
         assert_eq!(adapter.unwrap().name(), ToolKind::OpenCode);
+    }
+
+    #[test]
+    fn test_for_tool_windsurf() {
+        let adapter = AnyAdapter::for_tool(&ToolKind::Windsurf);
+        assert!(adapter.is_some());
+        assert_eq!(adapter.unwrap().name(), ToolKind::Windsurf);
+    }
+
+    #[test]
+    fn test_for_tool_codex() {
+        let adapter = AnyAdapter::for_tool(&ToolKind::Codex);
+        assert!(adapter.is_some());
+        assert_eq!(adapter.unwrap().name(), ToolKind::Codex);
     }
 
     #[test]

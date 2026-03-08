@@ -36,6 +36,8 @@ pub enum ToolKind {
     ClaudeCode,
     Cursor,
     OpenCode,
+    Windsurf,
+    Codex,
     Custom(String),
 }
 
@@ -46,6 +48,8 @@ impl ToolKind {
             ToolKind::ClaudeCode => "claude-code",
             ToolKind::Cursor => "cursor",
             ToolKind::OpenCode => "opencode",
+            ToolKind::Windsurf => "windsurf",
+            ToolKind::Codex => "codex",
             ToolKind::Custom(s) => s.as_str(),
         }
     }
@@ -59,6 +63,8 @@ impl ToolKind {
             ToolKind::ClaudeCode => "Claude Code",
             ToolKind::Cursor => "Cursor",
             ToolKind::OpenCode => "OpenCode",
+            ToolKind::Windsurf => "Windsurf",
+            ToolKind::Codex => "Codex",
             ToolKind::Custom(s) => s.as_str(),
         }
     }
@@ -89,6 +95,8 @@ impl<'de> Deserialize<'de> for ToolKind {
             "claude-code" => ToolKind::ClaudeCode,
             "cursor" => ToolKind::Cursor,
             "opencode" => ToolKind::OpenCode,
+            "windsurf" => ToolKind::Windsurf,
+            "codex" => ToolKind::Codex,
             _ => ToolKind::Custom(s),
         })
     }
@@ -377,8 +385,8 @@ mod tests {
 
     #[test]
     fn test_tool_kind_variants_exist() {
-        let tools = [ToolKind::ClaudeCode, ToolKind::Cursor, ToolKind::OpenCode];
-        assert_eq!(tools.len(), 3);
+        let tools = [ToolKind::ClaudeCode, ToolKind::Cursor, ToolKind::OpenCode, ToolKind::Windsurf, ToolKind::Codex];
+        assert_eq!(tools.len(), 5);
     }
 
     #[test]
@@ -402,12 +410,12 @@ mod tests {
 
     #[test]
     fn test_tool_kind_custom_variant() {
-        let custom = ToolKind::Custom("windsurf".to_string());
-        assert_eq!(custom, ToolKind::Custom("windsurf".to_string()));
+        let custom = ToolKind::Custom("aider".to_string());
+        assert_eq!(custom, ToolKind::Custom("aider".to_string()));
         assert_ne!(custom, ToolKind::ClaudeCode);
         let debug = format!("{:?}", custom);
         assert!(debug.contains("Custom"));
-        assert!(debug.contains("windsurf"));
+        assert!(debug.contains("aider"));
     }
 
     #[test]
@@ -415,9 +423,11 @@ mod tests {
         assert_eq!(ToolKind::ClaudeCode.as_str(), "claude-code");
         assert_eq!(ToolKind::Cursor.as_str(), "cursor");
         assert_eq!(ToolKind::OpenCode.as_str(), "opencode");
+        assert_eq!(ToolKind::Windsurf.as_str(), "windsurf");
+        assert_eq!(ToolKind::Codex.as_str(), "codex");
         assert_eq!(
-            ToolKind::Custom("windsurf".to_string()).as_str(),
-            "windsurf"
+            ToolKind::Custom("aider".to_string()).as_str(),
+            "aider"
         );
     }
 
@@ -426,9 +436,11 @@ mod tests {
         assert_eq!(format!("{}", ToolKind::ClaudeCode), "claude-code");
         assert_eq!(format!("{}", ToolKind::Cursor), "cursor");
         assert_eq!(format!("{}", ToolKind::OpenCode), "opencode");
+        assert_eq!(format!("{}", ToolKind::Windsurf), "windsurf");
+        assert_eq!(format!("{}", ToolKind::Codex), "codex");
         assert_eq!(
-            format!("{}", ToolKind::Custom("windsurf".to_string())),
-            "windsurf"
+            format!("{}", ToolKind::Custom("aider".to_string())),
+            "aider"
         );
     }
 
@@ -447,8 +459,16 @@ mod tests {
             "\"opencode\""
         );
         assert_eq!(
-            serde_json::to_string(&ToolKind::Custom("windsurf".to_string())).unwrap(),
+            serde_json::to_string(&ToolKind::Windsurf).unwrap(),
             "\"windsurf\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ToolKind::Codex).unwrap(),
+            "\"codex\""
+        );
+        assert_eq!(
+            serde_json::to_string(&ToolKind::Custom("aider".to_string())).unwrap(),
+            "\"aider\""
         );
     }
 
@@ -468,7 +488,15 @@ mod tests {
         );
         assert_eq!(
             serde_json::from_str::<ToolKind>("\"windsurf\"").unwrap(),
-            ToolKind::Custom("windsurf".to_string())
+            ToolKind::Windsurf
+        );
+        assert_eq!(
+            serde_json::from_str::<ToolKind>("\"codex\"").unwrap(),
+            ToolKind::Codex
+        );
+        assert_eq!(
+            serde_json::from_str::<ToolKind>("\"aider\"").unwrap(),
+            ToolKind::Custom("aider".to_string())
         );
     }
 
@@ -478,7 +506,9 @@ mod tests {
             ToolKind::ClaudeCode,
             ToolKind::Cursor,
             ToolKind::OpenCode,
-            ToolKind::Custom("windsurf".to_string()),
+            ToolKind::Windsurf,
+            ToolKind::Codex,
+            ToolKind::Custom("aider".to_string()),
         ];
         for v in variants {
             let json = serde_json::to_string(&v).unwrap();

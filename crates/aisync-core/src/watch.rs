@@ -428,8 +428,8 @@ mod tests {
 
         assert_eq!(
             targets.expected_files.len(),
-            3,
-            "should have 3 expected files"
+            4,
+            "should have 4 expected files (CLAUDE.md, AGENTS.md x2 for OpenCode+Codex, project.mdc)"
         );
         assert_eq!(
             targets.watch_dirs.len(),

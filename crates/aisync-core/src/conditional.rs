@@ -51,11 +51,13 @@ impl ConditionalProcessor {
     /// Returns the tag names that match a given tool, using adapter metadata.
     /// Custom tools with no adapter return empty tags.
     fn tool_tag_names(tool: &ToolKind) -> Vec<&'static str> {
-        use crate::adapter::{ClaudeCodeAdapter, CursorAdapter, OpenCodeAdapter};
+        use crate::adapter::{ClaudeCodeAdapter, CodexAdapter, CursorAdapter, OpenCodeAdapter, WindsurfAdapter};
         match tool {
             ToolKind::ClaudeCode => ClaudeCodeAdapter.conditional_tags().to_vec(),
             ToolKind::Cursor => CursorAdapter.conditional_tags().to_vec(),
             ToolKind::OpenCode => OpenCodeAdapter.conditional_tags().to_vec(),
+            ToolKind::Windsurf => WindsurfAdapter.conditional_tags().to_vec(),
+            ToolKind::Codex => CodexAdapter.conditional_tags().to_vec(),
             ToolKind::Custom(_) => vec![],
         }
     }
