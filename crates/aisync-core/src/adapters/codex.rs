@@ -108,6 +108,19 @@ impl ToolAdapter for CodexAdapter {
         let link_path = project_root.join(TOOL_FILE);
         let target_rel = Path::new(CANONICAL_REL);
 
+        // Check content size limit (Codex has 32 KiB limit)
+        let mut size_warning = None;
+        let byte_size = canonical_content.len();
+        if byte_size > 32_768 {
+            size_warning = Some(SyncAction::WarnContentSize {
+                tool: ToolKind::Codex,
+                path: link_path.clone(),
+                actual_size: byte_size,
+                limit: 32_768,
+                unit: "bytes".to_string(),
+            });
+        }
+
         // Determine whether conditionals changed the content
         let raw_path = project_root.join(CANONICAL_REL);
         let conditionals_active = match std::fs::read_to_string(&raw_path) {
@@ -116,8 +129,21 @@ impl ToolAdapter for CodexAdapter {
         };
 
         if conditionals_active || strategy == SyncStrategy::Copy {
-            return self.plan_sync_with_conditionals(&link_path, canonical_content);
+            let mut actions = Vec::new();
+            if let Some(warning) = size_warning {
+                actions.push(warning);
+            }
+            actions.extend(self.plan_sync_with_conditionals(&link_path, canonical_content)?);
+            return Ok(actions);
         }
+
+        // Helper to prepend size warning if present
+        let prepend_warning = |mut actions: Vec<SyncAction>, warning: Option<SyncAction>| -> Vec<SyncAction> {
+            if let Some(w) = warning {
+                actions.insert(0, w);
+            }
+            actions
+        };
 
         // No conditionals + symlink strategy: use symlink
         if link_path.exists() || link_path.symlink_metadata().is_ok() {
@@ -131,24 +157,24 @@ impl ToolAdapter for CodexAdapter {
                             )),
                         })?;
                     if current_target == target_rel {
-                        return Ok(vec![]);
+                        return Ok(prepend_warning(vec![], size_warning));
                     }
-                    return Ok(vec![SyncAction::RemoveAndRelink {
+                    return Ok(prepend_warning(vec![SyncAction::RemoveAndRelink {
                         link: link_path,
                         target: target_rel.to_path_buf(),
-                    }]);
+                    }], size_warning));
                 }
-                return Ok(vec![SyncAction::SkipExistingFile {
+                return Ok(prepend_warning(vec![SyncAction::SkipExistingFile {
                     path: link_path,
                     reason: format!("{} is a regular file, not managed by aisync", TOOL_FILE),
-                }]);
+                }], size_warning));
             }
         }
 
-        Ok(vec![SyncAction::CreateSymlink {
+        Ok(prepend_warning(vec![SyncAction::CreateSymlink {
             link: link_path,
             target: target_rel.to_path_buf(),
-        }])
+        }], size_warning))
     }
 
     fn sync_status(
@@ -537,5 +563,87 @@ mod tests {
     #[test]
     fn test_conditional_tags() {
         assert_eq!(CodexAdapter.conditional_tags(), &["codex-only"]);
+    }
+
+    #[test]
+    fn test_plan_sync_warns_on_large_content() {
+        let dir = TempDir::new().unwrap();
+
+        // Create content > 32 KiB (32_768 bytes)
+        let large_content = "x".repeat(32_769);
+
+        // Need .ai/instructions.md for conditionals check
+        let ai_dir = dir.path().join(".ai");
+        std::fs::create_dir_all(&ai_dir).unwrap();
+        std::fs::write(ai_dir.join("instructions.md"), &large_content).unwrap();
+
+        let actions = CodexAdapter
+            .plan_sync(dir.path(), &large_content, SyncStrategy::Symlink)
+            .unwrap();
+
+        let warn_action = actions
+            .iter()
+            .find(|a| matches!(a, SyncAction::WarnContentSize { .. }));
+        assert!(
+            warn_action.is_some(),
+            "expected WarnContentSize action for content > 32 KiB"
+        );
+
+        if let SyncAction::WarnContentSize {
+            tool,
+            actual_size,
+            limit,
+            unit,
+            ..
+        } = warn_action.unwrap()
+        {
+            assert_eq!(*tool, ToolKind::Codex);
+            assert!(*actual_size > 32_768);
+            assert_eq!(*limit, 32_768);
+            assert_eq!(unit, "bytes");
+        }
+
+        // Warning should come before the main action
+        let warn_idx = actions
+            .iter()
+            .position(|a| matches!(a, SyncAction::WarnContentSize { .. }))
+            .unwrap();
+        let main_idx = actions
+            .iter()
+            .position(|a| {
+                matches!(
+                    a,
+                    SyncAction::CreateSymlink { .. } | SyncAction::CreateFile { .. }
+                )
+            })
+            .unwrap();
+        assert!(
+            warn_idx < main_idx,
+            "WarnContentSize should come before main action"
+        );
+    }
+
+    #[test]
+    fn test_plan_sync_no_warning_under_limit() {
+        let dir = TempDir::new().unwrap();
+
+        // Content under 32 KiB
+        let small_content = "x".repeat(32_000);
+
+        let ai_dir = dir.path().join(".ai");
+        std::fs::create_dir_all(&ai_dir).unwrap();
+        std::fs::write(ai_dir.join("instructions.md"), &small_content).unwrap();
+
+        let actions = CodexAdapter
+            .plan_sync(dir.path(), &small_content, SyncStrategy::Symlink)
+            .unwrap();
+
+        let warn_action = actions
+            .iter()
+            .find(|a| matches!(a, SyncAction::WarnContentSize { .. }));
+        assert!(
+            warn_action.is_none(),
+            "expected no WarnContentSize for content under 32 KiB"
+        );
     }
 }

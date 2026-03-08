@@ -113,6 +113,18 @@ impl ToolAdapter for WindsurfAdapter {
             actions.push(SyncAction::CreateDirectory { path: rules_dir });
         }
 
+        // Check content size limit (Windsurf has 12K char limit)
+        let char_count = canonical_content.chars().count();
+        if char_count > 12_000 {
+            actions.push(SyncAction::WarnContentSize {
+                tool: ToolKind::Windsurf,
+                path: output_path.clone(),
+                actual_size: char_count,
+                limit: 12_000,
+                unit: "chars".to_string(),
+            });
+        }
+
         if output_path.exists() {
             let existing =
                 std::fs::read_to_string(&output_path).map_err(|e| AisyncError::Adapter {
@@ -512,5 +524,73 @@ mod tests {
     #[test]
     fn test_conditional_tags() {
         assert_eq!(WindsurfAdapter.conditional_tags(), &["windsurf-only"]);
+    }
+
+    #[test]
+    fn test_plan_sync_warns_on_large_content() {
+        let dir = TempDir::new().unwrap();
+
+        // Create content with > 12,000 chars
+        let large_content = "x".repeat(12_001);
+
+        let actions = WindsurfAdapter
+            .plan_sync(dir.path(), &large_content, SyncStrategy::Generate)
+            .unwrap();
+
+        let warn_action = actions
+            .iter()
+            .find(|a| matches!(a, SyncAction::WarnContentSize { .. }));
+        assert!(
+            warn_action.is_some(),
+            "expected WarnContentSize action for content > 12K chars"
+        );
+
+        if let SyncAction::WarnContentSize {
+            tool,
+            actual_size,
+            limit,
+            unit,
+            ..
+        } = warn_action.unwrap()
+        {
+            assert_eq!(*tool, ToolKind::Windsurf);
+            assert!(*actual_size > 12_000);
+            assert_eq!(*limit, 12_000);
+            assert_eq!(unit, "chars");
+        }
+
+        // Warning should come before CreateFile
+        let warn_idx = actions
+            .iter()
+            .position(|a| matches!(a, SyncAction::WarnContentSize { .. }))
+            .unwrap();
+        let create_idx = actions
+            .iter()
+            .position(|a| matches!(a, SyncAction::CreateFile { .. }))
+            .unwrap();
+        assert!(
+            warn_idx < create_idx,
+            "WarnContentSize should come before CreateFile"
+        );
+    }
+
+    #[test]
+    fn test_plan_sync_no_warning_under_limit() {
+        let dir = TempDir::new().unwrap();
+
+        // Content under 12K chars
+        let small_content = "x".repeat(11_999);
+
+        let actions = WindsurfAdapter
+            .plan_sync(dir.path(), &small_content, SyncStrategy::Generate)
+            .unwrap();
+
+        let warn_action = actions
+            .iter()
+            .find(|a| matches!(a, SyncAction::WarnContentSize { .. }));
+        assert!(
+            warn_action.is_none(),
+            "expected no WarnContentSize for content under 12K chars"
+        );
     }
 }

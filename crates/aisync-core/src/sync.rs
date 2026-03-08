@@ -574,6 +574,10 @@ impl SyncEngine {
                 // No filesystem change -- advisory only
                 Ok(())
             }
+            SyncAction::WarnContentSize { .. } => {
+                // No filesystem change -- advisory only
+                Ok(())
+            }
         }
     }
 

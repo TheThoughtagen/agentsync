@@ -211,6 +211,13 @@ pub enum SyncAction {
         tool: ToolKind,
         reason: String,
     },
+    WarnContentSize {
+        tool: ToolKind,
+        path: PathBuf,
+        actual_size: usize,
+        limit: usize,
+        unit: String,
+    },
 }
 
 impl fmt::Display for SyncAction {
@@ -283,6 +290,24 @@ impl fmt::Display for SyncAction {
             }
             SyncAction::WarnUnsupportedHooks { tool, reason } => {
                 write!(f, "Warning: hooks unsupported for {:?}: {}", tool, reason)
+            }
+            SyncAction::WarnContentSize {
+                tool,
+                path,
+                actual_size,
+                limit,
+                unit,
+            } => {
+                write!(
+                    f,
+                    "Warning: {} content ({} {}) exceeds limit ({} {}) for {}",
+                    tool.display_name(),
+                    actual_size,
+                    unit,
+                    limit,
+                    unit,
+                    path.display()
+                )
             }
         }
     }
