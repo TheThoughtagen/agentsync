@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Adapter Expansion & Plugin SDK
-status: unknown
-last_updated: "2026-03-08T19:16:07.912Z"
+status: in-progress
+last_updated: "2026-03-08T19:49:35.000Z"
 progress:
   total_phases: 2
   completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
+  total_plans: 7
+  completed_plans: 6
 ---
 
 # Project State
@@ -18,24 +18,24 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-07)
 
 **Core value:** Every AI tool working on a project sees the same instructions, memory, and hooks -- always in sync, zero manual copying.
-**Current focus:** Phase 7 - Windsurf & Codex Adapters
+**Current focus:** Phase 8 - Add Tool Command
 
 ## Current Position
 
-Phase: 7 of 11 (Windsurf & Codex Adapters) -- second of 6 v1.1 phases
-Plan: 2 of 2 complete
-Status: Phase Complete
-Last activity: 2026-03-08 -- Completed 07-02 (Deduplication & Size Limits)
+Phase: 8 of 11 (Add Tool Command) -- third of 6 v1.1 phases
+Plan: 1 of 2 complete
+Status: In Progress
+Last activity: 2026-03-08 -- Completed 08-01 (Add Tool Core Engine)
 
-Progress: [██████████] 100%
+Progress: [█████████░] 86%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 24 (20 v1.0 + 4 v1.1)
-- v1.1 plans completed: 5
+- Total plans completed: 25 (20 v1.0 + 5 v1.1)
+- v1.1 plans completed: 6
 - Average duration: 7min
-- Total execution time: 30min
+- Total execution time: 33min
 
 ## Accumulated Context
 
@@ -60,6 +60,9 @@ Progress: [██████████] 100%
 - Deduplication uses first-adapter-wins strategy based on enabled_tools() iteration order
 - Windsurf checks chars().count() for 12K char limit; Codex checks .len() for 32 KiB byte limit
 - Size warnings are advisory WarnContentSize actions (no filesystem change)
+- Reuse InitError for add_tool errors (ScaffoldFailed for IO, ImportFailed for serialization)
+- Omit sync_strategy from ToolConfig when adapter default is Symlink (keeps TOML clean)
+- plan_for_tools runs full plan then filters results (simplest correct approach preserving deduplication)
 
 ### Pending Todos
 
@@ -73,6 +76,6 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-08
-Stopped at: Completed 07-02-PLAN.md
-Resume file: .planning/phases/07-windsurf-codex-adapters/07-02-SUMMARY.md
-Next: Phase 8 (Plugin SDK)
+Stopped at: Completed 08-01-PLAN.md
+Resume file: .planning/phases/08-add-tool-command/08-01-SUMMARY.md
+Next: 08-02 (Add Tool CLI Command)
