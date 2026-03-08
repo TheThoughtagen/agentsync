@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
@@ -24,14 +25,37 @@ pub struct DefaultsConfig {
 }
 
 /// Per-tool configuration sections.
+///
+/// Uses a `BTreeMap<String, ToolConfig>` with `#[serde(flatten)]` so that
+/// any `[tools.<name>]` TOML section is accepted without code changes.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct ToolsConfig {
-    #[serde(rename = "claude-code")]
-    pub claude_code: Option<ToolConfig>,
+    #[serde(flatten)]
+    tools: BTreeMap<String, ToolConfig>,
+}
 
-    pub cursor: Option<ToolConfig>,
+impl ToolsConfig {
+    /// Returns the configuration for a tool by name, if configured.
+    pub fn get_tool(&self, name: &str) -> Option<&ToolConfig> {
+        self.tools.get(name)
+    }
 
-    pub opencode: Option<ToolConfig>,
+    /// Iterates over all configured tools as `(name, config)` pairs.
+    pub fn configured_tools(&self) -> impl Iterator<Item = (&str, &ToolConfig)> {
+        self.tools.iter().map(|(k, v)| (k.as_str(), v))
+    }
+
+    /// Returns whether a tool is enabled.
+    ///
+    /// Unconfigured tools are treated as enabled (unconfigured-is-enabled semantics).
+    pub fn is_enabled(&self, name: &str) -> bool {
+        self.tools.get(name).is_none_or(|tc| tc.enabled)
+    }
+
+    /// Adds or replaces a tool configuration entry.
+    pub fn set_tool(&mut self, name: String, config: ToolConfig) {
+        self.tools.insert(name, config);
+    }
 }
 
 /// Configuration for an individual tool.
@@ -104,9 +128,9 @@ mod tests {
         let config = AisyncConfig::from_str(toml).unwrap();
         assert_eq!(config.schema_version, 1);
         assert_eq!(config.defaults.sync_strategy, SyncStrategy::Symlink);
-        assert!(config.tools.claude_code.is_none());
-        assert!(config.tools.cursor.is_none());
-        assert!(config.tools.opencode.is_none());
+        assert!(config.tools.get_tool("claude-code").is_none());
+        assert!(config.tools.get_tool("cursor").is_none());
+        assert!(config.tools.get_tool("opencode").is_none());
     }
 
     #[test]
@@ -132,15 +156,15 @@ enabled = false
         assert_eq!(config.schema_version, 1);
         assert_eq!(config.defaults.sync_strategy, SyncStrategy::Copy);
 
-        let claude = config.tools.claude_code.as_ref().unwrap();
+        let claude = config.tools.get_tool("claude-code").unwrap();
         assert!(claude.enabled);
         assert_eq!(claude.sync_strategy, Some(SyncStrategy::Symlink));
 
-        let cursor = config.tools.cursor.as_ref().unwrap();
+        let cursor = config.tools.get_tool("cursor").unwrap();
         assert!(cursor.enabled);
         assert_eq!(cursor.sync_strategy, Some(SyncStrategy::Generate));
 
-        let opencode = config.tools.opencode.as_ref().unwrap();
+        let opencode = config.tools.get_tool("opencode").unwrap();
         assert!(!opencode.enabled);
         assert_eq!(opencode.sync_strategy, None);
     }
@@ -212,8 +236,8 @@ schema_version = 1
 enabled = true
 "#;
         let config = AisyncConfig::from_str(toml).unwrap();
-        assert!(config.tools.claude_code.is_some());
-        let claude = config.tools.claude_code.unwrap();
+        assert!(config.tools.get_tool("claude-code").is_some());
+        let claude = config.tools.get_tool("claude-code").unwrap();
         assert!(claude.enabled);
     }
 
@@ -239,7 +263,106 @@ schema_version = 1
 sync_strategy = "copy"
 "#;
         let config = AisyncConfig::from_str(toml).unwrap();
-        let cursor = config.tools.cursor.unwrap();
+        let cursor = config.tools.get_tool("cursor").unwrap();
         assert!(cursor.enabled); // defaults to true
+    }
+
+    #[test]
+    fn test_arbitrary_tool_name() {
+        let toml = r#"
+schema_version = 1
+
+[tools.windsurf]
+enabled = true
+sync_strategy = "copy"
+"#;
+        let config = AisyncConfig::from_str(toml).unwrap();
+        let windsurf = config.tools.get_tool("windsurf").unwrap();
+        assert!(windsurf.enabled);
+        assert_eq!(windsurf.sync_strategy, Some(SyncStrategy::Copy));
+    }
+
+    #[test]
+    fn test_is_enabled_unconfigured() {
+        let config = AisyncConfig::from_str("schema_version = 1").unwrap();
+        assert!(config.tools.is_enabled("nonexistent"));
+    }
+
+    #[test]
+    fn test_is_enabled_disabled() {
+        let toml = r#"
+schema_version = 1
+
+[tools.cursor]
+enabled = false
+"#;
+        let config = AisyncConfig::from_str(toml).unwrap();
+        assert!(!config.tools.is_enabled("cursor"));
+    }
+
+    #[test]
+    fn test_set_tool() {
+        let mut tools = ToolsConfig::default();
+        tools.set_tool(
+            "windsurf".to_string(),
+            ToolConfig {
+                enabled: true,
+                sync_strategy: Some(SyncStrategy::Copy),
+            },
+        );
+        let windsurf = tools.get_tool("windsurf").unwrap();
+        assert!(windsurf.enabled);
+        assert_eq!(windsurf.sync_strategy, Some(SyncStrategy::Copy));
+    }
+
+    #[test]
+    fn test_configured_tools_iteration() {
+        let toml = r#"
+schema_version = 1
+
+[tools.claude-code]
+enabled = true
+
+[tools.cursor]
+enabled = true
+
+[tools.opencode]
+enabled = false
+"#;
+        let config = AisyncConfig::from_str(toml).unwrap();
+        let tool_names: Vec<&str> = config.tools.configured_tools().map(|(k, _)| k).collect();
+        assert_eq!(tool_names.len(), 3);
+        assert!(tool_names.contains(&"claude-code"));
+        assert!(tool_names.contains(&"cursor"));
+        assert!(tool_names.contains(&"opencode"));
+    }
+
+    #[test]
+    fn test_round_trip_with_multiple_tools() {
+        let toml_input = r#"
+schema_version = 1
+
+[defaults]
+sync_strategy = "symlink"
+
+[tools.claude-code]
+enabled = true
+sync_strategy = "symlink"
+
+[tools.cursor]
+enabled = true
+sync_strategy = "generate"
+
+[tools.opencode]
+enabled = false
+
+[tools.windsurf]
+enabled = true
+sync_strategy = "copy"
+"#;
+        let config1 = AisyncConfig::from_str(toml_input).unwrap();
+        let serialized = config1.to_string_pretty().unwrap();
+        let config2 = AisyncConfig::from_str(&serialized).unwrap();
+        assert_eq!(config1, config2);
     }
 }
