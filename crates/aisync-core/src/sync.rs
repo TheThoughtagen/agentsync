@@ -18,6 +18,36 @@ impl SyncEngine {
     /// Plan sync actions for all enabled tools. Does not modify the filesystem.
     /// Used by both `aisync sync` and `aisync sync --dry-run`.
     pub fn plan(config: &AisyncConfig, project_root: &Path) -> Result<SyncReport, AisyncError> {
+        Self::plan_all_internal(config, project_root)
+    }
+
+    /// Plan sync actions for only the specified tools, while still running full
+    /// deduplication across ALL enabled tools to prevent path conflicts.
+    ///
+    /// This is used by `aisync add-tool` to sync only newly added tools without
+    /// re-syncing everything.
+    pub fn plan_for_tools(
+        config: &AisyncConfig,
+        project_root: &Path,
+        only_tools: &[ToolKind],
+    ) -> Result<SyncReport, AisyncError> {
+        if only_tools.is_empty() {
+            return Ok(SyncReport { results: vec![] });
+        }
+
+        let mut report = Self::plan_all_internal(config, project_root)?;
+        report
+            .results
+            .retain(|r| only_tools.contains(&r.tool));
+        Ok(report)
+    }
+
+    /// Internal helper that plans sync for all enabled tools with deduplication.
+    /// Both `plan()` and `plan_for_tools()` delegate to this.
+    fn plan_all_internal(
+        config: &AisyncConfig,
+        project_root: &Path,
+    ) -> Result<SyncReport, AisyncError> {
         let canonical_path = project_root.join(".ai/instructions.md");
         let canonical_content = std::fs::read_to_string(&canonical_path).map_err(|_| {
             AisyncError::Sync(SyncError::CanonicalMissing {
@@ -1254,5 +1284,145 @@ mod tests {
         );
         let claude_content = std::fs::read_to_string(&claude_md).unwrap();
         assert_eq!(claude_content, content);
+    }
+
+    // ---- plan_for_tools tests ----
+
+    #[test]
+    fn test_plan_for_tools_returns_only_requested_tools() {
+        let dir = TempDir::new().unwrap();
+        setup_canonical(dir.path(), "# Instructions");
+
+        let mut tools = ToolsConfig::default();
+        tools.set_tool("windsurf".into(), ToolConfig {
+            enabled: true,
+            sync_strategy: Some(SyncStrategy::Generate),
+        });
+        tools.set_tool("cursor".into(), ToolConfig {
+            enabled: true,
+            sync_strategy: Some(SyncStrategy::Generate),
+        });
+        tools.set_tool("claude-code".into(), ToolConfig {
+            enabled: true,
+            sync_strategy: Some(SyncStrategy::Symlink),
+        });
+        // Disable others
+        tools.set_tool("opencode".into(), ToolConfig {
+            enabled: false,
+            sync_strategy: None,
+        });
+        tools.set_tool("codex".into(), ToolConfig {
+            enabled: false,
+            sync_strategy: None,
+        });
+
+        let config = AisyncConfig {
+            schema_version: 1,
+            defaults: DefaultsConfig::default(),
+            tools,
+        };
+
+        let report =
+            SyncEngine::plan_for_tools(&config, dir.path(), &[ToolKind::Windsurf]).unwrap();
+
+        // Only Windsurf should be in results
+        assert_eq!(report.results.len(), 1);
+        assert_eq!(report.results[0].tool, ToolKind::Windsurf);
+    }
+
+    #[test]
+    fn test_plan_for_tools_empty_tools_returns_empty() {
+        let dir = TempDir::new().unwrap();
+        setup_canonical(dir.path(), "# Instructions");
+
+        let config = all_enabled_config();
+        let report = SyncEngine::plan_for_tools(&config, dir.path(), &[]).unwrap();
+
+        assert!(report.results.is_empty(), "empty only_tools should return empty report");
+    }
+
+    #[test]
+    fn test_plan_for_tools_deduplicates_across_all_enabled() {
+        let dir = TempDir::new().unwrap();
+        setup_canonical(dir.path(), "# Instructions");
+
+        // Enable both codex and opencode (both target AGENTS.md)
+        let mut tools = ToolsConfig::default();
+        tools.set_tool("codex".into(), ToolConfig {
+            enabled: true,
+            sync_strategy: Some(SyncStrategy::Symlink),
+        });
+        tools.set_tool("opencode".into(), ToolConfig {
+            enabled: true,
+            sync_strategy: Some(SyncStrategy::Symlink),
+        });
+        tools.set_tool("claude-code".into(), ToolConfig {
+            enabled: false,
+            sync_strategy: None,
+        });
+        tools.set_tool("cursor".into(), ToolConfig {
+            enabled: false,
+            sync_strategy: None,
+        });
+        tools.set_tool("windsurf".into(), ToolConfig {
+            enabled: false,
+            sync_strategy: None,
+        });
+
+        let config = AisyncConfig {
+            schema_version: 1,
+            defaults: DefaultsConfig {
+                sync_strategy: SyncStrategy::Symlink,
+            },
+            tools,
+        };
+
+        // Request only Codex, but deduplication should still consider OpenCode
+        let report =
+            SyncEngine::plan_for_tools(&config, dir.path(), &[ToolKind::Codex]).unwrap();
+
+        assert_eq!(report.results.len(), 1);
+        assert_eq!(report.results[0].tool, ToolKind::Codex);
+
+        // Codex should have its AGENTS.md action removed by deduplication
+        // (OpenCode comes first in all_builtin() order and claims AGENTS.md)
+        let agents_symlink_count = report
+            .results
+            .iter()
+            .flat_map(|r| &r.actions)
+            .filter(|a| match a {
+                SyncAction::CreateSymlink { link, .. } => {
+                    link.file_name().map_or(false, |n| n == "AGENTS.md")
+                }
+                _ => false,
+            })
+            .count();
+
+        assert_eq!(
+            agents_symlink_count, 0,
+            "Codex's AGENTS.md should be deduplicated away since OpenCode claims it first"
+        );
+    }
+
+    #[test]
+    fn test_plan_for_tools_existing_plan_unchanged() {
+        let dir = TempDir::new().unwrap();
+        setup_canonical(dir.path(), "# Instructions");
+
+        let config = all_enabled_config();
+
+        // Full plan
+        let full_report = SyncEngine::plan(&config, dir.path()).unwrap();
+
+        // Partial plan requesting all tools should match full plan
+        let all_tools: Vec<ToolKind> = full_report.results.iter().map(|r| r.tool.clone()).collect();
+        let partial_report =
+            SyncEngine::plan_for_tools(&config, dir.path(), &all_tools).unwrap();
+
+        assert_eq!(full_report.results.len(), partial_report.results.len());
+        for (full, partial) in full_report.results.iter().zip(partial_report.results.iter()) {
+            assert_eq!(full.tool, partial.tool);
+            assert_eq!(full.actions.len(), partial.actions.len());
+        }
     }
 }
