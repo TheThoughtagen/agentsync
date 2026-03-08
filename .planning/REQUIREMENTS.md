@@ -10,7 +10,7 @@ Requirements for Adapter Expansion & Plugin SDK milestone. Each maps to roadmap 
 ### Refactoring
 
 - [x] **REFAC-01**: ToolAdapter trait provides all tool metadata (display name, native paths, conditional tags, gitignore entries, watch paths) -- eliminating hardcoded match arms
-- [ ] **REFAC-02**: ToolsConfig supports arbitrary tool names via BTreeMap with backward-compatible deserialization
+- [x] **REFAC-02**: ToolsConfig supports arbitrary tool names via BTreeMap with backward-compatible deserialization
 - [x] **REFAC-03**: AnyAdapter enum includes Plugin variant for dynamic dispatch of SDK adapters
 - [x] **REFAC-04**: Display name logic consolidated into single ToolAdapter method (6 duplications removed)
 
@@ -79,7 +79,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | REFAC-01 | Phase 6 | Complete |
-| REFAC-02 | Phase 6 | Pending |
+| REFAC-02 | Phase 6 | Complete |
 | REFAC-03 | Phase 6 | Complete |
 | REFAC-04 | Phase 6 | Complete |
 | ADPT-01 | Phase 7 | Pending |
