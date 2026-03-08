@@ -23,7 +23,7 @@
 **Milestone Goal:** Expand tool coverage to 5 tools (adding Windsurf and Codex), introduce `add-tool` for incremental adoption, and build a two-layer Plugin SDK (declarative TOML + Rust trait) enabling community adapter development.
 
 - [ ] **Phase 6: Core Refactoring** - Pull tool metadata into ToolAdapter trait, unblock extensible adapter system
-- [ ] **Phase 7: Windsurf & Codex Adapters** - Add two new built-in adapters using refactored trait system
+- [x] **Phase 7: Windsurf & Codex Adapters** - Add two new built-in adapters using refactored trait system (completed 2026-03-08)
 - [ ] **Phase 8: Add-Tool Command** - Interactive CLI for mid-lifecycle tool adoption
 - [ ] **Phase 9: Plugin SDK Crate Extraction** - Extract shared types and adapter trait into publishable crates
 - [ ] **Phase 10: Declarative TOML Adapters** - Enable adapter authoring without Rust via TOML definitions
@@ -126,7 +126,7 @@ Plans:
 | 4. Watch Mode and Bidirectional Sync | v1.0 | 5/5 | Complete | 2026-03-06 |
 | 5. Polish and Distribution | v1.0 | 3/3 | Complete | 2026-03-06 |
 | 6. Core Refactoring | v1.1 | 3/3 | Complete | 2026-03-08 |
-| 7. Windsurf & Codex Adapters | v1.1 | 0/2 | Not started | - |
+| 7. Windsurf & Codex Adapters | 2/2 | Complete   | 2026-03-08 | - |
 | 8. Add-Tool Command | v1.1 | 0/TBD | Not started | - |
 | 9. Plugin SDK Crate Extraction | v1.1 | 0/TBD | Not started | - |
 | 10. Declarative TOML Adapters | v1.1 | 0/TBD | Not started | - |

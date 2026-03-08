@@ -19,9 +19,9 @@ Requirements for Adapter Expansion & Plugin SDK milestone. Each maps to roadmap 
 - [x] **ADPT-01**: Windsurf adapter generates `.windsurf/rules/project.md` with correct YAML frontmatter
 - [x] **ADPT-02**: Codex adapter symlinks `AGENTS.md` to `.ai/instructions.md`
 - [x] **ADPT-03**: Codex detected via `.codex/` directory, disambiguated from OpenCode
-- [ ] **ADPT-04**: SyncEngine deduplicates identical AGENTS.md symlink actions when both Codex and OpenCode are present
+- [x] **ADPT-04**: SyncEngine deduplicates identical AGENTS.md symlink actions when both Codex and OpenCode are present
 - [x] **ADPT-05**: Legacy `.windsurfrules` file detected with migration hint to modern format
-- [ ] **ADPT-06**: Content size limit warnings for Windsurf (12K chars) and Codex (32 KiB)
+- [x] **ADPT-06**: Content size limit warnings for Windsurf (12K chars) and Codex (32 KiB)
 
 ### Add Tool
 
@@ -85,9 +85,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ADPT-01 | Phase 7 | Complete |
 | ADPT-02 | Phase 7 | Complete |
 | ADPT-03 | Phase 7 | Complete |
-| ADPT-04 | Phase 7 | Pending |
+| ADPT-04 | Phase 7 | Complete |
 | ADPT-05 | Phase 7 | Complete |
-| ADPT-06 | Phase 7 | Pending |
+| ADPT-06 | Phase 7 | Complete |
 | TOOL-01 | Phase 8 | Pending |
 | TOOL-02 | Phase 8 | Pending |
 | TOOL-03 | Phase 8 | Pending |

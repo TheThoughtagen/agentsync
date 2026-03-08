@@ -8,7 +8,7 @@ progress:
   total_phases: 6
   completed_phases: 1
   total_plans: 5
-  completed_plans: 4
+  completed_plans: 5
 ---
 
 # Project State
@@ -23,17 +23,17 @@ See: .planning/PROJECT.md (updated 2026-03-07)
 ## Current Position
 
 Phase: 7 of 11 (Windsurf & Codex Adapters) -- second of 6 v1.1 phases
-Plan: 1 of 2 complete
-Status: In Progress
-Last activity: 2026-03-08 -- Completed 07-01 (Adapter Registration & Implementation)
+Plan: 2 of 2 complete
+Status: Phase Complete
+Last activity: 2026-03-08 -- Completed 07-02 (Deduplication & Size Limits)
 
-Progress: [█████░░░░░] 50%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
 - Total plans completed: 24 (20 v1.0 + 4 v1.1)
-- v1.1 plans completed: 4
+- v1.1 plans completed: 5
 - Average duration: 7min
 - Total execution time: 30min
 
@@ -57,6 +57,9 @@ Progress: [█████░░░░░] 50%
 - CreateSymlink made idempotent (skip if correct symlink exists) for Codex+OpenCode AGENTS.md sharing
 - Windsurf uses SyncAction::CreateFile (not GenerateMdc) since output is .md not .mdc
 - Codex detects only via .codex/ directory (not AGENTS.md) to avoid OpenCode detection conflict
+- Deduplication uses first-adapter-wins strategy based on enabled_tools() iteration order
+- Windsurf checks chars().count() for 12K char limit; Codex checks .len() for 32 KiB byte limit
+- Size warnings are advisory WarnContentSize actions (no filesystem change)
 
 ### Pending Todos
 
@@ -70,6 +73,6 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-08
-Stopped at: Completed 07-01-PLAN.md
-Resume file: .planning/phases/07-windsurf-codex-adapters/07-01-SUMMARY.md
-Next: 07-02 (Detection Integration & CLI)
+Stopped at: Completed 07-02-PLAN.md
+Resume file: .planning/phases/07-windsurf-codex-adapters/07-02-SUMMARY.md
+Next: Phase 8 (Plugin SDK)
