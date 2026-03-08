@@ -290,25 +290,25 @@ mod tests {
     use tempfile::TempDir;
 
     fn all_enabled_config() -> AisyncConfig {
+        let mut tools = ToolsConfig::default();
+        tools.set_tool("claude-code".into(), ToolConfig {
+            enabled: true,
+            sync_strategy: Some(SyncStrategy::Symlink),
+        });
+        tools.set_tool("cursor".into(), ToolConfig {
+            enabled: true,
+            sync_strategy: Some(SyncStrategy::Generate),
+        });
+        tools.set_tool("opencode".into(), ToolConfig {
+            enabled: true,
+            sync_strategy: Some(SyncStrategy::Symlink),
+        });
         AisyncConfig {
             schema_version: 1,
             defaults: DefaultsConfig {
                 sync_strategy: SyncStrategy::Symlink,
             },
-            tools: ToolsConfig {
-                claude_code: Some(ToolConfig {
-                    enabled: true,
-                    sync_strategy: Some(SyncStrategy::Symlink),
-                }),
-                cursor: Some(ToolConfig {
-                    enabled: true,
-                    sync_strategy: Some(SyncStrategy::Generate),
-                }),
-                opencode: Some(ToolConfig {
-                    enabled: true,
-                    sync_strategy: Some(SyncStrategy::Symlink),
-                }),
-            },
+            tools,
         }
     }
 

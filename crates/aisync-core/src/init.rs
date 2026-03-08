@@ -144,12 +144,8 @@ impl InitEngine {
                 }
             };
 
-            match &result.tool {
-                ToolKind::ClaudeCode => tools.claude_code = Some(tool_config),
-                ToolKind::Cursor => tools.cursor = Some(tool_config),
-                ToolKind::OpenCode => tools.opencode = Some(tool_config),
-                ToolKind::Custom(_) => {} // Custom tools not yet supported in config
-            }
+            let key = result.tool.as_str().to_string();
+            tools.set_tool(key, tool_config);
         }
 
         AisyncConfig {
@@ -202,13 +198,13 @@ mod tests {
         let toml_content = std::fs::read_to_string(dir.path().join("aisync.toml")).unwrap();
         let config = AisyncConfig::from_str(&toml_content).unwrap();
         assert_eq!(config.schema_version, 1);
-        assert!(config.tools.claude_code.is_some());
-        assert!(config.tools.claude_code.as_ref().unwrap().enabled);
-        assert!(config.tools.cursor.is_some());
-        assert!(config.tools.cursor.as_ref().unwrap().enabled);
+        assert!(config.tools.get_tool("claude-code").is_some());
+        assert!(config.tools.get_tool("claude-code").unwrap().enabled);
+        assert!(config.tools.get_tool("cursor").is_some());
+        assert!(config.tools.get_tool("cursor").unwrap().enabled);
         // Cursor should always get Generate strategy
         assert_eq!(
-            config.tools.cursor.as_ref().unwrap().sync_strategy,
+            config.tools.get_tool("cursor").unwrap().sync_strategy,
             Some(SyncStrategy::Generate)
         );
     }
@@ -322,9 +318,9 @@ mod tests {
 
         let toml_content = std::fs::read_to_string(dir.path().join("aisync.toml")).unwrap();
         let config = AisyncConfig::from_str(&toml_content).unwrap();
-        assert!(config.tools.claude_code.is_none());
-        assert!(config.tools.cursor.is_none());
-        assert!(config.tools.opencode.is_none());
+        assert!(config.tools.get_tool("claude-code").is_none());
+        assert!(config.tools.get_tool("cursor").is_none());
+        assert!(config.tools.get_tool("opencode").is_none());
     }
 
     #[test]

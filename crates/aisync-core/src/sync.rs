@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::adapter::{AnyAdapter, ClaudeCodeAdapter, CursorAdapter, OpenCodeAdapter, ToolAdapter};
+use crate::adapter::{AnyAdapter, ToolAdapter};
 use crate::conditional::ConditionalProcessor;
 use crate::config::AisyncConfig;
 use crate::error::{AisyncError, SyncError};
@@ -547,41 +547,16 @@ impl SyncEngine {
         config: &AisyncConfig,
     ) -> Vec<(ToolKind, AnyAdapter, Option<&crate::config::ToolConfig>)> {
         let mut tools = Vec::new();
-
-        // Claude Code
-        let claude_enabled = config
-            .tools
-            .claude_code
-            .as_ref()
-            .is_none_or(|tc| tc.enabled);
-        if claude_enabled {
-            tools.push((
-                ToolKind::ClaudeCode,
-                AnyAdapter::ClaudeCode(ClaudeCodeAdapter),
-                config.tools.claude_code.as_ref(),
-            ));
+        for adapter in AnyAdapter::all_builtin() {
+            let key = adapter.name().as_str().to_string();
+            if config.tools.is_enabled(&key) {
+                tools.push((
+                    adapter.name(),
+                    adapter,
+                    config.tools.get_tool(&key),
+                ));
+            }
         }
-
-        // Cursor
-        let cursor_enabled = config.tools.cursor.as_ref().is_none_or(|tc| tc.enabled);
-        if cursor_enabled {
-            tools.push((
-                ToolKind::Cursor,
-                AnyAdapter::Cursor(CursorAdapter),
-                config.tools.cursor.as_ref(),
-            ));
-        }
-
-        // OpenCode
-        let opencode_enabled = config.tools.opencode.as_ref().is_none_or(|tc| tc.enabled);
-        if opencode_enabled {
-            tools.push((
-                ToolKind::OpenCode,
-                AnyAdapter::OpenCode(OpenCodeAdapter),
-                config.tools.opencode.as_ref(),
-            ));
-        }
-
         tools
     }
 }
@@ -599,25 +574,25 @@ mod tests {
     }
 
     fn all_enabled_config() -> AisyncConfig {
+        let mut tools = ToolsConfig::default();
+        tools.set_tool("claude-code".into(), ToolConfig {
+            enabled: true,
+            sync_strategy: Some(SyncStrategy::Symlink),
+        });
+        tools.set_tool("cursor".into(), ToolConfig {
+            enabled: true,
+            sync_strategy: Some(SyncStrategy::Generate),
+        });
+        tools.set_tool("opencode".into(), ToolConfig {
+            enabled: true,
+            sync_strategy: Some(SyncStrategy::Symlink),
+        });
         AisyncConfig {
             schema_version: 1,
             defaults: DefaultsConfig {
                 sync_strategy: SyncStrategy::Symlink,
             },
-            tools: ToolsConfig {
-                claude_code: Some(ToolConfig {
-                    enabled: true,
-                    sync_strategy: Some(SyncStrategy::Symlink),
-                }),
-                cursor: Some(ToolConfig {
-                    enabled: true,
-                    sync_strategy: Some(SyncStrategy::Generate),
-                }),
-                opencode: Some(ToolConfig {
-                    enabled: true,
-                    sync_strategy: Some(SyncStrategy::Symlink),
-                }),
-            },
+            tools,
         }
     }
 
@@ -646,19 +621,21 @@ mod tests {
             defaults: DefaultsConfig {
                 sync_strategy: SyncStrategy::Symlink,
             },
-            tools: ToolsConfig {
-                claude_code: Some(ToolConfig {
+            tools: {
+                let mut t = ToolsConfig::default();
+                t.set_tool("claude-code".into(), ToolConfig {
                     enabled: true,
                     sync_strategy: None,
-                }),
-                cursor: Some(ToolConfig {
+                });
+                t.set_tool("cursor".into(), ToolConfig {
                     enabled: false,
                     sync_strategy: None,
-                }),
-                opencode: Some(ToolConfig {
+                });
+                t.set_tool("opencode".into(), ToolConfig {
                     enabled: false,
                     sync_strategy: None,
-                }),
+                });
+                t
             },
         };
 

@@ -83,19 +83,21 @@ mod tests {
             defaults: DefaultsConfig {
                 sync_strategy: SyncStrategy::Symlink,
             },
-            tools: ToolsConfig {
-                claude_code: Some(ToolConfig {
+            tools: {
+                let mut t = ToolsConfig::default();
+                t.set_tool("claude-code".into(), ToolConfig {
                     enabled: true,
                     sync_strategy: Some(SyncStrategy::Symlink),
-                }),
-                cursor: Some(ToolConfig {
+                });
+                t.set_tool("cursor".into(), ToolConfig {
                     enabled: true,
                     sync_strategy: Some(SyncStrategy::Generate),
-                }),
-                opencode: Some(ToolConfig {
+                });
+                t.set_tool("opencode".into(), ToolConfig {
                     enabled: true,
                     sync_strategy: Some(SyncStrategy::Symlink),
-                }),
+                });
+                t
             },
         }
     }

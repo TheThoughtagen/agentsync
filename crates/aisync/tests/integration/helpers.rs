@@ -8,7 +8,7 @@ use assert_fs::prelude::*;
 pub const STANDARD_CONFIG: &str = r#"schema_version = 1
 [defaults]
 sync_strategy = "copy"
-[tools.claude_code]
+[tools.claude-code]
 enabled = true
 [tools.opencode]
 enabled = true
@@ -18,7 +18,7 @@ enabled = true
 
 #[cfg(not(windows))]
 pub const STANDARD_CONFIG: &str = r#"schema_version = 1
-[tools.claude_code]
+[tools.claude-code]
 enabled = true
 [tools.opencode]
 enabled = true
