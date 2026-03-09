@@ -120,4 +120,65 @@ mod tests {
         assert_eq!(results[0].tool, ToolKind::Cursor);
         assert!(results[0].version_hint.as_ref().unwrap().contains("legacy"));
     }
+
+    #[test]
+    fn test_scan_includes_toml_adapters() {
+        let dir = TempDir::new().unwrap();
+
+        // Create CLAUDE.md for builtin detection
+        std::fs::write(dir.path().join("CLAUDE.md"), "# Instructions").unwrap();
+
+        // Create TOML adapter with detection markers
+        let adapters_dir = dir.path().join(".ai/adapters");
+        std::fs::create_dir_all(&adapters_dir).unwrap();
+        let toml = r#"
+name = "aider"
+display_name = "Aider"
+
+[detection]
+directories = [".aider"]
+
+[sync]
+instruction_path = ".aider/rules/project.md"
+"#;
+        std::fs::write(adapters_dir.join("aider.toml"), toml).unwrap();
+
+        // Create the detection marker
+        std::fs::create_dir(dir.path().join(".aider")).unwrap();
+
+        let results = DetectionEngine::scan(dir.path()).unwrap();
+        let tools: Vec<ToolKind> = results.iter().map(|r| r.tool.clone()).collect();
+        assert!(tools.contains(&ToolKind::ClaudeCode), "should detect ClaudeCode");
+        assert!(
+            tools.contains(&ToolKind::Custom("aider".to_string())),
+            "should detect TOML-defined aider adapter"
+        );
+    }
+
+    #[test]
+    fn test_scan_toml_adapter_not_detected_without_markers() {
+        let dir = TempDir::new().unwrap();
+
+        // Create TOML adapter but NOT its detection markers
+        let adapters_dir = dir.path().join(".ai/adapters");
+        std::fs::create_dir_all(&adapters_dir).unwrap();
+        let toml = r#"
+name = "aider"
+display_name = "Aider"
+
+[detection]
+directories = [".aider"]
+
+[sync]
+instruction_path = ".aider/rules/project.md"
+"#;
+        std::fs::write(adapters_dir.join("aider.toml"), toml).unwrap();
+
+        let results = DetectionEngine::scan(dir.path()).unwrap();
+        let tools: Vec<ToolKind> = results.iter().map(|r| r.tool.clone()).collect();
+        assert!(
+            !tools.contains(&ToolKind::Custom("aider".to_string())),
+            "should NOT detect aider without markers"
+        );
+    }
 }

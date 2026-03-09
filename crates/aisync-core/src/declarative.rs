@@ -1010,4 +1010,118 @@ instruction_path = ".cursor/rules/project.mdc"
         let raw = "+++\ntitle = 'test'\n+++\n\n# Body";
         assert_eq!(strip_frontmatter(raw, "+++"), "# Body");
     }
+
+    // --- discover_toml_adapters() ---
+
+    #[test]
+    fn test_discover_no_adapters_dir() {
+        let dir = TempDir::new().unwrap();
+        let adapters = discover_toml_adapters(dir.path());
+        assert!(adapters.is_empty());
+    }
+
+    #[test]
+    fn test_discover_empty_adapters_dir() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".ai/adapters")).unwrap();
+        let adapters = discover_toml_adapters(dir.path());
+        assert!(adapters.is_empty());
+    }
+
+    #[test]
+    fn test_discover_valid_toml_files() {
+        let dir = TempDir::new().unwrap();
+        let adapters_dir = dir.path().join(".ai/adapters");
+        std::fs::create_dir_all(&adapters_dir).unwrap();
+
+        let toml1 = r#"
+name = "aider"
+display_name = "Aider"
+
+[detection]
+directories = [".aider"]
+
+[sync]
+strategy = "generate"
+instruction_path = ".aider/rules/project.md"
+
+[template]
+content = "{{content}}"
+"#;
+        std::fs::write(adapters_dir.join("aider.toml"), toml1).unwrap();
+
+        let toml2 = r#"
+name = "continue"
+display_name = "Continue"
+
+[sync]
+instruction_path = ".continue/instructions.md"
+"#;
+        std::fs::write(adapters_dir.join("continue.toml"), toml2).unwrap();
+
+        let adapters = discover_toml_adapters(dir.path());
+        assert_eq!(adapters.len(), 2);
+
+        let names: Vec<String> = adapters.iter().map(|a| a.display_name().to_string()).collect();
+        assert!(names.contains(&"Aider".to_string()));
+        assert!(names.contains(&"Continue".to_string()));
+    }
+
+    #[test]
+    fn test_discover_skips_malformed_toml() {
+        let dir = TempDir::new().unwrap();
+        let adapters_dir = dir.path().join(".ai/adapters");
+        std::fs::create_dir_all(&adapters_dir).unwrap();
+
+        // Valid file
+        let valid = r#"
+name = "aider"
+display_name = "Aider"
+
+[sync]
+instruction_path = ".aider/rules/project.md"
+"#;
+        std::fs::write(adapters_dir.join("aider.toml"), valid).unwrap();
+
+        // Malformed file
+        std::fs::write(adapters_dir.join("bad.toml"), "this is not valid [[[").unwrap();
+
+        let adapters = discover_toml_adapters(dir.path());
+        assert_eq!(adapters.len(), 1);
+        assert_eq!(adapters[0].display_name(), "Aider");
+    }
+
+    #[test]
+    fn test_discover_skips_builtin_name_collisions() {
+        let dir = TempDir::new().unwrap();
+        let adapters_dir = dir.path().join(".ai/adapters");
+        std::fs::create_dir_all(&adapters_dir).unwrap();
+
+        // File with builtin name
+        let cursor_toml = r#"
+name = "cursor"
+display_name = "Cursor Override"
+
+[sync]
+instruction_path = ".cursor/rules/project.mdc"
+"#;
+        std::fs::write(adapters_dir.join("cursor.toml"), cursor_toml).unwrap();
+
+        let adapters = discover_toml_adapters(dir.path());
+        assert!(adapters.is_empty());
+    }
+
+    #[test]
+    fn test_discover_skips_non_toml_files() {
+        let dir = TempDir::new().unwrap();
+        let adapters_dir = dir.path().join(".ai/adapters");
+        std::fs::create_dir_all(&adapters_dir).unwrap();
+
+        // Non-toml files
+        std::fs::write(adapters_dir.join("README.md"), "# Adapters").unwrap();
+        std::fs::write(adapters_dir.join("notes.txt"), "some notes").unwrap();
+
+        let adapters = discover_toml_adapters(dir.path());
+        assert!(adapters.is_empty());
+    }
 }

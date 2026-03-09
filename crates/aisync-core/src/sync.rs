@@ -1425,4 +1425,173 @@ mod tests {
             assert_eq!(full.actions.len(), partial.actions.len());
         }
     }
+
+    // --- TOML adapter integration tests ---
+
+    #[test]
+    fn test_enabled_tools_includes_toml_adapters() {
+        let dir = TempDir::new().unwrap();
+
+        // Create TOML adapter
+        let adapters_dir = dir.path().join(".ai/adapters");
+        std::fs::create_dir_all(&adapters_dir).unwrap();
+        let toml = r#"
+name = "aider"
+display_name = "Aider"
+
+[sync]
+strategy = "symlink"
+instruction_path = "AIDER.md"
+"#;
+        std::fs::write(adapters_dir.join("aider.toml"), toml).unwrap();
+
+        let config = all_enabled_config();
+        let tools = SyncEngine::enabled_tools(&config, dir.path());
+        let tool_kinds: Vec<ToolKind> = tools.iter().map(|(k, _, _)| k.clone()).collect();
+        assert!(
+            tool_kinds.contains(&ToolKind::Custom("aider".to_string())),
+            "enabled_tools should include TOML-defined aider adapter"
+        );
+    }
+
+    #[test]
+    fn test_plan_includes_toml_adapter_generate() {
+        let dir = TempDir::new().unwrap();
+        setup_canonical(dir.path(), "# Instructions");
+
+        // Create TOML adapter with Generate strategy
+        let adapters_dir = dir.path().join(".ai/adapters");
+        std::fs::create_dir_all(&adapters_dir).unwrap();
+        let toml = r#"
+name = "aider"
+display_name = "Aider"
+
+[sync]
+strategy = "generate"
+instruction_path = ".aider/rules/project.md"
+
+[template]
+content = "{{content}}"
+"#;
+        std::fs::write(adapters_dir.join("aider.toml"), toml).unwrap();
+
+        let config = all_enabled_config();
+        let report = SyncEngine::plan(&config, dir.path()).unwrap();
+
+        let aider_result = report
+            .results
+            .iter()
+            .find(|r| r.tool == ToolKind::Custom("aider".to_string()));
+        assert!(aider_result.is_some(), "aider should appear in sync plan");
+
+        let aider = aider_result.unwrap();
+        let has_create = aider
+            .actions
+            .iter()
+            .any(|a| matches!(a, SyncAction::CreateFile { .. }));
+        assert!(has_create, "aider Generate strategy should produce CreateFile action");
+    }
+
+    #[test]
+    fn test_plan_includes_toml_adapter_symlink() {
+        let dir = TempDir::new().unwrap();
+        setup_canonical(dir.path(), "# Instructions");
+
+        // Create TOML adapter with Symlink strategy
+        let adapters_dir = dir.path().join(".ai/adapters");
+        std::fs::create_dir_all(&adapters_dir).unwrap();
+        let toml = r#"
+name = "aider"
+display_name = "Aider"
+
+[sync]
+strategy = "symlink"
+instruction_path = "AIDER.md"
+"#;
+        std::fs::write(adapters_dir.join("aider.toml"), toml).unwrap();
+
+        let config = all_enabled_config();
+        let report = SyncEngine::plan(&config, dir.path()).unwrap();
+
+        let aider_result = report
+            .results
+            .iter()
+            .find(|r| r.tool == ToolKind::Custom("aider".to_string()));
+        assert!(aider_result.is_some(), "aider should appear in sync plan");
+
+        let aider = aider_result.unwrap();
+        let has_symlink = aider
+            .actions
+            .iter()
+            .any(|a| matches!(a, SyncAction::CreateSymlink { .. }));
+        assert!(has_symlink, "aider Symlink strategy should produce CreateSymlink action");
+    }
+
+    #[test]
+    fn test_status_includes_toml_adapter() {
+        let dir = TempDir::new().unwrap();
+        setup_canonical(dir.path(), "# Instructions");
+
+        // Create TOML adapter
+        let adapters_dir = dir.path().join(".ai/adapters");
+        std::fs::create_dir_all(&adapters_dir).unwrap();
+        let toml = r#"
+name = "aider"
+display_name = "Aider"
+
+[sync]
+strategy = "symlink"
+instruction_path = "AIDER.md"
+"#;
+        std::fs::write(adapters_dir.join("aider.toml"), toml).unwrap();
+
+        let config = all_enabled_config();
+        let status = SyncEngine::status(&config, dir.path()).unwrap();
+
+        let aider_status = status
+            .tools
+            .iter()
+            .find(|t| t.tool == ToolKind::Custom("aider".to_string()));
+        assert!(aider_status.is_some(), "aider should appear in status report");
+        assert_eq!(aider_status.unwrap().drift, DriftState::Missing);
+    }
+
+    #[test]
+    fn test_toml_adapter_disabled_by_config() {
+        let dir = TempDir::new().unwrap();
+        setup_canonical(dir.path(), "# Instructions");
+
+        // Create TOML adapter
+        let adapters_dir = dir.path().join(".ai/adapters");
+        std::fs::create_dir_all(&adapters_dir).unwrap();
+        let toml = r#"
+name = "aider"
+display_name = "Aider"
+
+[sync]
+instruction_path = "AIDER.md"
+"#;
+        std::fs::write(adapters_dir.join("aider.toml"), toml).unwrap();
+
+        // Explicitly disable the aider tool
+        let mut tools = ToolsConfig::default();
+        tools.set_tool("aider".into(), ToolConfig {
+            enabled: false,
+            sync_strategy: None,
+        });
+        let config = AisyncConfig {
+            schema_version: 1,
+            defaults: DefaultsConfig {
+                sync_strategy: SyncStrategy::Symlink,
+            },
+            tools,
+        };
+
+        let report = SyncEngine::plan(&config, dir.path()).unwrap();
+        let aider_result = report
+            .results
+            .iter()
+            .find(|r| r.tool == ToolKind::Custom("aider".to_string()));
+        assert!(aider_result.is_none(), "disabled aider should not appear in sync plan");
+    }
 }
