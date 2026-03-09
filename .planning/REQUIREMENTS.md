@@ -37,7 +37,7 @@ Requirements for v1.2 release. Each maps to roadmap phases.
 
 - [x] **CMD-01**: `aisync sync` copies `.ai/commands/*.md` to `.claude/commands/` for Claude Code
 - [x] **CMD-02**: `aisync sync` copies `.ai/commands/*.md` to `.cursor/commands/` for Cursor
-- [ ] **CMD-03**: `aisync init` imports existing `.claude/commands/` into `.ai/commands/`
+- [x] **CMD-03**: `aisync init` imports existing `.claude/commands/` into `.ai/commands/`
 - [x] **CMD-04**: Stale aisync-managed command files are cleaned up when canonical source is removed
 
 ### Init & Status Fixes
@@ -116,7 +116,7 @@ Deferred to future release. Tracked but not in current roadmap.
 | SEC-03 | Phase 14 | Complete |
 | CMD-01 | Phase 15 | Complete |
 | CMD-02 | Phase 15 | Complete |
-| CMD-03 | Phase 15 | Pending |
+| CMD-03 | Phase 15 | Complete |
 | CMD-04 | Phase 15 | Complete |
 | INIT-01 | Phase 16 | Pending |
 | INIT-02 | Phase 16 | Pending |

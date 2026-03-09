@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Real-World Hardening
 status: in-progress
-last_updated: "2026-03-09T16:53:19Z"
+last_updated: "2026-03-09T16:58:54Z"
 progress:
   total_phases: 5
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 7
-  completed_plans: 5
+  completed_plans: 6
 ---
 
 # Project State
@@ -18,21 +18,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-09)
 
 **Core value:** Every AI tool working on a project sees the same instructions, memory, and hooks -- always in sync, zero manual copying.
-**Current focus:** Phase 14 - MCP Config Sync (Plan 01 complete)
+**Current focus:** Phase 15 - Command Sync (complete)
 
 ## Current Position
 
-Phase: 14 of 16 (MCP Config Sync)
-Plan: 1 of 2 in current phase
-Status: Phase 14 Plan 01 complete
-Last activity: 2026-03-09 -- Phase 14 Plan 01 executed
+Phase: 15 of 16 (Command Sync)
+Plan: 2 of 2 in current phase (complete)
+Status: Phase 15 complete
+Last activity: 2026-03-09 -- Phase 15 Plan 02 executed
 
-Progress: [████████░░] 80% (v1.2: 5/7 plans)
+Progress: [█████████░] 86% (v1.2: 6/7 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 38 (v1.0: 20, v1.1: 13, v1.2: 5)
+- Total plans completed: 39 (v1.0: 20, v1.1: 13, v1.2: 6)
 - Average duration: ~25 min
 - Total execution time: ~13.9 hours
 
@@ -61,6 +61,8 @@ Progress: [████████░░] 80% (v1.2: 5/7 plans)
 - Security warnings flow as WarnUnsupportedDimension with dimension=security through existing pipeline
 - McpEngine::generate_mcp_json omits empty args/env for cleaner output
 - sanitize_env uses env key name for ${KEY_NAME} substitution
+- import_commands follows identical pattern to import_rules for consistency
+- Commands copied verbatim during init (no frontmatter translation needed)
 
 ### Pending Todos
 
@@ -75,5 +77,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-09
-Stopped at: Completed 14-01-PLAN.md (Phase 14, ready for Plan 02)
+Stopped at: Completed 15-02-PLAN.md (Phase 15 complete)
 Resume file: None
