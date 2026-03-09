@@ -81,7 +81,10 @@ Plans:
   3. Security scanner detects hardcoded API keys (AWS, GitHub, Slack, generic patterns) in MCP configs and displays warnings during sync and init without blocking the operation
   4. `aisync init` imports existing tool MCP configs into `.ai/mcp.toml`, merging across tools
   5. Windsurf MCP is skipped with a warning explaining it uses global-only config, and unsupported transports trigger a warning per server per tool
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 14-01-PLAN.md — McpEngine, SecurityScanner, adapter plan_mcp_sync, sync pipeline wiring
+- [ ] 14-02-PLAN.md — MCP import during init (parse JSON, merge, sanitize, write TOML)
 
 ### Phase 15: Command Sync
 **Goal**: Users can define slash commands in `.ai/commands/` and have them available in Claude Code and Cursor
@@ -127,7 +130,7 @@ Phases execute in numeric order. Phase 16 depends on 13, 14, and 15 completing. 
 | 11. Compile-Time Registration | v1.1 | 2/2 | Complete | 2026-03-09 |
 | 12. Types & Trait Foundation | 1/1 | Complete    | 2026-03-09 | - |
 | 13. Multi-File Rule Sync | 2/2 | Complete    | 2026-03-09 | - |
-| 14. MCP Server Config & Security | v1.2 | 0/? | Not started | - |
+| 14. MCP Server Config & Security | v1.2 | 0/2 | Not started | - |
 | 15. Command Sync | v1.2 | 0/2 | Not started | - |
 | 16. Init Completeness | v1.2 | 0/? | Not started | - |
 
