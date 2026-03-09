@@ -1,11 +1,12 @@
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use crate::adapter::{DetectionResult, ToolAdapter, WindsurfAdapter};
 use crate::config::SyncStrategy;
 use crate::adapter::AdapterError;
 use crate::types::{
-    Confidence, DriftState, HookTranslation, HooksConfig, SyncAction, ToolKind, ToolSyncStatus,
-    content_hash,
+    Confidence, DriftState, HookTranslation, HooksConfig, RuleFile, RuleMetadata, SyncAction,
+    ToolKind, ToolSyncStatus, content_hash,
 };
 
 /// The output path relative to project root for generated .md file.
@@ -18,6 +19,37 @@ const WINDSURF_FRONTMATTER: &str =
 /// Generate the full Windsurf .md file content with frontmatter.
 fn generate_windsurf_content(canonical_content: &str) -> String {
     format!("{WINDSURF_FRONTMATTER}{canonical_content}")
+}
+
+/// Generate Windsurf-format YAML frontmatter for a rule file.
+///
+/// Maps canonical metadata to Windsurf trigger types:
+/// - always_apply=true -> trigger: always_on
+/// - always_apply=false + globs -> trigger: glob
+/// - always_apply=false + description (no globs) -> trigger: model_decision
+/// - fallback -> trigger: manual
+fn generate_windsurf_rule_frontmatter(meta: &RuleMetadata) -> String {
+    let mut fm = String::from("---\n");
+    if meta.always_apply {
+        fm.push_str("trigger: always_on\n");
+    } else if !meta.globs.is_empty() {
+        fm.push_str("trigger: glob\n");
+        fm.push_str(&format!("globs: {}\n", meta.globs.join(", ")));
+    } else if meta.description.is_some() {
+        fm.push_str("trigger: model_decision\n");
+    } else {
+        fm.push_str("trigger: manual\n");
+    }
+    if let Some(desc) = &meta.description {
+        fm.push_str(&format!("description: {}\n", desc));
+    }
+    fm.push_str("---\n\n");
+    fm
+}
+
+/// Generate full Windsurf rule file content (frontmatter + body).
+fn generate_windsurf_rule_content(meta: &RuleMetadata, body: &str) -> String {
+    format!("{}{}", generate_windsurf_rule_frontmatter(meta), body)
 }
 
 impl ToolAdapter for WindsurfAdapter {
@@ -235,6 +267,70 @@ impl ToolAdapter for WindsurfAdapter {
             tool: ToolKind::Windsurf,
             reason: "Windsurf does not support hooks".to_string(),
         })
+    }
+
+    fn plan_rules_sync(
+        &self,
+        project_root: &Path,
+        rules: &[RuleFile],
+    ) -> Result<Vec<SyncAction>, AdapterError> {
+        if rules.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let mut actions = Vec::new();
+        let rules_dir = project_root.join(".windsurf").join("rules");
+
+        // Ensure directory exists
+        if !rules_dir.is_dir() {
+            actions.push(SyncAction::CreateDirectory {
+                path: rules_dir.clone(),
+            });
+        }
+
+        // Build expected filenames set
+        let expected: HashSet<String> = rules
+            .iter()
+            .map(|r| format!("aisync-{}.md", r.name))
+            .collect();
+
+        // Generate rule files
+        for rule in rules {
+            let filename = format!("aisync-{}.md", rule.name);
+            let output = rules_dir.join(&filename);
+            let content = generate_windsurf_rule_content(&rule.metadata, &rule.content);
+
+            // Idempotent: skip if file already has the same content
+            if output.exists() {
+                if let Ok(existing) = std::fs::read_to_string(&output) {
+                    if existing == content {
+                        continue;
+                    }
+                }
+            }
+
+            actions.push(SyncAction::CreateRuleFile {
+                output,
+                content,
+                rule_name: rule.name.clone(),
+            });
+        }
+
+        // Scan for stale aisync-* files
+        if rules_dir.is_dir() {
+            if let Ok(entries) = std::fs::read_dir(&rules_dir) {
+                for entry in entries.flatten() {
+                    let name = entry.file_name().to_string_lossy().to_string();
+                    if name.starts_with("aisync-") && name.ends_with(".md") && !expected.contains(&name) {
+                        actions.push(SyncAction::RemoveFile {
+                            path: entry.path(),
+                        });
+                    }
+                }
+            }
+        }
+
+        Ok(actions)
     }
 }
 
@@ -472,6 +568,154 @@ mod tests {
 
         let actions = WindsurfAdapter.plan_memory_sync(dir.path(), &[]).unwrap();
         assert!(actions.is_empty());
+    }
+
+    // --- plan_rules_sync tests ---
+
+    fn make_rule(name: &str, desc: Option<&str>, globs: Vec<&str>, always_apply: bool, content: &str) -> crate::types::RuleFile {
+        crate::types::RuleFile {
+            name: name.to_string(),
+            metadata: crate::types::RuleMetadata {
+                description: desc.map(|s| s.to_string()),
+                globs: globs.into_iter().map(|s| s.to_string()).collect(),
+                always_apply,
+            },
+            content: content.to_string(),
+            source_path: std::path::PathBuf::from(format!(".ai/rules/{name}.md")),
+        }
+    }
+
+    #[test]
+    fn test_plan_rules_sync_empty_rules_returns_empty() {
+        let dir = TempDir::new().unwrap();
+        let actions = WindsurfAdapter.plan_rules_sync(dir.path(), &[]).unwrap();
+        assert!(actions.is_empty());
+    }
+
+    #[test]
+    fn test_plan_rules_sync_generates_md_with_windsurf_frontmatter() {
+        let dir = TempDir::new().unwrap();
+        let rules = vec![make_rule("my-rule", Some("A test rule"), vec![], true, "Rule body")];
+
+        let actions = WindsurfAdapter.plan_rules_sync(dir.path(), &rules).unwrap();
+
+        let create_action = actions.iter().find(|a| matches!(a, SyncAction::CreateRuleFile { .. }));
+        assert!(create_action.is_some(), "expected CreateRuleFile action");
+
+        if let SyncAction::CreateRuleFile { output, content, rule_name } = create_action.unwrap() {
+            assert!(output.to_string_lossy().contains("aisync-my-rule.md"));
+            assert_eq!(rule_name, "my-rule");
+            assert!(content.contains("trigger: always_on"));
+            assert!(content.contains("description: A test rule"));
+            assert!(content.contains("Rule body"));
+        }
+    }
+
+    #[test]
+    fn test_plan_rules_sync_trigger_glob() {
+        let dir = TempDir::new().unwrap();
+        let rules = vec![make_rule("glob-rule", Some("Glob rule"), vec!["*.rs", "*.toml"], false, "Content")];
+
+        let actions = WindsurfAdapter.plan_rules_sync(dir.path(), &rules).unwrap();
+        let create_action = actions.iter().find(|a| matches!(a, SyncAction::CreateRuleFile { .. }));
+        assert!(create_action.is_some());
+
+        if let SyncAction::CreateRuleFile { content, .. } = create_action.unwrap() {
+            assert!(content.contains("trigger: glob"));
+            assert!(content.contains("globs: *.rs, *.toml"));
+        }
+    }
+
+    #[test]
+    fn test_plan_rules_sync_trigger_model_decision() {
+        let dir = TempDir::new().unwrap();
+        let rules = vec![make_rule("desc-rule", Some("Description only"), vec![], false, "Content")];
+
+        let actions = WindsurfAdapter.plan_rules_sync(dir.path(), &rules).unwrap();
+        let create_action = actions.iter().find(|a| matches!(a, SyncAction::CreateRuleFile { .. }));
+        assert!(create_action.is_some());
+
+        if let SyncAction::CreateRuleFile { content, .. } = create_action.unwrap() {
+            assert!(content.contains("trigger: model_decision"));
+        }
+    }
+
+    #[test]
+    fn test_plan_rules_sync_trigger_manual() {
+        let dir = TempDir::new().unwrap();
+        let rules = vec![make_rule("manual-rule", None, vec![], false, "Content")];
+
+        let actions = WindsurfAdapter.plan_rules_sync(dir.path(), &rules).unwrap();
+        let create_action = actions.iter().find(|a| matches!(a, SyncAction::CreateRuleFile { .. }));
+        assert!(create_action.is_some());
+
+        if let SyncAction::CreateRuleFile { content, .. } = create_action.unwrap() {
+            assert!(content.contains("trigger: manual"));
+        }
+    }
+
+    #[test]
+    fn test_plan_rules_sync_removes_stale_files() {
+        let dir = TempDir::new().unwrap();
+        let rules_dir = dir.path().join(".windsurf/rules");
+        std::fs::create_dir_all(&rules_dir).unwrap();
+        std::fs::write(rules_dir.join("aisync-old-rule.md"), "stale").unwrap();
+
+        let rules = vec![make_rule("new-rule", None, vec![], true, "New content")];
+        let actions = WindsurfAdapter.plan_rules_sync(dir.path(), &rules).unwrap();
+
+        let remove_action = actions.iter().find(|a| {
+            if let SyncAction::RemoveFile { path } = a {
+                path.to_string_lossy().contains("aisync-old-rule.md")
+            } else {
+                false
+            }
+        });
+        assert!(remove_action.is_some(), "expected RemoveFile for stale aisync-old-rule.md");
+    }
+
+    #[test]
+    fn test_plan_rules_sync_does_not_remove_non_aisync_files() {
+        let dir = TempDir::new().unwrap();
+        let rules_dir = dir.path().join(".windsurf/rules");
+        std::fs::create_dir_all(&rules_dir).unwrap();
+        std::fs::write(rules_dir.join("my-custom.md"), "user content").unwrap();
+
+        let rules = vec![make_rule("test", None, vec![], true, "Content")];
+        let actions = WindsurfAdapter.plan_rules_sync(dir.path(), &rules).unwrap();
+
+        let remove_action = actions.iter().find(|a| {
+            if let SyncAction::RemoveFile { path } = a {
+                path.to_string_lossy().contains("my-custom.md")
+            } else {
+                false
+            }
+        });
+        assert!(remove_action.is_none(), "should NOT remove user-created files");
+    }
+
+    #[test]
+    fn test_generate_windsurf_rule_frontmatter_always_on() {
+        let meta = crate::types::RuleMetadata {
+            description: Some("Always on".to_string()),
+            globs: vec![],
+            always_apply: true,
+        };
+        let fm = generate_windsurf_rule_frontmatter(&meta);
+        assert!(fm.contains("trigger: always_on"));
+        assert!(fm.contains("description: Always on"));
+    }
+
+    #[test]
+    fn test_generate_windsurf_rule_frontmatter_glob() {
+        let meta = crate::types::RuleMetadata {
+            description: Some("Glob rule".to_string()),
+            globs: vec!["*.rs".to_string()],
+            always_apply: false,
+        };
+        let fm = generate_windsurf_rule_frontmatter(&meta);
+        assert!(fm.contains("trigger: glob"));
+        assert!(fm.contains("globs: *.rs"));
     }
 
     // --- translate_hooks tests ---

@@ -1,9 +1,10 @@
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use crate::adapter::{CursorAdapter, DetectionResult, ToolAdapter};
 use crate::config::SyncStrategy;
 use crate::adapter::AdapterError;
-use crate::types::{Confidence, DriftState, SyncAction, ToolKind, ToolSyncStatus, content_hash};
+use crate::types::{Confidence, DriftState, RuleFile, RuleMetadata, SyncAction, ToolKind, ToolSyncStatus, content_hash};
 
 /// The output path relative to project root for generated .mdc file.
 const MDC_REL: &str = ".cursor/rules/project.mdc";
@@ -14,6 +15,30 @@ const MDC_FRONTMATTER: &str = "---\ndescription: Project instructions synced by 
 /// Generate the full .mdc file content with frontmatter.
 fn generate_mdc_content(canonical_content: &str) -> String {
     format!("{MDC_FRONTMATTER}{canonical_content}")
+}
+
+/// Generate Cursor-format YAML frontmatter for a rule file.
+///
+/// Maps canonical metadata to Cursor frontmatter fields:
+/// - description -> description:
+/// - globs -> globs: "joined, string" (comma-separated, quoted)
+/// - always_apply -> alwaysApply: (camelCase boolean)
+fn generate_cursor_rule_frontmatter(meta: &RuleMetadata) -> String {
+    let mut fm = String::from("---\n");
+    if let Some(desc) = &meta.description {
+        fm.push_str(&format!("description: {}\n", desc));
+    }
+    if !meta.globs.is_empty() {
+        fm.push_str(&format!("globs: \"{}\"\n", meta.globs.join(", ")));
+    }
+    fm.push_str(&format!("alwaysApply: {}\n", meta.always_apply));
+    fm.push_str("---\n\n");
+    fm
+}
+
+/// Generate full Cursor rule file content (frontmatter + body).
+fn generate_cursor_rule_content(meta: &RuleMetadata, body: &str) -> String {
+    format!("{}{}", generate_cursor_rule_frontmatter(meta), body)
 }
 
 impl ToolAdapter for CursorAdapter {
@@ -165,6 +190,70 @@ impl ToolAdapter for CursorAdapter {
             tool: ToolKind::Cursor,
             reason: "Cursor does not support hooks".to_string(),
         })
+    }
+
+    fn plan_rules_sync(
+        &self,
+        project_root: &Path,
+        rules: &[RuleFile],
+    ) -> Result<Vec<SyncAction>, AdapterError> {
+        if rules.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let mut actions = Vec::new();
+        let rules_dir = project_root.join(".cursor").join("rules");
+
+        // Ensure directory exists
+        if !rules_dir.is_dir() {
+            actions.push(SyncAction::CreateDirectory {
+                path: rules_dir.clone(),
+            });
+        }
+
+        // Build expected filenames set
+        let expected: HashSet<String> = rules
+            .iter()
+            .map(|r| format!("aisync-{}.mdc", r.name))
+            .collect();
+
+        // Generate rule files
+        for rule in rules {
+            let filename = format!("aisync-{}.mdc", rule.name);
+            let output = rules_dir.join(&filename);
+            let content = generate_cursor_rule_content(&rule.metadata, &rule.content);
+
+            // Idempotent: skip if file already has the same content
+            if output.exists() {
+                if let Ok(existing) = std::fs::read_to_string(&output) {
+                    if existing == content {
+                        continue;
+                    }
+                }
+            }
+
+            actions.push(SyncAction::CreateRuleFile {
+                output,
+                content,
+                rule_name: rule.name.clone(),
+            });
+        }
+
+        // Scan for stale aisync-* files
+        if rules_dir.is_dir() {
+            if let Ok(entries) = std::fs::read_dir(&rules_dir) {
+                for entry in entries.flatten() {
+                    let name = entry.file_name().to_string_lossy().to_string();
+                    if name.starts_with("aisync-") && name.ends_with(".mdc") && !expected.contains(&name) {
+                        actions.push(SyncAction::RemoveFile {
+                            path: entry.path(),
+                        });
+                    }
+                }
+            }
+        }
+
+        Ok(actions)
     }
 
     fn sync_status(
@@ -456,6 +545,151 @@ mod tests {
             .sync_status(dir.path(), &wrong_hash, SyncStrategy::Generate)
             .unwrap();
         assert!(matches!(status.drift, DriftState::Drifted { .. }));
+    }
+
+    // --- plan_rules_sync tests ---
+
+    fn make_rule(name: &str, desc: Option<&str>, globs: Vec<&str>, always_apply: bool, content: &str) -> crate::types::RuleFile {
+        crate::types::RuleFile {
+            name: name.to_string(),
+            metadata: crate::types::RuleMetadata {
+                description: desc.map(|s| s.to_string()),
+                globs: globs.into_iter().map(|s| s.to_string()).collect(),
+                always_apply,
+            },
+            content: content.to_string(),
+            source_path: std::path::PathBuf::from(format!(".ai/rules/{name}.md")),
+        }
+    }
+
+    #[test]
+    fn test_plan_rules_sync_empty_rules_returns_empty() {
+        let dir = TempDir::new().unwrap();
+        let actions = CursorAdapter.plan_rules_sync(dir.path(), &[]).unwrap();
+        assert!(actions.is_empty());
+    }
+
+    #[test]
+    fn test_plan_rules_sync_generates_mdc_with_cursor_frontmatter() {
+        let dir = TempDir::new().unwrap();
+        let rules = vec![make_rule("my-rule", Some("A test rule"), vec!["*.rs", "*.toml"], false, "Rule body content")];
+
+        let actions = CursorAdapter.plan_rules_sync(dir.path(), &rules).unwrap();
+
+        let create_action = actions.iter().find(|a| matches!(a, SyncAction::CreateRuleFile { .. }));
+        assert!(create_action.is_some(), "expected CreateRuleFile action");
+
+        if let SyncAction::CreateRuleFile { output, content, rule_name } = create_action.unwrap() {
+            assert!(output.to_string_lossy().contains("aisync-my-rule.mdc"));
+            assert_eq!(rule_name, "my-rule");
+            assert!(content.contains("description: A test rule"));
+            assert!(content.contains("globs: \"*.rs, *.toml\""));
+            assert!(content.contains("alwaysApply: false"));
+            assert!(content.contains("Rule body content"));
+        }
+    }
+
+    #[test]
+    fn test_plan_rules_sync_creates_directory_if_missing() {
+        let dir = TempDir::new().unwrap();
+        let rules = vec![make_rule("test", None, vec![], true, "Content")];
+
+        let actions = CursorAdapter.plan_rules_sync(dir.path(), &rules).unwrap();
+
+        let dir_action = actions.iter().find(|a| matches!(a, SyncAction::CreateDirectory { .. }));
+        assert!(dir_action.is_some(), "expected CreateDirectory action");
+    }
+
+    #[test]
+    fn test_plan_rules_sync_removes_stale_files() {
+        let dir = TempDir::new().unwrap();
+        let rules_dir = dir.path().join(".cursor/rules");
+        std::fs::create_dir_all(&rules_dir).unwrap();
+        // Create a stale aisync-managed file that no longer has a source rule
+        std::fs::write(rules_dir.join("aisync-old-rule.mdc"), "stale").unwrap();
+
+        // Sync with a different set of rules (not containing "old-rule")
+        let rules = vec![make_rule("new-rule", None, vec![], true, "New content")];
+        let actions = CursorAdapter.plan_rules_sync(dir.path(), &rules).unwrap();
+
+        let remove_action = actions.iter().find(|a| {
+            if let SyncAction::RemoveFile { path } = a {
+                path.to_string_lossy().contains("aisync-old-rule.mdc")
+            } else {
+                false
+            }
+        });
+        assert!(remove_action.is_some(), "expected RemoveFile action for stale aisync-old-rule.mdc");
+    }
+
+    #[test]
+    fn test_plan_rules_sync_idempotent_skip() {
+        let dir = TempDir::new().unwrap();
+        let rules_dir = dir.path().join(".cursor/rules");
+        std::fs::create_dir_all(&rules_dir).unwrap();
+
+        let rules = vec![make_rule("my-rule", Some("Desc"), vec![], true, "Body")];
+
+        // First sync: should produce CreateRuleFile
+        let actions = CursorAdapter.plan_rules_sync(dir.path(), &rules).unwrap();
+        let create_action = actions.iter().find(|a| matches!(a, SyncAction::CreateRuleFile { .. }));
+        assert!(create_action.is_some());
+
+        // Write the expected file content
+        if let SyncAction::CreateRuleFile { output, content, .. } = create_action.unwrap() {
+            std::fs::write(output, content).unwrap();
+        }
+
+        // Second sync: should NOT produce CreateRuleFile (idempotent)
+        let actions2 = CursorAdapter.plan_rules_sync(dir.path(), &rules).unwrap();
+        let create_action2 = actions2.iter().find(|a| matches!(a, SyncAction::CreateRuleFile { .. }));
+        assert!(create_action2.is_none(), "expected no CreateRuleFile for unchanged content");
+    }
+
+    #[test]
+    fn test_plan_rules_sync_does_not_remove_non_aisync_files() {
+        let dir = TempDir::new().unwrap();
+        let rules_dir = dir.path().join(".cursor/rules");
+        std::fs::create_dir_all(&rules_dir).unwrap();
+        // User-created file (not aisync- prefixed)
+        std::fs::write(rules_dir.join("my-custom.mdc"), "user content").unwrap();
+
+        let rules = vec![make_rule("test", None, vec![], true, "Content")];
+        let actions = CursorAdapter.plan_rules_sync(dir.path(), &rules).unwrap();
+
+        let remove_action = actions.iter().find(|a| {
+            if let SyncAction::RemoveFile { path } = a {
+                path.to_string_lossy().contains("my-custom.mdc")
+            } else {
+                false
+            }
+        });
+        assert!(remove_action.is_none(), "should NOT remove user-created rule files");
+    }
+
+    #[test]
+    fn test_generate_cursor_rule_frontmatter_always_apply() {
+        let meta = crate::types::RuleMetadata {
+            description: Some("Always on rule".to_string()),
+            globs: vec![],
+            always_apply: true,
+        };
+        let fm = generate_cursor_rule_frontmatter(&meta);
+        assert!(fm.contains("description: Always on rule"));
+        assert!(fm.contains("alwaysApply: true"));
+        assert!(!fm.contains("globs:"));
+    }
+
+    #[test]
+    fn test_generate_cursor_rule_frontmatter_with_globs() {
+        let meta = crate::types::RuleMetadata {
+            description: Some("Glob rule".to_string()),
+            globs: vec!["*.rs".to_string(), "*.toml".to_string()],
+            always_apply: false,
+        };
+        let fm = generate_cursor_rule_frontmatter(&meta);
+        assert!(fm.contains("globs: \"*.rs, *.toml\""));
+        assert!(fm.contains("alwaysApply: false"));
     }
 
     // --- translate_hooks tests ---
