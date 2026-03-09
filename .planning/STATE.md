@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Real-World Hardening
-status: in-progress
-last_updated: "2026-03-09T15:33:19.000Z"
+status: unknown
+last_updated: "2026-03-09T15:38:02.384Z"
 progress:
-  total_phases: 5
+  total_phases: 2
   completed_phases: 2
-  total_plans: 2
+  total_plans: 3
   completed_plans: 3
 ---
 
