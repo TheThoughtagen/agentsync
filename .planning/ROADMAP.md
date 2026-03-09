@@ -119,7 +119,7 @@ Phases execute in numeric order. Phase 16 depends on 13, 14, and 15 completing. 
 | 9. Plugin SDK Crate Extraction | v1.1 | 2/2 | Complete | 2026-03-09 |
 | 10. Declarative TOML Adapters | v1.1 | 2/2 | Complete | 2026-03-09 |
 | 11. Compile-Time Registration | v1.1 | 2/2 | Complete | 2026-03-09 |
-| 12. Types & Trait Foundation | 1/1 | Complete   | 2026-03-09 | - |
+| 12. Types & Trait Foundation | 1/1 | Complete    | 2026-03-09 | - |
 | 13. Multi-File Rule Sync | v1.2 | 0/? | Not started | - |
 | 14. MCP Server Config & Security | v1.2 | 0/? | Not started | - |
 | 15. Command Sync | v1.2 | 0/? | Not started | - |
