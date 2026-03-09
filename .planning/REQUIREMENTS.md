@@ -35,10 +35,10 @@ Requirements for v1.2 release. Each maps to roadmap phases.
 
 ### Command Sync
 
-- [ ] **CMD-01**: `aisync sync` copies `.ai/commands/*.md` to `.claude/commands/` for Claude Code
-- [ ] **CMD-02**: `aisync sync` copies `.ai/commands/*.md` to `.cursor/commands/` for Cursor
+- [x] **CMD-01**: `aisync sync` copies `.ai/commands/*.md` to `.claude/commands/` for Claude Code
+- [x] **CMD-02**: `aisync sync` copies `.ai/commands/*.md` to `.cursor/commands/` for Cursor
 - [ ] **CMD-03**: `aisync init` imports existing `.claude/commands/` into `.ai/commands/`
-- [ ] **CMD-04**: Stale aisync-managed command files are cleaned up when canonical source is removed
+- [x] **CMD-04**: Stale aisync-managed command files are cleaned up when canonical source is removed
 
 ### Init & Status Fixes
 
@@ -114,10 +114,10 @@ Deferred to future release. Tracked but not in current roadmap.
 | SEC-01 | Phase 14 | Pending |
 | SEC-02 | Phase 14 | Pending |
 | SEC-03 | Phase 14 | Pending |
-| CMD-01 | Phase 15 | Pending |
-| CMD-02 | Phase 15 | Pending |
+| CMD-01 | Phase 15 | Complete |
+| CMD-02 | Phase 15 | Complete |
 | CMD-03 | Phase 15 | Pending |
-| CMD-04 | Phase 15 | Pending |
+| CMD-04 | Phase 15 | Complete |
 | INIT-01 | Phase 16 | Pending |
 | INIT-02 | Phase 16 | Pending |
 | INIT-03 | Phase 16 | Pending |

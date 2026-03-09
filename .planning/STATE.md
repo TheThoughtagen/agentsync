@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Real-World Hardening
-status: unknown
-last_updated: "2026-03-09T15:38:02.384Z"
+status: in-progress
+last_updated: "2026-03-09T16:53:19Z"
 progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 3
-  completed_plans: 3
+  total_phases: 5
+  completed_phases: 3
+  total_plans: 7
+  completed_plans: 5
 ---
 
 # Project State
@@ -18,21 +18,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-09)
 
 **Core value:** Every AI tool working on a project sees the same instructions, memory, and hooks -- always in sync, zero manual copying.
-**Current focus:** Phase 13 - Multi-File Rule Sync
+**Current focus:** Phase 15 - Command Sync
 
 ## Current Position
 
-Phase: 13 of 16 (Multi-File Rule Sync)
-Plan: 2 of 2 in current phase (COMPLETE)
-Status: Phase 13 complete
-Last activity: 2026-03-09 -- Phase 13 Plan 02 executed
+Phase: 15 of 16 (Command Sync)
+Plan: 1 of 2 in current phase
+Status: Phase 15 Plan 01 complete
+Last activity: 2026-03-09 -- Phase 15 Plan 01 executed
 
-Progress: [██████░░░░] 60% (v1.2: 3/5 phases)
+Progress: [████████░░] 80% (v1.2: 5/7 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 36 (v1.0: 20, v1.1: 13, v1.2: 3)
+- Total plans completed: 38 (v1.0: 20, v1.1: 13, v1.2: 5)
 - Average duration: ~25 min
 - Total execution time: ~13.9 hours
 
@@ -54,6 +54,9 @@ Progress: [██████░░░░] 60% (v1.2: 3/5 phases)
 - Empty frontmatter edge case requires explicit check for immediate closing delimiter
 - Shared plan_single_file_rules_sync helper in adapters/mod.rs avoids duplication across Claude Code/OpenCode/Codex
 - Rule content concatenated with "## Rule: {name}" headers for readability in single-file tools
+- Commands use aisync-{name}.md naming convention matching rules pattern
+- Shared plan_directory_commands_sync helper in adapters/mod.rs for directory-based command sync
+- Stale aisync-* command files cleaned up automatically during sync
 
 ### Pending Todos
 
@@ -68,5 +71,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-09
-Stopped at: Completed 13-02-PLAN.md (Phase 13 complete, ready for Phase 14)
+Stopped at: Completed 15-01-PLAN.md
 Resume file: None
