@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Adapter Expansion & Plugin SDK
-status: unknown
-last_updated: "2026-03-09T12:30:58.995Z"
+status: complete
+last_updated: "2026-03-09"
 progress:
   total_phases: 6
   completed_phases: 6
@@ -15,24 +15,21 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-07)
+See: .planning/PROJECT.md (updated 2026-03-09)
 
 **Core value:** Every AI tool working on a project sees the same instructions, memory, and hooks -- always in sync, zero manual copying.
-**Current focus:** Phase 11 - Compile-Time Registration (Complete)
+**Current focus:** Planning next milestone
 
 ## Current Position
 
-Phase: 11 of 11 (Compile-Time Registration) -- sixth of 6 v1.1 phases
-Plan: 2 of 2 complete
-Status: Milestone Complete
-Last activity: 2026-03-09 -- Completed 11-02 (Adapter Authoring Documentation)
+Milestone v1.1 shipped. All 11 phases (v1.0 + v1.1) complete.
 
 Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 30 (20 v1.0 + 10 v1.1)
+- Total plans completed: 33 (20 v1.0 + 13 v1.1)
 - v1.1 plans completed: 13
 - Average duration: 7min
 - Total execution time: 59min
@@ -41,44 +38,7 @@ Progress: [██████████] 100%
 
 ### Decisions
 
-- Compile-time plugin registration for v1.1 (defer dynamic/WASM loading)
-- Two-layer Plugin SDK: declarative TOML for simple adapters, Rust trait for complex ones
-- Windsurf + Codex adapters in v1.1; Aider + Continue deferred to community/v1.2
-- `add-tool` uses auto-detect + interactive selection
-- Refactor ToolAdapter trait BEFORE adding new adapters (eliminates shotgun surgery)
-- Custom(String) variant returns empty conditional tag names -- no tool-specific sections for custom tools yet
-- tool_display_name returns String (not &'static str) to support Custom variant dynamic names
-- Tool name parsing in add-tool CLI uses match statement (simpler than lookup table, avoids clippy type_complexity)
-- Non-interactive add-tool lists unconfigured tools with --tool hint (no error on piped stdin)
-- Custom tools use ClaudeCode adapter as fallback in init until adapter registry exists
-- Plugin variant uses Arc<dyn ToolAdapter> for Clone+Send+Sync compatibility
-- ToolKind::display_name() added as bridging pattern for call sites without adapter access
-- todo!() defaults replaced with safe returns (Ok(None), Ok(vec![]), NotConfigured)
-- BTreeMap field in ToolsConfig is private; all access via helper methods (get_tool, is_enabled, set_tool)
-- Unconfigured-is-enabled semantics preserved via is_none_or in is_enabled()
-- CreateSymlink made idempotent (skip if correct symlink exists) for Codex+OpenCode AGENTS.md sharing
-- Windsurf uses SyncAction::CreateFile (not GenerateMdc) since output is .md not .mdc
-- Codex detects only via .codex/ directory (not AGENTS.md) to avoid OpenCode detection conflict
-- Deduplication uses first-adapter-wins strategy based on enabled_tools() iteration order
-- Windsurf checks chars().count() for 12K char limit; Codex checks .len() for 32 KiB byte limit
-- Size warnings are advisory WarnContentSize actions (no filesystem change)
-- Reuse InitError for add_tool errors (ScaffoldFailed for IO, ImportFailed for serialization)
-- Omit sync_strategy from ToolConfig when adapter default is Symlink (keeps TOML clean)
-- plan_for_tools runs full plan then filters results (simplest correct approach preserving deduplication)
-- Re-export SyncStrategy in config.rs for backward compatibility (avoids crate::config::SyncStrategy path breakage)
-- Re-export all types via pub use aisync_types::* in types.rs (single re-export point)
-- AdapterError expanded with Io and Other variants for community adapter ergonomics
-- ToolAdapter trait methods return AdapterError (not AisyncError) to decouple SDK from core error hierarchy
-- Backward compat via pub use re-exports in adapter.rs and error.rs
-- Box::leak pattern for conditional_tags/watch_paths &'static str lifetime (acceptable for program-lifetime adapters)
-- Custom Default impl for DetectionDef to ensure match_any defaults to true even when entire section omitted
-- strip_frontmatter helper supports arbitrary delimiter strings (not just ---)
-- Strategy fallback uses adapter.default_sync_strategy() instead of config.defaults when no tool_config exists
-- TOML adapter detection errors are non-fatal (eprintln warning) unlike builtin adapter errors which return Err
-- inventory 0.3 confirmed compatible with Rust 2024 edition
-- No re-export of inventory::submit! -- community crates depend on inventory directly
-- Three-tier deduplication: builtin > TOML > inventory (HashSet of seen names)
-- Empty [workspace] table in standalone example Cargo.toml prevents Cargo workspace auto-detection
+(Archived to .planning/milestones/v1.1-ROADMAP.md — see PROJECT.md Key Decisions for current state)
 
 ### Pending Todos
 
@@ -86,12 +46,10 @@ None.
 
 ### Blockers/Concerns
 
-- `inventory` 0.3 compatibility with Rust 2024 edition -- RESOLVED: works correctly
-- ToolKind Copy vs Custom(String) decision -- DECIDED: Custom(String) variant, Clone migration
+None.
 
 ## Session Continuity
 
 Last session: 2026-03-09
-Stopped at: Completed 11-02-PLAN.md (Adapter authoring docs and example crate)
-Resume file: .planning/phases/11-compile-time-registration/11-02-SUMMARY.md
-Next: v1.1 milestone complete
+Stopped at: v1.1 milestone archived
+Next: `/gsd:new-milestone` for next version
