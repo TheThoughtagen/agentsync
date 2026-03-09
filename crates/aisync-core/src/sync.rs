@@ -828,6 +828,14 @@ mod tests {
             enabled: true,
             sync_strategy: Some(SyncStrategy::Symlink),
         });
+        tools.set_tool("windsurf".into(), ToolConfig {
+            enabled: true,
+            sync_strategy: Some(SyncStrategy::Symlink),
+        });
+        tools.set_tool("codex".into(), ToolConfig {
+            enabled: true,
+            sync_strategy: Some(SyncStrategy::Symlink),
+        });
         AisyncConfig {
             schema_version: 1,
             defaults: DefaultsConfig {
@@ -1591,7 +1599,11 @@ instruction_path = "AIDER.md"
 "#;
         std::fs::write(adapters_dir.join("aider.toml"), toml).unwrap();
 
-        let config = all_enabled_config();
+        let mut config = all_enabled_config();
+        config.tools.set_tool("aider".into(), ToolConfig {
+            enabled: true,
+            sync_strategy: Some(SyncStrategy::Symlink),
+        });
         let tools = SyncEngine::enabled_tools(&config, dir.path());
         let tool_kinds: Vec<ToolKind> = tools.iter().map(|(k, _, _)| k.clone()).collect();
         assert!(
@@ -1621,7 +1633,11 @@ content = "{{content}}"
 "#;
         std::fs::write(adapters_dir.join("aider.toml"), toml).unwrap();
 
-        let config = all_enabled_config();
+        let mut config = all_enabled_config();
+        config.tools.set_tool("aider".into(), ToolConfig {
+            enabled: true,
+            sync_strategy: Some(SyncStrategy::Generate),
+        });
         let report = SyncEngine::plan(&config, dir.path()).unwrap();
 
         let aider_result = report
@@ -1656,7 +1672,11 @@ instruction_path = "AIDER.md"
 "#;
         std::fs::write(adapters_dir.join("aider.toml"), toml).unwrap();
 
-        let config = all_enabled_config();
+        let mut config = all_enabled_config();
+        config.tools.set_tool("aider".into(), ToolConfig {
+            enabled: true,
+            sync_strategy: Some(SyncStrategy::Symlink),
+        });
         let report = SyncEngine::plan(&config, dir.path()).unwrap();
 
         let aider_result = report
@@ -1691,7 +1711,11 @@ instruction_path = "AIDER.md"
 "#;
         std::fs::write(adapters_dir.join("aider.toml"), toml).unwrap();
 
-        let config = all_enabled_config();
+        let mut config = all_enabled_config();
+        config.tools.set_tool("aider".into(), ToolConfig {
+            enabled: true,
+            sync_strategy: Some(SyncStrategy::Symlink),
+        });
         let status = SyncEngine::status(&config, dir.path()).unwrap();
 
         let aider_status = status

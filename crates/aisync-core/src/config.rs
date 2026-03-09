@@ -47,9 +47,10 @@ impl ToolsConfig {
 
     /// Returns whether a tool is enabled.
     ///
-    /// Unconfigured tools are treated as enabled (unconfigured-is-enabled semantics).
+    /// Tools must be explicitly listed in aisync.toml to be enabled.
+    /// Unconfigured tools are treated as disabled.
     pub fn is_enabled(&self, name: &str) -> bool {
-        self.tools.get(name).is_none_or(|tc| tc.enabled)
+        self.tools.get(name).is_some_and(|tc| tc.enabled)
     }
 
     /// Adds or replaces a tool configuration entry.
@@ -277,7 +278,7 @@ sync_strategy = "copy"
     #[test]
     fn test_is_enabled_unconfigured() {
         let config = AisyncConfig::from_str("schema_version = 1").unwrap();
-        assert!(config.tools.is_enabled("nonexistent"));
+        assert!(!config.tools.is_enabled("nonexistent"));
     }
 
     #[test]

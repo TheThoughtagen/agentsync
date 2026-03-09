@@ -97,6 +97,14 @@ mod tests {
                     enabled: true,
                     sync_strategy: Some(SyncStrategy::Symlink),
                 });
+                t.set_tool("windsurf".into(), ToolConfig {
+                    enabled: true,
+                    sync_strategy: Some(SyncStrategy::Symlink),
+                });
+                t.set_tool("codex".into(), ToolConfig {
+                    enabled: true,
+                    sync_strategy: Some(SyncStrategy::Symlink),
+                });
                 t
             },
         }

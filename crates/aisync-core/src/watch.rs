@@ -303,6 +303,14 @@ mod tests {
             enabled: true,
             sync_strategy: Some(SyncStrategy::Symlink),
         });
+        tools.set_tool("windsurf".into(), ToolConfig {
+            enabled: true,
+            sync_strategy: Some(SyncStrategy::Symlink),
+        });
+        tools.set_tool("codex".into(), ToolConfig {
+            enabled: true,
+            sync_strategy: Some(SyncStrategy::Symlink),
+        });
         AisyncConfig {
             schema_version: 1,
             defaults: DefaultsConfig {
