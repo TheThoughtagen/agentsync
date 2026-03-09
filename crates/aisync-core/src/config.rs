@@ -79,16 +79,8 @@ impl ToolConfig {
     }
 }
 
-/// Strategy for synchronizing configuration files between tools.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-#[derive(Default)]
-pub enum SyncStrategy {
-    #[default]
-    Symlink,
-    Copy,
-    Generate,
-}
+// SyncStrategy now lives in aisync-types; re-export for backward compatibility.
+pub use aisync_types::SyncStrategy;
 
 impl AisyncConfig {
     /// Parse an `AisyncConfig` from a TOML string.
