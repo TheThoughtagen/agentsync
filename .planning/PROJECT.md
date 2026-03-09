@@ -50,11 +50,21 @@ Every AI tool working on a project sees the same instructions, memory, and hooks
 
 ### Active
 
-(No active requirements — define with `/gsd:new-milestone`)
+## Current Milestone: v1.2 Real-World Hardening
+
+**Goal:** Make aisync work correctly on real production codebases with multi-file rules, MCP servers, and complete init-to-sync workflows.
+
+**Target features:**
+- Multi-file rule sync (Cursor .mdc files, Windsurf rules)
+- MCP server config sync (canonical definition, per-tool generation)
+- Command sync (.ai/commands/ to tool-native formats)
+- Init completeness (symlink source tool, zero-drift after init)
+- Security warnings (detect hardcoded API keys in configs)
+- Bug fixes (ghost tools in status, sync output messages)
 
 ### Out of Scope
 
-- MCP server config sync — complex tool-specific JSON schemas
+- MCP server config sync beyond instructions-level — complex tool-specific JSON schemas (auth flows, SSE transports)
 - Plugin/extension sync — each tool's own ecosystem
 - Auth/credential sharing — security concern
 - IDE settings sync — use Settings Sync for that
@@ -68,7 +78,7 @@ Every AI tool working on a project sees the same instructions, memory, and hooks
 
 ## Context
 
-Shipped v1.1 with 12,960 lines of Rust across 4 workspace crates.
+Shipped v1.1 with 12,960 lines of Rust across 4 workspace crates. Stress-tested against whk-wms (production NestJS/Next.js monorepo with Claude Code, Cursor, and Windsurf configs) — revealed multi-file rules, MCP sync, and init completeness as critical gaps.
 Tech stack: Rust 2024 edition, clap, notify, toml, serde, similar, dialoguer, dirs, inventory, minijinja.
 Workspace: aisync (CLI), aisync-core (library), aisync-types (shared types), aisync-adapter (SDK trait).
 5 built-in adapters (Claude Code, OpenCode, Cursor, Windsurf, Codex) + TOML and inventory plugin adapters.
@@ -103,4 +113,4 @@ Workspace: aisync (CLI), aisync-core (library), aisync-types (shared types), ais
 | Three-tier deduplication | builtin > TOML > inventory priority | ✓ Good — predictable behavior, no conflicts |
 
 ---
-*Last updated: 2026-03-09 after v1.1 milestone*
+*Last updated: 2026-03-09 after v1.2 milestone started*
