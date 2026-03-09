@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Real-World Hardening
-status: unknown
-last_updated: "2026-03-09T17:06:41.116Z"
+status: in-progress
+last_updated: "2026-03-09T17:55:35Z"
 progress:
   total_phases: 4
   completed_phases: 4
-  total_plans: 7
+  total_plans: 8
   completed_plans: 7
 ---
 
@@ -18,23 +18,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-09)
 
 **Core value:** Every AI tool working on a project sees the same instructions, memory, and hooks -- always in sync, zero manual copying.
-**Current focus:** Phase 15 - Command Sync (complete)
+**Current focus:** Phase 16 - Init Completeness (in progress)
 
 ## Current Position
 
-Phase: 15 of 16 (Command Sync)
-Plan: 2 of 2 in current phase (complete)
-Status: Phase 15 complete
-Last activity: 2026-03-09 -- Phase 15 Plan 02 executed
+Phase: 16 of 16 (Init Completeness)
+Plan: 1 of 2 in current phase (Plan 01 complete)
+Status: Phase 16 in progress
+Last activity: 2026-03-09 -- Phase 16 Plan 01 executed
 
-Progress: [█████████░] 86% (v1.2: 6/7 plans)
+Progress: [█████████░] 88% (v1.2: 7/8 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 39 (v1.0: 20, v1.1: 13, v1.2: 6)
+- Total plans completed: 40 (v1.0: 20, v1.1: 13, v1.2: 7)
 - Average duration: ~25 min
-- Total execution time: ~13.9 hours
+- Total execution time: ~14.0 hours
 
 **Recent Trend:**
 - v1.1 phases: consistent ~25 min/plan
@@ -65,6 +65,8 @@ Progress: [█████████░] 86% (v1.2: 6/7 plans)
 - Commands copied verbatim during init (no frontmatter translation needed)
 - [Phase 14]: parse_mcp_json returns empty McpConfig for missing/invalid files (non-fatal import)
 - [Phase 14]: Claude Code sources checked first (.claude/.mcp.json then root fallback) before Cursor for first-seen-wins merge priority
+- [Phase 16]: all_enabled_config test helpers updated to explicitly list all 5 builtins rather than relying on implicit enablement
+- [Phase 16]: Dry-run prefix is "Would: " (with colon) to clearly separate from action description
 
 ### Pending Todos
 
@@ -79,5 +81,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-09
-Stopped at: Completed 15-02-PLAN.md (Phase 15 complete)
+Stopped at: Completed 16-01-PLAN.md
 Resume file: None

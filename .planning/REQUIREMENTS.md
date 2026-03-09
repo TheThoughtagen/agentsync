@@ -43,9 +43,9 @@ Requirements for v1.2 release. Each maps to roadmap phases.
 ### Init & Status Fixes
 
 - [ ] **INIT-01**: `aisync init` completes with zero drift — `aisync status` shows all tools OK immediately after init
-- [ ] **INIT-02**: `aisync status` only shows tools that are configured in `aisync.toml` or detected, not all possible adapters
+- [x] **INIT-02**: `aisync status` only shows tools that are configured in `aisync.toml` or detected, not all possible adapters
 - [ ] **INIT-03**: `aisync init` presents interactive source tool selection when multiple instruction sources exist
-- [ ] **INIT-04**: `aisync sync` output uses correct messages (no "Would create" during real sync)
+- [x] **INIT-04**: `aisync sync` output uses correct messages (no "Would create" during real sync)
 
 ### Types & Trait Foundation
 
@@ -119,9 +119,9 @@ Deferred to future release. Tracked but not in current roadmap.
 | CMD-03 | Phase 15 | Complete |
 | CMD-04 | Phase 15 | Complete |
 | INIT-01 | Phase 16 | Pending |
-| INIT-02 | Phase 16 | Pending |
+| INIT-02 | Phase 16 | Complete |
 | INIT-03 | Phase 16 | Pending |
-| INIT-04 | Phase 16 | Pending |
+| INIT-04 | Phase 16 | Complete |
 
 **Coverage:**
 - v1.2 requirements: 29 total
