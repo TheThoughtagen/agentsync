@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Real-World Hardening
 status: in-progress
-last_updated: "2026-03-09T17:55:35Z"
+last_updated: "2026-03-09T17:59:46Z"
 progress:
   total_phases: 4
   completed_phases: 4
   total_plans: 8
-  completed_plans: 7
+  completed_plans: 8
 ---
 
 # Project State
@@ -23,16 +23,16 @@ See: .planning/PROJECT.md (updated 2026-03-09)
 ## Current Position
 
 Phase: 16 of 16 (Init Completeness)
-Plan: 1 of 2 in current phase (Plan 01 complete)
-Status: Phase 16 in progress
-Last activity: 2026-03-09 -- Phase 16 Plan 01 executed
+Plan: 2 of 2 in current phase (Plan 02 complete)
+Status: Phase 16 complete -- v1.2 milestone complete
+Last activity: 2026-03-09 -- Phase 16 Plan 02 executed
 
-Progress: [█████████░] 88% (v1.2: 7/8 plans)
+Progress: [██████████] 100% (v1.2: 8/8 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 40 (v1.0: 20, v1.1: 13, v1.2: 7)
+- Total plans completed: 41 (v1.0: 20, v1.1: 13, v1.2: 8)
 - Average duration: ~25 min
 - Total execution time: ~14.0 hours
 
@@ -67,6 +67,8 @@ Progress: [█████████░] 88% (v1.2: 7/8 plans)
 - [Phase 14]: Claude Code sources checked first (.claude/.mcp.json then root fallback) before Cursor for first-seen-wins merge priority
 - [Phase 16]: all_enabled_config test helpers updated to explicitly list all 5 builtins rather than relying on implicit enablement
 - [Phase 16]: Dry-run prefix is "Would: " (with colon) to clearly separate from action description
+- [Phase 16]: Sync errors during init are non-fatal warnings, not hard failures
+- [Phase 16]: SkipExistingFile actions auto-converted to RemoveAndRelink since user already chose to init
 
 ### Pending Todos
 
@@ -81,5 +83,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-09
-Stopped at: Completed 16-01-PLAN.md
+Stopped at: Completed 16-02-PLAN.md -- Phase 16 complete, v1.2 milestone complete
 Resume file: None

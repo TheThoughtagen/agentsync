@@ -4,7 +4,7 @@
 
 - ✅ **v1.0 aisync** — Phases 1-5 (shipped 2026-03-07)
 - ✅ **v1.1 Adapter Expansion & Plugin SDK** — Phases 6-11 (shipped 2026-03-09)
-- 🚧 **v1.2 Real-World Hardening** — Phases 12-16 (in progress)
+- ✅ **v1.2 Real-World Hardening** — Phases 12-16 (shipped 2026-03-09)
 
 ## Phases
 
@@ -31,7 +31,7 @@
 
 </details>
 
-### 🚧 v1.2 Real-World Hardening (In Progress)
+### ✅ v1.2 Real-World Hardening (Shipped 2026-03-09)
 
 **Milestone Goal:** Make aisync work correctly on real production codebases with multi-file rules, MCP servers, and complete init-to-sync workflows.
 
@@ -39,7 +39,7 @@
 - [x] **Phase 13: Multi-File Rule Sync** - Users can define rules once and have them sync to every tool's native format (completed 2026-03-09)
 - [x] **Phase 14: MCP Server Config & Security** - Users can define MCP servers once and share them across tools without leaking secrets (completed 2026-03-09)
 - [x] **Phase 15: Command Sync** - Users can define slash commands once and have them available in all supporting tools (completed 2026-03-09)
-- [ ] **Phase 16: Init Completeness** - Init workflow produces a fully synced project with zero drift
+- [x] **Phase 16: Init Completeness** - Init workflow produces a fully synced project with zero drift (completed 2026-03-09)
 
 ## Phase Details
 
@@ -135,7 +135,7 @@ Phases execute in numeric order. Phase 16 depends on 13, 14, and 15 completing. 
 | 13. Multi-File Rule Sync | 2/2 | Complete    | 2026-03-09 | - |
 | 14. MCP Server Config & Security | 2/2 | Complete    | 2026-03-09 | - |
 | 15. Command Sync | 2/2 | Complete    | 2026-03-09 | - |
-| 16. Init Completeness | v1.2 | 1/2 | In progress | - |
+| 16. Init Completeness | v1.2 | 2/2 | Complete | 2026-03-09 |
 
 ---
 *Roadmap created: 2026-03-08*
