@@ -8,8 +8,8 @@ pub use aisync_types;
 use std::path::{Path, PathBuf};
 
 use aisync_types::{
-    Confidence, DriftState, HookTranslation, HooksConfig, SyncAction, SyncStrategy, ToolKind,
-    ToolSyncStatus,
+    CommandFile, Confidence, DriftState, HookTranslation, HooksConfig, McpConfig, RuleFile,
+    SyncAction, SyncStrategy, ToolKind, ToolSyncStatus,
 };
 
 /// Errors specific to individual tool adapters.
@@ -127,6 +127,36 @@ pub trait ToolAdapter: Send + Sync {
             tool: self.name(),
             reason: "hooks not supported by this tool".into(),
         })
+    }
+
+    /// Plan rule file sync actions for this tool.
+    fn plan_rules_sync(
+        &self,
+        project_root: &Path,
+        rules: &[RuleFile],
+    ) -> Result<Vec<SyncAction>, AdapterError> {
+        let _ = (project_root, rules);
+        Ok(vec![])
+    }
+
+    /// Plan MCP config sync actions for this tool.
+    fn plan_mcp_sync(
+        &self,
+        project_root: &Path,
+        mcp_config: &McpConfig,
+    ) -> Result<Vec<SyncAction>, AdapterError> {
+        let _ = (project_root, mcp_config);
+        Ok(vec![])
+    }
+
+    /// Plan command file sync actions for this tool.
+    fn plan_commands_sync(
+        &self,
+        project_root: &Path,
+        commands: &[CommandFile],
+    ) -> Result<Vec<SyncAction>, AdapterError> {
+        let _ = (project_root, commands);
+        Ok(vec![])
     }
 }
 

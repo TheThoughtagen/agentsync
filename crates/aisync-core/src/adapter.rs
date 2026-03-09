@@ -173,6 +173,30 @@ impl ToolAdapter for AnyAdapter {
     fn translate_hooks(&self, hooks: &aisync_adapter::aisync_types::HooksConfig) -> Result<aisync_adapter::aisync_types::HookTranslation, AdpErr> {
         dispatch_adapter!(self, a => a.translate_hooks(hooks))
     }
+
+    fn plan_rules_sync(
+        &self,
+        project_root: &Path,
+        rules: &[aisync_adapter::aisync_types::RuleFile],
+    ) -> Result<Vec<aisync_adapter::aisync_types::SyncAction>, AdpErr> {
+        dispatch_adapter!(self, a => a.plan_rules_sync(project_root, rules))
+    }
+
+    fn plan_mcp_sync(
+        &self,
+        project_root: &Path,
+        mcp_config: &aisync_adapter::aisync_types::McpConfig,
+    ) -> Result<Vec<aisync_adapter::aisync_types::SyncAction>, AdpErr> {
+        dispatch_adapter!(self, a => a.plan_mcp_sync(project_root, mcp_config))
+    }
+
+    fn plan_commands_sync(
+        &self,
+        project_root: &Path,
+        commands: &[aisync_adapter::aisync_types::CommandFile],
+    ) -> Result<Vec<aisync_adapter::aisync_types::SyncAction>, AdpErr> {
+        dispatch_adapter!(self, a => a.plan_commands_sync(project_root, commands))
+    }
 }
 
 #[cfg(test)]
@@ -338,5 +362,62 @@ mod tests {
                 version_hint: None,
             })
         }
+    }
+
+    // --- Phase 12, Plan 01 tests: new trait methods ---
+
+    #[test]
+    fn test_minimal_adapter_plan_rules_sync_default() {
+        let adapter = MinimalAdapter;
+        let result = adapter.plan_rules_sync(Path::new("."), &[]).unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_minimal_adapter_plan_mcp_sync_default() {
+        use aisync_adapter::aisync_types::McpConfig;
+        use std::collections::BTreeMap;
+        let adapter = MinimalAdapter;
+        let config = McpConfig { servers: BTreeMap::new() };
+        let result = adapter.plan_mcp_sync(Path::new("."), &config).unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_minimal_adapter_plan_commands_sync_default() {
+        let adapter = MinimalAdapter;
+        let result = adapter.plan_commands_sync(Path::new("."), &[]).unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_any_adapter_plugin_plan_rules_sync() {
+        let plugin = AnyAdapter::Plugin(Arc::new(MinimalAdapter));
+        let result = plugin.plan_rules_sync(Path::new("."), &[]).unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_any_adapter_plugin_plan_mcp_sync() {
+        use aisync_adapter::aisync_types::McpConfig;
+        use std::collections::BTreeMap;
+        let plugin = AnyAdapter::Plugin(Arc::new(MinimalAdapter));
+        let config = McpConfig { servers: BTreeMap::new() };
+        let result = plugin.plan_mcp_sync(Path::new("."), &config).unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_any_adapter_plugin_plan_commands_sync() {
+        let plugin = AnyAdapter::Plugin(Arc::new(MinimalAdapter));
+        let result = plugin.plan_commands_sync(Path::new("."), &[]).unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_any_adapter_claude_code_plan_rules_sync() {
+        let adapter = AnyAdapter::ClaudeCode(ClaudeCodeAdapter);
+        let result = adapter.plan_rules_sync(Path::new("."), &[]).unwrap();
+        assert!(result.is_empty());
     }
 }

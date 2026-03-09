@@ -634,6 +634,37 @@ impl SyncEngine {
                 // No filesystem change -- advisory only
                 Ok(())
             }
+            SyncAction::CreateRuleFile { output, content, .. } => {
+                if let Some(parent) = output.parent() {
+                    std::fs::create_dir_all(parent)
+                        .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
+                }
+                std::fs::write(output, content)
+                    .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
+                Ok(())
+            }
+            SyncAction::WriteMcpConfig { output, content } => {
+                if let Some(parent) = output.parent() {
+                    std::fs::create_dir_all(parent)
+                        .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
+                }
+                std::fs::write(output, content)
+                    .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
+                Ok(())
+            }
+            SyncAction::CopyCommandFile { output, source, .. } => {
+                if let Some(parent) = output.parent() {
+                    std::fs::create_dir_all(parent)
+                        .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
+                }
+                std::fs::copy(source, output)
+                    .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
+                Ok(())
+            }
+            SyncAction::WarnUnsupportedDimension { .. } => {
+                // No filesystem change -- advisory only
+                Ok(())
+            }
         }
     }
 
