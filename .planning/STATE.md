@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Adapter Expansion & Plugin SDK
-status: unknown
-last_updated: "2026-03-09T03:01:22.268Z"
+status: in-progress
+last_updated: "2026-03-09T03:37:33Z"
 progress:
-  total_phases: 4
+  total_phases: 5
   completed_phases: 4
-  total_plans: 9
-  completed_plans: 9
+  total_plans: 11
+  completed_plans: 10
 ---
 
 # Project State
@@ -18,24 +18,24 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-07)
 
 **Core value:** Every AI tool working on a project sees the same instructions, memory, and hooks -- always in sync, zero manual copying.
-**Current focus:** Phase 9 - Plugin SDK Crate Extraction
+**Current focus:** Phase 10 - Declarative TOML Adapters
 
 ## Current Position
 
-Phase: 9 of 11 (Plugin SDK Crate Extraction) -- fourth of 6 v1.1 phases
-Plan: 2 of 2 complete
-Status: Phase Complete
-Last activity: 2026-03-09 -- Completed 09-02 (Adapter Trait Extraction)
+Phase: 10 of 11 (Declarative TOML Adapters) -- fifth of 6 v1.1 phases
+Plan: 1 of 2 complete
+Status: In Progress
+Last activity: 2026-03-09 -- Completed 10-01 (TOML Adapter Schema & DeclarativeAdapter)
 
-Progress: [██████████] 100%
+Progress: [█████████░] 90%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 27 (20 v1.0 + 7 v1.1)
-- v1.1 plans completed: 9
+- Total plans completed: 28 (20 v1.0 + 8 v1.1)
+- v1.1 plans completed: 10
 - Average duration: 7min
-- Total execution time: 45min
+- Total execution time: 50min
 
 ## Accumulated Context
 
@@ -70,6 +70,9 @@ Progress: [██████████] 100%
 - AdapterError expanded with Io and Other variants for community adapter ergonomics
 - ToolAdapter trait methods return AdapterError (not AisyncError) to decouple SDK from core error hierarchy
 - Backward compat via pub use re-exports in adapter.rs and error.rs
+- Box::leak pattern for conditional_tags/watch_paths &'static str lifetime (acceptable for program-lifetime adapters)
+- Custom Default impl for DetectionDef to ensure match_any defaults to true even when entire section omitted
+- strip_frontmatter helper supports arbitrary delimiter strings (not just ---)
 
 ### Pending Todos
 
@@ -83,6 +86,6 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-09
-Stopped at: Completed 09-02-PLAN.md
-Resume file: .planning/phases/09-plugin-sdk-crate-extraction/09-02-SUMMARY.md
-Next: Phase 10 (Plugin Registration)
+Stopped at: Completed 10-01-PLAN.md
+Resume file: .planning/phases/10-declarative-toml-adapters/10-01-SUMMARY.md
+Next: 10-02 (Adapter Registry & Loading)
