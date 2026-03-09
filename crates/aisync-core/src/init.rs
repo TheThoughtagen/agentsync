@@ -120,6 +120,9 @@ impl InitEngine {
         // Import existing Claude Code commands into .ai/commands/
         Self::import_commands(project_root)?;
 
+        // Import existing MCP server configurations into .ai/mcp.toml
+        Self::import_mcp(project_root)?;
+
         Ok(())
     }
 
@@ -181,6 +184,60 @@ impl InitEngine {
         }
 
         Ok(count)
+    }
+
+    /// Import existing MCP server configurations from Claude Code and Cursor.
+    ///
+    /// Reads `.claude/.mcp.json` (with root `.mcp.json` as fallback) and `.cursor/mcp.json`,
+    /// merges servers with first-seen-wins priority (Claude Code > Cursor),
+    /// sanitizes secrets, and writes `.ai/mcp.toml`.
+    /// Returns the count of imported servers. Returns 0 and writes nothing if no configs found.
+    pub fn import_mcp(project_root: &Path) -> Result<usize, AisyncError> {
+        use crate::mcp::McpEngine;
+        use crate::security::SecurityScanner;
+        use crate::types::McpConfig;
+
+        let mut merged = McpConfig {
+            servers: std::collections::BTreeMap::new(),
+        };
+
+        // Import from Claude Code: .claude/.mcp.json first, then root .mcp.json as fallback
+        let claude_path = project_root.join(".claude/.mcp.json");
+        let root_path = project_root.join(".mcp.json");
+        let claude_config = if claude_path.exists() {
+            McpEngine::parse_mcp_json(&claude_path)?
+        } else {
+            McpEngine::parse_mcp_json(&root_path)?
+        };
+        for (name, server) in claude_config.servers {
+            merged.servers.entry(name).or_insert(server);
+        }
+
+        // Import from Cursor: .cursor/mcp.json
+        let cursor_path = project_root.join(".cursor/mcp.json");
+        let cursor_config = McpEngine::parse_mcp_json(&cursor_path)?;
+        for (name, server) in cursor_config.servers {
+            merged.servers.entry(name).or_insert(server);
+        }
+
+        if merged.servers.is_empty() {
+            return Ok(0);
+        }
+
+        // Scan for security warnings before sanitization (for logging/display)
+        let _warnings = SecurityScanner::scan_mcp_config(&merged);
+
+        // Sanitize secrets
+        McpEngine::sanitize_env(&mut merged);
+
+        // Write .ai/mcp.toml
+        let ai_dir = project_root.join(".ai");
+        std::fs::create_dir_all(&ai_dir).map_err(InitError::ScaffoldFailed)?;
+        let toml_str = toml::to_string_pretty(&merged)
+            .map_err(|e| InitError::ImportFailed(format!("failed to serialize MCP config: {e}")))?;
+        std::fs::write(ai_dir.join("mcp.toml"), toml_str).map_err(InitError::ScaffoldFailed)?;
+
+        Ok(merged.servers.len())
     }
 
     /// Import existing Claude Code command files into canonical .ai/commands/ directory.

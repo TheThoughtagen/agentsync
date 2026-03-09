@@ -1,8 +1,9 @@
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use crate::error::{AisyncError, SyncError};
 use crate::security::SecurityScanner;
-use crate::types::McpConfig;
+use crate::types::{McpConfig, McpServer};
 
 /// Engine for loading and processing MCP server configuration from `.ai/mcp.toml`.
 pub struct McpEngine;
@@ -43,6 +44,85 @@ impl McpEngine {
                 }
             }
         }
+    }
+
+    /// Parse a tool-native MCP JSON file (e.g., `.claude/.mcp.json`, `.cursor/mcp.json`).
+    ///
+    /// Expects `{"mcpServers": {"name": {"command": "...", "args": [...], "env": {...}}}}`.
+    /// Servers without a `command` field (HTTP/SSE transport) are skipped.
+    /// Returns an empty McpConfig if the file doesn't exist or contains invalid JSON.
+    pub fn parse_mcp_json(path: &Path) -> Result<McpConfig, AisyncError> {
+        if !path.exists() {
+            return Ok(McpConfig {
+                servers: BTreeMap::new(),
+            });
+        }
+
+        let raw = match std::fs::read_to_string(path) {
+            Ok(s) => s,
+            Err(_) => {
+                return Ok(McpConfig {
+                    servers: BTreeMap::new(),
+                });
+            }
+        };
+
+        let parsed: serde_json::Value = match serde_json::from_str(&raw) {
+            Ok(v) => v,
+            Err(_) => {
+                return Ok(McpConfig {
+                    servers: BTreeMap::new(),
+                });
+            }
+        };
+
+        let mcp_servers = match parsed.get("mcpServers").and_then(|v| v.as_object()) {
+            Some(obj) => obj,
+            None => {
+                return Ok(McpConfig {
+                    servers: BTreeMap::new(),
+                });
+            }
+        };
+
+        let mut servers = BTreeMap::new();
+
+        for (name, value) in mcp_servers {
+            let obj = match value.as_object() {
+                Some(o) => o,
+                None => continue,
+            };
+
+            // Skip servers without "command" field (HTTP/SSE transport)
+            let command = match obj.get("command").and_then(|v| v.as_str()) {
+                Some(c) => c.to_string(),
+                None => continue,
+            };
+
+            let args: Vec<String> = obj
+                .get("args")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            let env: BTreeMap<String, String> = obj
+                .get("env")
+                .and_then(|v| v.as_object())
+                .map(|m| {
+                    m.iter()
+                        .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            servers.insert(name.clone(), McpServer { command, args, env });
+        }
+
+        Ok(McpConfig { servers })
     }
 
     /// Generate `{"mcpServers": {...}}` JSON for the given MCP config.
