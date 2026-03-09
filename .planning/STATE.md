@@ -8,7 +8,7 @@ progress:
   total_phases: 3
   completed_phases: 3
   total_plans: 9
-  completed_plans: 8
+  completed_plans: 9
 ---
 
 # Project State
@@ -23,19 +23,19 @@ See: .planning/PROJECT.md (updated 2026-03-07)
 ## Current Position
 
 Phase: 9 of 11 (Plugin SDK Crate Extraction) -- fourth of 6 v1.1 phases
-Plan: 1 of 2 complete
-Status: In Progress
-Last activity: 2026-03-09 -- Completed 09-01 (Types Crate Extraction)
+Plan: 2 of 2 complete
+Status: Phase Complete
+Last activity: 2026-03-09 -- Completed 09-02 (Adapter Trait Extraction)
 
-Progress: [█████████░] 50%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 26 (20 v1.0 + 6 v1.1)
-- v1.1 plans completed: 8
+- Total plans completed: 27 (20 v1.0 + 7 v1.1)
+- v1.1 plans completed: 9
 - Average duration: 7min
-- Total execution time: 38min
+- Total execution time: 45min
 
 ## Accumulated Context
 
@@ -67,6 +67,9 @@ Progress: [█████████░] 50%
 - plan_for_tools runs full plan then filters results (simplest correct approach preserving deduplication)
 - Re-export SyncStrategy in config.rs for backward compatibility (avoids crate::config::SyncStrategy path breakage)
 - Re-export all types via pub use aisync_types::* in types.rs (single re-export point)
+- AdapterError expanded with Io and Other variants for community adapter ergonomics
+- ToolAdapter trait methods return AdapterError (not AisyncError) to decouple SDK from core error hierarchy
+- Backward compat via pub use re-exports in adapter.rs and error.rs
 
 ### Pending Todos
 
@@ -80,6 +83,6 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-09
-Stopped at: Completed 09-01-PLAN.md
-Resume file: .planning/phases/09-plugin-sdk-crate-extraction/09-01-SUMMARY.md
-Next: 09-02 (Adapter Trait Extraction)
+Stopped at: Completed 09-02-PLAN.md
+Resume file: .planning/phases/09-plugin-sdk-crate-extraction/09-02-SUMMARY.md
+Next: Phase 10 (Plugin Registration)

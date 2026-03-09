@@ -25,7 +25,7 @@
 - [ ] **Phase 6: Core Refactoring** - Pull tool metadata into ToolAdapter trait, unblock extensible adapter system
 - [x] **Phase 7: Windsurf & Codex Adapters** - Add two new built-in adapters using refactored trait system (completed 2026-03-08)
 - [ ] **Phase 8: Add-Tool Command** - Interactive CLI for mid-lifecycle tool adoption
-- [ ] **Phase 9: Plugin SDK Crate Extraction** - Extract shared types and adapter trait into publishable crates
+- [x] **Phase 9: Plugin SDK Crate Extraction** - Extract shared types and adapter trait into publishable crates (completed 2026-03-09)
 - [ ] **Phase 10: Declarative TOML Adapters** - Enable adapter authoring without Rust via TOML definitions
 - [ ] **Phase 11: Compile-Time Registration** - Community adapter crates register at build time
 
@@ -130,7 +130,7 @@ Plans:
 | 6. Core Refactoring | v1.1 | 3/3 | Complete | 2026-03-08 |
 | 7. Windsurf & Codex Adapters | 2/2 | Complete   | 2026-03-08 | - |
 | 8. Add-Tool Command | v1.1 | 0/2 | Not started | - |
-| 9. Plugin SDK Crate Extraction | v1.1 | 0/TBD | Not started | - |
+| 9. Plugin SDK Crate Extraction | 2/2 | Complete   | 2026-03-09 | - |
 | 10. Declarative TOML Adapters | v1.1 | 0/TBD | Not started | - |
 | 11. Compile-Time Registration | v1.1 | 0/TBD | Not started | - |
 
