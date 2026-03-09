@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Real-World Hardening
-status: unknown
-last_updated: "2026-03-09T18:05:01.068Z"
+status: complete
+last_updated: "2026-03-09T19:46:39.524Z"
 progress:
   total_phases: 5
   completed_phases: 5
@@ -17,71 +17,45 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-03-09)
 
-**Core value:** Every AI tool working on a project sees the same instructions, memory, and hooks -- always in sync, zero manual copying.
-**Current focus:** Phase 16 - Init Completeness (in progress)
+**Core value:** Every AI tool working on a project sees the same instructions, memory, hooks, rules, MCP servers, and commands — always in sync, zero manual copying.
+**Current focus:** Planning next milestone
 
 ## Current Position
 
-Phase: 16 of 16 (Init Completeness)
-Plan: 2 of 2 in current phase (Plan 02 complete)
-Status: Phase 16 complete -- v1.2 milestone complete
-Last activity: 2026-03-09 -- Phase 16 Plan 02 executed
+Milestone: v1.2 Real-World Hardening — SHIPPED 2026-03-09
+Status: All 3 milestones complete (v1.0, v1.1, v1.2)
+Last activity: 2026-03-09 — v1.2 milestone archived
 
-Progress: [██████████] 100% (v1.2: 8/8 plans)
+Progress: [██████████] 100% (v1.2: 9/9 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 41 (v1.0: 20, v1.1: 13, v1.2: 8)
+- Total plans completed: 42 (v1.0: 20, v1.1: 13, v1.2: 9)
 - Average duration: ~25 min
-- Total execution time: ~14.0 hours
+- Total execution time: ~14.5 hours
 
 **Recent Trend:**
-- v1.1 phases: consistent ~25 min/plan
+- v1.2 phases: consistent ~25 min/plan
 - Trend: Stable
 
 ## Accumulated Context
 
 ### Decisions
 
-- v1.2 scope derived from stress-testing against whk-wms (production monorepo)
-- Security scanner must ship with MCP sync to prevent API key leaks
-- Managed files use `aisync-` prefix to avoid overwriting user-created native rules
-- Forward-only sync for multi-file rules in v1.2 (bidirectional deferred to v1.3)
-- RuleFile/CommandFile not serde-enabled (PathBuf internal only); McpConfig/McpServer/RuleMetadata serde-enabled for config mapping
-- New sync dimensions pattern: types in aisync-types, trait method in aisync-adapter, dispatch in aisync-core/adapter.rs, execution in sync.rs
-- Hand-parse YAML frontmatter for rule files -- no serde_yml dependency needed for simple key-value schema
-- Empty frontmatter edge case requires explicit check for immediate closing delimiter
-- Shared plan_single_file_rules_sync helper in adapters/mod.rs avoids duplication across Claude Code/OpenCode/Codex
-- Rule content concatenated with "## Rule: {name}" headers for readability in single-file tools
-- Commands use aisync-{name}.md naming convention matching rules pattern
-- Shared plan_directory_commands_sync helper in adapters/mod.rs for directory-based command sync
-- Stale aisync-* command files cleaned up automatically during sync
-- Used std::sync::LazyLock for regex compilation in SecurityScanner (stable since Rust 1.80)
-- Security warnings flow as WarnUnsupportedDimension with dimension=security through existing pipeline
-- McpEngine::generate_mcp_json omits empty args/env for cleaner output
-- sanitize_env uses env key name for ${KEY_NAME} substitution
-- import_commands follows identical pattern to import_rules for consistency
-- Commands copied verbatim during init (no frontmatter translation needed)
-- [Phase 14]: parse_mcp_json returns empty McpConfig for missing/invalid files (non-fatal import)
-- [Phase 14]: Claude Code sources checked first (.claude/.mcp.json then root fallback) before Cursor for first-seen-wins merge priority
-- [Phase 16]: all_enabled_config test helpers updated to explicitly list all 5 builtins rather than relying on implicit enablement
-- [Phase 16]: Dry-run prefix is "Would: " (with colon) to clearly separate from action description
-- [Phase 16]: Sync errors during init are non-fatal warnings, not hard failures
-- [Phase 16]: SkipExistingFile actions auto-converted to RemoveAndRelink since user already chose to init
+(Archived to PROJECT.md Key Decisions table — see v1.2 entries)
 
 ### Pending Todos
 
-None yet.
+None.
 
 ### Blockers/Concerns
 
-- Cursor folder-based rules (post-v2.2) may obsolete `.mdc` format -- monitor
-- Cursor command format documentation is sparse -- validate during Phase 15
-- OpenCode command format undocumented -- may skip OpenCode command sync
+- Cursor folder-based rules (post-v2.2) may obsolete `.mdc` format — monitor
+- OpenCode command format undocumented — may skip OpenCode command sync in future
 
 ## Session Continuity
 
 Last session: 2026-03-09
-Stopped at: Completed 16-02-PLAN.md -- Phase 16 complete, v1.2 milestone complete
+Stopped at: v1.2 milestone archived
 Resume file: None

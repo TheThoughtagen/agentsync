@@ -89,6 +89,49 @@
 
 ---
 
+## Milestone: v1.2 — Real-World Hardening
+
+**Shipped:** 2026-03-09
+**Phases:** 5 | **Plans:** 9 | **Sessions:** ~4
+
+### What Was Built
+- Multi-file rule sync engine — `.ai/rules/*.md` with YAML frontmatter to Cursor `.mdc`, Windsurf `.md`, and concatenated content for single-file tools
+- MCP server config sync — canonical `.ai/mcp.toml` generates per-tool JSON with automatic secret stripping
+- Security scanner with regex-based API key detection (AWS, GitHub, Slack, generic) and non-blocking warnings
+- Command sync — `.ai/commands/` slash commands to Claude Code and Cursor with stale file cleanup
+- Init completeness — zero-drift after init, ghost tool filtering, correct sync messaging
+- Type foundation — RuleFile, McpConfig, CommandFile types and three new adapter trait methods
+
+### What Worked
+- Dependency graph design (Phase 12 foundation → 13/14/15 parallel → 16 integration) enabled clean layering
+- Consistent "engine" pattern: RuleEngine, McpEngine, CommandEngine, SecurityScanner all follow load/process/generate flow
+- Shared helper functions (plan_single_file_rules_sync, plan_directory_commands_sync) eliminated adapter duplication
+- `aisync-` prefix convention for managed files cleanly separates user-created from synced files
+- Hand-parsed YAML frontmatter avoided pulling in serde_yml dependency for a simple key-value schema
+
+### What Was Inefficient
+- Audit was run before Phase 16 execution — showed 4 "gaps" that were simply not-yet-started work
+- ROADMAP.md progress table had column shifts for Phase 12-15 rows (missing milestone column)
+- Phase 16 was lighter than expected (2 bug fixes + 1 auto-sync) — could have been a single plan
+
+### Patterns Established
+- New sync dimension pattern: types in aisync-types → trait method in aisync-adapter → dispatch in adapter.rs → execution in sync.rs
+- SecurityScanner with LazyLock regex compilation — zero-cost after first use, thread-safe
+- Non-fatal error handling for import operations (missing/invalid files return empty config)
+- WarnUnsupportedDimension as generic warning pipeline for security and transport warnings
+
+### Key Lessons
+1. Run milestone audit AFTER all phases complete, not before the last phase — stale audits create noise
+2. The engine pattern (load → process → generate) scales well across sync dimensions — keep it
+3. Forward-only sync for v1.x is the right call — bidirectional multi-file sync adds significant complexity for little gain at this stage
+
+### Cost Observations
+- Model mix: 100% opus (balanced profile)
+- Sessions: ~4
+- Notable: 9 plans in ~4 hours total (26 min/plan average), including all 5 sync dimensions
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -97,6 +140,7 @@
 |-----------|----------|--------|------------|
 | v1.0 | ~10 | 5 | Initial milestone — established phased delivery pattern |
 | v1.1 | ~6 | 6 | Plugin SDK + adapter expansion — refactor-first approach validated |
+| v1.2 | ~4 | 5 | Real-world hardening — dependency graph design for parallel phases |
 
 ### Cumulative Quality
 
@@ -104,6 +148,7 @@
 |-----------|-------|----------|-----------------|
 | v1.0 | 188 | N/A | 7 (all minor) |
 | v1.1 | 339 | N/A | 2 (all minor) |
+| v1.2 | 339+ | N/A | 2 (carried from v1.1) |
 
 ### Top Lessons (Verified Across Milestones)
 
@@ -111,3 +156,4 @@
 2. Keep core library non-interactive; push all prompting to CLI layer
 3. Refactor before expanding — invest in trait/interface cleanup before adding new implementations
 4. Re-export chains enable zero-breaking-change crate extraction
+5. The "engine" pattern (load → process → generate) scales across sync dimensions — consistent architecture

@@ -1,5 +1,21 @@
 # Milestones
 
+## v1.2 Real-World Hardening (Shipped: 2026-03-09)
+
+**Phases completed:** 5 phases, 9 plans
+**Stats:** 40 commits, 41 files changed, 16,917 LOC Rust (up from 12,960), 1 day (2026-03-09)
+**Git range:** feat(12-01) → docs(phase-16)
+
+**Key accomplishments:**
+- Multi-file rule sync — `.ai/rules/*.md` with YAML frontmatter syncs to Cursor `.mdc`, Windsurf `.md`, and concatenated content for single-file tools
+- MCP server config sync — canonical `.ai/mcp.toml` generates per-tool JSON for Claude Code and Cursor with automatic secret stripping
+- Security scanner — regex-based API key detection in MCP configs with non-blocking warnings
+- Command sync — `.ai/commands/` slash commands sync to Claude Code and Cursor with stale cleanup
+- Init completeness — zero-drift after init, ghost tool filtering, correct sync messaging
+- Type foundation — RuleFile, McpConfig, CommandFile types and three new adapter trait methods
+
+---
+
 ## v1.1 Adapter Expansion & Plugin SDK (Shipped: 2026-03-09)
 
 **Phases completed:** 6 phases, 13 plans
