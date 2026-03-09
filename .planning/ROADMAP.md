@@ -36,7 +36,7 @@
 **Milestone Goal:** Make aisync work correctly on real production codebases with multi-file rules, MCP servers, and complete init-to-sync workflows.
 
 - [x] **Phase 12: Types & Trait Foundation** - New types and trait methods that unblock all subsequent phases (completed 2026-03-09)
-- [ ] **Phase 13: Multi-File Rule Sync** - Users can define rules once and have them sync to every tool's native format
+- [x] **Phase 13: Multi-File Rule Sync** - Users can define rules once and have them sync to every tool's native format (completed 2026-03-09)
 - [ ] **Phase 14: MCP Server Config & Security** - Users can define MCP servers once and share them across tools without leaking secrets
 - [ ] **Phase 15: Command Sync** - Users can define slash commands once and have them available in all supporting tools
 - [ ] **Phase 16: Init Completeness** - Init workflow produces a fully synced project with zero drift
@@ -123,7 +123,7 @@ Phases execute in numeric order. Phase 16 depends on 13, 14, and 15 completing. 
 | 10. Declarative TOML Adapters | v1.1 | 2/2 | Complete | 2026-03-09 |
 | 11. Compile-Time Registration | v1.1 | 2/2 | Complete | 2026-03-09 |
 | 12. Types & Trait Foundation | 1/1 | Complete    | 2026-03-09 | - |
-| 13. Multi-File Rule Sync | 1/2 | In Progress|  | - |
+| 13. Multi-File Rule Sync | 2/2 | Complete   | 2026-03-09 | - |
 | 14. MCP Server Config & Security | v1.2 | 0/? | Not started | - |
 | 15. Command Sync | v1.2 | 0/? | Not started | - |
 | 16. Init Completeness | v1.2 | 0/? | Not started | - |

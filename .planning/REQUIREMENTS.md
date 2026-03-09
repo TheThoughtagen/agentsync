@@ -12,8 +12,8 @@ Requirements for v1.2 release. Each maps to roadmap phases.
 - [x] **RULES-01**: User can place multiple rule files in `.ai/rules/` with YAML frontmatter (description, globs, always_apply)
 - [x] **RULES-02**: `aisync sync` generates per-rule `.mdc` files in `.cursor/rules/` with correct Cursor frontmatter
 - [x] **RULES-03**: `aisync sync` generates per-rule `.md` files in `.windsurf/rules/` with correct Windsurf frontmatter (trigger types)
-- [ ] **RULES-04**: Single-file tools (Claude Code, OpenCode, Codex) receive concatenated effective content from all rules appended to instructions
-- [ ] **RULES-05**: `aisync init` imports existing Cursor `.mdc` and Windsurf `.md` rule files into `.ai/rules/` with frontmatter translation
+- [x] **RULES-04**: Single-file tools (Claude Code, OpenCode, Codex) receive concatenated effective content from all rules appended to instructions
+- [x] **RULES-05**: `aisync init` imports existing Cursor `.mdc` and Windsurf `.md` rule files into `.ai/rules/` with frontmatter translation
 - [x] **RULES-06**: Managed rule files use `aisync-` prefix to avoid overwriting user-created native rules
 - [x] **RULES-07**: `aisync sync` removes stale `aisync-` managed files that no longer have a canonical source
 
@@ -100,8 +100,8 @@ Deferred to future release. Tracked but not in current roadmap.
 | RULES-01 | Phase 13 | Complete |
 | RULES-02 | Phase 13 | Complete |
 | RULES-03 | Phase 13 | Complete |
-| RULES-04 | Phase 13 | Pending |
-| RULES-05 | Phase 13 | Pending |
+| RULES-04 | Phase 13 | Complete |
+| RULES-05 | Phase 13 | Complete |
 | RULES-06 | Phase 13 | Complete |
 | RULES-07 | Phase 13 | Complete |
 | MCP-01 | Phase 14 | Pending |
