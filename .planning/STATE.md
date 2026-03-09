@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Adapter Expansion & Plugin SDK
-status: unknown
-last_updated: "2026-03-08T19:59:18.676Z"
+status: in-progress
+last_updated: "2026-03-09T02:46:07Z"
 progress:
   total_phases: 3
   completed_phases: 3
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 9
+  completed_plans: 8
 ---
 
 # Project State
@@ -18,24 +18,24 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-07)
 
 **Core value:** Every AI tool working on a project sees the same instructions, memory, and hooks -- always in sync, zero manual copying.
-**Current focus:** Phase 8 - Add Tool Command
+**Current focus:** Phase 9 - Plugin SDK Crate Extraction
 
 ## Current Position
 
-Phase: 8 of 11 (Add Tool Command) -- third of 6 v1.1 phases
-Plan: 2 of 2 complete
-Status: Complete
-Last activity: 2026-03-08 -- Completed 08-02 (Add Tool CLI Command)
+Phase: 9 of 11 (Plugin SDK Crate Extraction) -- fourth of 6 v1.1 phases
+Plan: 1 of 2 complete
+Status: In Progress
+Last activity: 2026-03-09 -- Completed 09-01 (Types Crate Extraction)
 
-Progress: [██████████] 100%
+Progress: [█████████░] 50%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 25 (20 v1.0 + 5 v1.1)
-- v1.1 plans completed: 7
+- Total plans completed: 26 (20 v1.0 + 6 v1.1)
+- v1.1 plans completed: 8
 - Average duration: 7min
-- Total execution time: 36min
+- Total execution time: 38min
 
 ## Accumulated Context
 
@@ -65,6 +65,8 @@ Progress: [██████████] 100%
 - Reuse InitError for add_tool errors (ScaffoldFailed for IO, ImportFailed for serialization)
 - Omit sync_strategy from ToolConfig when adapter default is Symlink (keeps TOML clean)
 - plan_for_tools runs full plan then filters results (simplest correct approach preserving deduplication)
+- Re-export SyncStrategy in config.rs for backward compatibility (avoids crate::config::SyncStrategy path breakage)
+- Re-export all types via pub use aisync_types::* in types.rs (single re-export point)
 
 ### Pending Todos
 
@@ -77,7 +79,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-08
-Stopped at: Completed 08-02-PLAN.md
-Resume file: .planning/phases/08-add-tool-command/08-02-SUMMARY.md
-Next: Phase 9 (Adapter Trait Refactor)
+Last session: 2026-03-09
+Stopped at: Completed 09-01-PLAN.md
+Resume file: .planning/phases/09-plugin-sdk-crate-extraction/09-01-SUMMARY.md
+Next: 09-02 (Adapter Trait Extraction)
