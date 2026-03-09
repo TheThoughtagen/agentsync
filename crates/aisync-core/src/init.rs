@@ -738,6 +738,99 @@ mod tests {
         assert!(canonical.contains("Detailed content here."));
     }
 
+    // --- import_commands tests ---
+
+    #[test]
+    fn test_import_commands_from_claude() {
+        let dir = TempDir::new().unwrap();
+        let claude_commands = dir.path().join(".claude/commands");
+        std::fs::create_dir_all(&claude_commands).unwrap();
+        std::fs::write(claude_commands.join("review.md"), "Review this code carefully.").unwrap();
+
+        let count = InitEngine::import_commands(dir.path()).unwrap();
+        assert_eq!(count, 1);
+
+        let imported = std::fs::read_to_string(dir.path().join(".ai/commands/review.md")).unwrap();
+        assert_eq!(imported, "Review this code carefully.");
+    }
+
+    #[test]
+    fn test_import_commands_skips_aisync_prefixed() {
+        let dir = TempDir::new().unwrap();
+        let claude_commands = dir.path().join(".claude/commands");
+        std::fs::create_dir_all(&claude_commands).unwrap();
+        std::fs::write(claude_commands.join("aisync-build.md"), "Managed command").unwrap();
+        std::fs::write(claude_commands.join("deploy.md"), "Deploy command").unwrap();
+
+        let count = InitEngine::import_commands(dir.path()).unwrap();
+        assert_eq!(count, 1);
+
+        assert!(!dir.path().join(".ai/commands/aisync-build.md").exists());
+        assert!(dir.path().join(".ai/commands/deploy.md").exists());
+    }
+
+    #[test]
+    fn test_import_commands_empty_directory() {
+        let dir = TempDir::new().unwrap();
+        // No .claude/commands directory at all
+        let count = InitEngine::import_commands(dir.path()).unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_import_commands_creates_dir_if_missing() {
+        let dir = TempDir::new().unwrap();
+        let claude_commands = dir.path().join(".claude/commands");
+        std::fs::create_dir_all(&claude_commands).unwrap();
+        std::fs::write(claude_commands.join("test.md"), "Test command").unwrap();
+
+        // .ai/commands/ does not exist yet
+        assert!(!dir.path().join(".ai/commands").is_dir());
+
+        let count = InitEngine::import_commands(dir.path()).unwrap();
+        assert_eq!(count, 1);
+        assert!(dir.path().join(".ai/commands").is_dir());
+        assert!(dir.path().join(".ai/commands/test.md").exists());
+    }
+
+    #[test]
+    fn test_import_commands_skips_non_md_files() {
+        let dir = TempDir::new().unwrap();
+        let claude_commands = dir.path().join(".claude/commands");
+        std::fs::create_dir_all(&claude_commands).unwrap();
+        std::fs::write(claude_commands.join("readme.txt"), "Not a command").unwrap();
+        std::fs::write(claude_commands.join("script.sh"), "#!/bin/bash").unwrap();
+        std::fs::write(claude_commands.join("valid.md"), "A command").unwrap();
+
+        let count = InitEngine::import_commands(dir.path()).unwrap();
+        assert_eq!(count, 1);
+        assert!(dir.path().join(".ai/commands/valid.md").exists());
+        assert!(!dir.path().join(".ai/commands/readme.txt").exists());
+    }
+
+    #[test]
+    fn test_scaffold_calls_import_commands() {
+        let dir = TempDir::new().unwrap();
+        let claude_commands = dir.path().join(".claude/commands");
+        std::fs::create_dir_all(&claude_commands).unwrap();
+        std::fs::write(claude_commands.join("auto-cmd.md"), "Auto imported command").unwrap();
+
+        let options = InitOptions {
+            force: false,
+            import_from: None,
+        };
+
+        InitEngine::scaffold(dir.path(), &[], None, &options).unwrap();
+
+        // scaffold should have called import_commands automatically
+        assert!(
+            dir.path().join(".ai/commands/auto-cmd.md").exists(),
+            "scaffold should automatically import commands"
+        );
+        let content = std::fs::read_to_string(dir.path().join(".ai/commands/auto-cmd.md")).unwrap();
+        assert_eq!(content, "Auto imported command");
+    }
+
     #[test]
     fn test_scaffold_calls_import_rules() {
         let dir = TempDir::new().unwrap();
