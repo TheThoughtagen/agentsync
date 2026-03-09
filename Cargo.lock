@@ -30,11 +30,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "aisync-adapter"
+version = "0.1.0"
+dependencies = [
+ "aisync-types",
+ "inventory",
+ "thiserror",
+]
+
+[[package]]
 name = "aisync-core"
 version = "0.1.0"
 dependencies = [
+ "aisync-adapter",
+ "aisync-types",
  "dirs",
  "hex",
+ "inventory",
  "notify",
  "notify-debouncer-mini",
  "serde",
@@ -44,6 +56,15 @@ dependencies = [
  "tempfile",
  "thiserror",
  "toml",
+]
+
+[[package]]
+name = "aisync-types"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror",
 ]
 
 [[package]]
@@ -582,6 +603,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "inventory"
+version = "0.3.22"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "009ae045c87e7082cb72dab0ccd01ae075dd00141ddc108f43a0ea150a9e7227"
+dependencies = [
+ "rustversion",
+]
+
+[[package]]
 name = "is_terminal_polyfill"
 version = "1.70.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -879,6 +909,12 @@ dependencies = [
  "linux-raw-sys",
  "windows-sys 0.61.2",
 ]
+
+[[package]]
+name = "rustversion"
+version = "1.0.22"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b39cdef0fa800fc44525c84ccb54a029961a8215f9619753635a9c0d2538d46d"
 
 [[package]]
 name = "same-file"

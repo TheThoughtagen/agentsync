@@ -52,6 +52,22 @@ impl DetectionEngine {
             }
         }
 
+        // Include compile-time registered adapters from inventory.
+        // Errors from inventory adapters are non-fatal (like TOML adapters).
+        for factory in inventory::iter::<aisync_adapter::AdapterFactory> {
+            let adapter = (factory.create)();
+            match adapter.detect(project_root) {
+                Ok(result) if result.detected => results.push(result),
+                Ok(_) => {} // Not detected, skip
+                Err(e) => {
+                    eprintln!(
+                        "Warning: inventory adapter detection error for {}: {e}",
+                        adapter.display_name()
+                    );
+                }
+            }
+        }
+
         Ok(results)
     }
 }

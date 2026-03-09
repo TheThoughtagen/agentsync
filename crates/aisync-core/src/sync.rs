@@ -667,6 +667,34 @@ impl SyncEngine {
             }
         }
 
+        // Collect seen names for deduplication against inventory adapters
+        let mut seen_names: std::collections::HashSet<String> =
+            tools.iter().map(|(tk, _, _)| tk.as_str().to_string()).collect();
+
+        // Include compile-time registered adapters from inventory
+        for factory in inventory::iter::<aisync_adapter::AdapterFactory> {
+            let adapter = (factory.create)();
+            let name_str = adapter.name().as_str().to_string();
+
+            if seen_names.contains(&name_str) {
+                eprintln!(
+                    "Warning: inventory adapter '{}' skipped (name collision with builtin or TOML adapter)",
+                    name_str
+                );
+                continue;
+            }
+            seen_names.insert(name_str.clone());
+
+            if config.tools.is_enabled(&name_str) {
+                let tool_config = config.tools.get_tool(&name_str);
+                tools.push((
+                    adapter.name(),
+                    AnyAdapter::Plugin(std::sync::Arc::from(adapter)),
+                    tool_config,
+                ));
+            }
+        }
+
         tools
     }
 }
