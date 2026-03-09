@@ -1,0 +1,12 @@
+[package]
+name = "aisync-adapter-example"
+version = "0.1.0"
+edition = "2024"
+publish = false
+description = "Example community adapter for aisync"
+
+[workspace]
+
+[dependencies]
+aisync-adapter = { path = "../../crates/aisync-adapter" }
+inventory = "0.3"
