@@ -4,7 +4,7 @@ use crate::adapter::{AnyAdapter, DetectionResult, ToolAdapter};
 use crate::config::{AisyncConfig, DefaultsConfig, SyncStrategy, ToolConfig, ToolsConfig};
 use crate::detection::DetectionEngine;
 use crate::error::{AisyncError, InitError};
-use crate::types::ToolKind;
+use crate::types::{RuleMetadata, ToolKind};
 
 /// Options controlling init behavior. CLI layer populates these from user choices.
 #[derive(Debug, Clone)]
@@ -114,7 +114,70 @@ impl InitEngine {
         std::fs::write(project_root.join("aisync.toml"), toml_str)
             .map_err(InitError::ScaffoldFailed)?;
 
+        // Import existing tool-native rules into .ai/rules/
+        Self::import_rules(project_root)?;
+
         Ok(())
+    }
+
+    /// Import existing tool-native rule files into canonical .ai/rules/ format.
+    ///
+    /// Scans Cursor .mdc and Windsurf .md rule directories, translates frontmatter,
+    /// and writes canonical rule files. Skips project.mdc/project.md and aisync-* managed files.
+    pub fn import_rules(project_root: &Path) -> Result<usize, AisyncError> {
+        let rules_dir = project_root.join(".ai/rules");
+        std::fs::create_dir_all(&rules_dir)
+            .map_err(|e| InitError::ScaffoldFailed(e))?;
+
+        let mut count = 0;
+
+        // Import from .cursor/rules/*.mdc
+        let cursor_rules_dir = project_root.join(".cursor/rules");
+        if cursor_rules_dir.is_dir() {
+            if let Ok(entries) = std::fs::read_dir(&cursor_rules_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.extension().is_some_and(|ext| ext == "mdc") {
+                        let stem = path.file_stem().unwrap().to_string_lossy().to_string();
+                        // Skip project.mdc and aisync-* managed files
+                        if stem == "project" || stem.starts_with("aisync-") {
+                            continue;
+                        }
+                        let raw = std::fs::read_to_string(&path)
+                            .map_err(|e| InitError::ImportFailed(format!("read {}: {e}", path.display())))?;
+                        let (metadata, content) = parse_cursor_rule(&raw)?;
+                        let output = rules_dir.join(format!("{stem}.md"));
+                        write_canonical_rule(&output, &metadata, &content)?;
+                        count += 1;
+                    }
+                }
+            }
+        }
+
+        // Import from .windsurf/rules/*.md
+        let windsurf_rules_dir = project_root.join(".windsurf/rules");
+        if windsurf_rules_dir.is_dir() {
+            if let Ok(entries) = std::fs::read_dir(&windsurf_rules_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.extension().is_some_and(|ext| ext == "md") {
+                        let stem = path.file_stem().unwrap().to_string_lossy().to_string();
+                        // Skip project.md and aisync-* managed files
+                        if stem == "project" || stem.starts_with("aisync-") {
+                            continue;
+                        }
+                        let raw = std::fs::read_to_string(&path)
+                            .map_err(|e| InitError::ImportFailed(format!("read {}: {e}", path.display())))?;
+                        let (metadata, content) = parse_windsurf_rule(&raw)?;
+                        let output = rules_dir.join(format!("{stem}.md"));
+                        write_canonical_rule(&output, &metadata, &content)?;
+                        count += 1;
+                    }
+                }
+            }
+        }
+
+        Ok(count)
     }
 
     /// Get the appropriate adapter for a tool kind.
@@ -156,6 +219,120 @@ impl InitEngine {
             tools,
         }
     }
+}
+
+/// Parse Cursor-format frontmatter (alwaysApply, globs as comma-separated, description)
+/// into canonical RuleMetadata plus body content.
+fn parse_cursor_rule(raw: &str) -> Result<(RuleMetadata, String), AisyncError> {
+    let (yaml_str, body) = split_frontmatter(raw);
+
+    let mut description = None;
+    let mut globs = Vec::new();
+    let mut always_apply = true;
+
+    for line in yaml_str.lines() {
+        let line = line.trim();
+        if let Some(val) = line.strip_prefix("description:") {
+            let val = val.trim().trim_matches('"');
+            if !val.is_empty() {
+                description = Some(val.to_string());
+            }
+        } else if let Some(val) = line.strip_prefix("globs:") {
+            let val = val.trim();
+            let val = val.trim_matches('"');
+            if val.starts_with('[') {
+                let inner = val.trim_start_matches('[').trim_end_matches(']');
+                globs = inner.split(',').map(|s| s.trim().trim_matches('"').to_string()).filter(|s| !s.is_empty()).collect();
+            } else {
+                globs = val.split(',').map(|s| s.trim().trim_matches('"').to_string()).filter(|s| !s.is_empty()).collect();
+            }
+        } else if let Some(val) = line.strip_prefix("alwaysApply:") {
+            always_apply = val.trim().parse().unwrap_or(true);
+        }
+    }
+
+    Ok((RuleMetadata { description, globs, always_apply }, body))
+}
+
+/// Parse Windsurf-format frontmatter (trigger, globs, description)
+/// into canonical RuleMetadata plus body content.
+fn parse_windsurf_rule(raw: &str) -> Result<(RuleMetadata, String), AisyncError> {
+    let (yaml_str, body) = split_frontmatter(raw);
+
+    let mut description = None;
+    let mut globs = Vec::new();
+    let mut always_apply = false;
+    let mut trigger = String::new();
+
+    for line in yaml_str.lines() {
+        let line = line.trim();
+        if let Some(val) = line.strip_prefix("description:") {
+            let val = val.trim().trim_matches('"');
+            if !val.is_empty() {
+                description = Some(val.to_string());
+            }
+        } else if let Some(val) = line.strip_prefix("globs:") {
+            let val = val.trim().trim_matches('"');
+            if val.starts_with('[') {
+                let inner = val.trim_start_matches('[').trim_end_matches(']');
+                globs = inner.split(',').map(|s| s.trim().trim_matches('"').to_string()).filter(|s| !s.is_empty()).collect();
+            } else {
+                globs = val.split(',').map(|s| s.trim().trim_matches('"').to_string()).filter(|s| !s.is_empty()).collect();
+            }
+        } else if let Some(val) = line.strip_prefix("trigger:") {
+            trigger = val.trim().to_string();
+        }
+    }
+
+    // Translate trigger types to canonical always_apply
+    match trigger.as_str() {
+        "always_on" => always_apply = true,
+        "glob" => always_apply = false,
+        "model_decision" | "manual" | _ => always_apply = false,
+    }
+
+    Ok((RuleMetadata { description, globs, always_apply }, body))
+}
+
+/// Split raw file content into (frontmatter_yaml, body).
+/// If no frontmatter present, returns empty string for yaml and full content as body.
+fn split_frontmatter(raw: &str) -> (String, String) {
+    if let Some(after_open) = raw.strip_prefix("---\n") {
+        if let Some(rest) = after_open.strip_prefix("---") {
+            return (String::new(), rest.trim_start_matches('\n').to_string());
+        }
+        if let Some(end_idx) = after_open.find("\n---") {
+            let yaml_str = after_open[..end_idx].to_string();
+            let after_close = &after_open[end_idx + 4..];
+            let body = after_close.trim_start_matches('\n').to_string();
+            return (yaml_str, body);
+        }
+    }
+    (String::new(), raw.to_string())
+}
+
+/// Write a canonical .ai/rules/{name}.md file with YAML frontmatter.
+fn write_canonical_rule(path: &Path, metadata: &RuleMetadata, content: &str) -> Result<(), AisyncError> {
+    let mut output = String::from("---\n");
+    if let Some(ref desc) = metadata.description {
+        output.push_str(&format!("description: \"{desc}\"\n"));
+    }
+    if !metadata.globs.is_empty() {
+        let globs_str: Vec<String> = metadata.globs.iter().map(|g| format!("\"{g}\"")).collect();
+        output.push_str(&format!("globs: [{}]\n", globs_str.join(", ")));
+    }
+    output.push_str(&format!("always_apply: {}\n", metadata.always_apply));
+    output.push_str("---\n");
+    if !content.is_empty() {
+        output.push_str(content);
+        if !content.ends_with('\n') {
+            output.push('\n');
+        }
+    }
+
+    std::fs::write(path, output)
+        .map_err(|e| InitError::ScaffoldFailed(e))?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -372,5 +549,215 @@ mod tests {
         let results = InitEngine::detect_tools(dir.path()).unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].tool, ToolKind::ClaudeCode);
+    }
+
+    // --- import_rules tests ---
+
+    #[test]
+    fn test_import_rules_from_cursor_mdc() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".ai/rules")).unwrap();
+        let cursor_rules = dir.path().join(".cursor/rules");
+        std::fs::create_dir_all(&cursor_rules).unwrap();
+
+        let mdc = "---\ndescription: Rust coding standards\nglobs: \"*.rs, *.toml\"\nalwaysApply: false\n---\n\nUse snake_case for variables.";
+        std::fs::write(cursor_rules.join("rust-rules.mdc"), mdc).unwrap();
+
+        let count = InitEngine::import_rules(dir.path()).unwrap();
+        assert_eq!(count, 1);
+
+        let canonical = std::fs::read_to_string(dir.path().join(".ai/rules/rust-rules.md")).unwrap();
+        assert!(canonical.contains("description: \"Rust coding standards\""));
+        assert!(canonical.contains("globs: [\"*.rs\", \"*.toml\"]"));
+        assert!(canonical.contains("always_apply: false"));
+        assert!(canonical.contains("Use snake_case for variables."));
+    }
+
+    #[test]
+    fn test_import_rules_skips_project_mdc() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".ai/rules")).unwrap();
+        let cursor_rules = dir.path().join(".cursor/rules");
+        std::fs::create_dir_all(&cursor_rules).unwrap();
+
+        let mdc = "---\ndescription: Project\nalwaysApply: true\n---\n\nProject instructions";
+        std::fs::write(cursor_rules.join("project.mdc"), mdc).unwrap();
+
+        let count = InitEngine::import_rules(dir.path()).unwrap();
+        assert_eq!(count, 0);
+        assert!(!dir.path().join(".ai/rules/project.md").exists());
+    }
+
+    #[test]
+    fn test_import_rules_skips_aisync_prefixed() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".ai/rules")).unwrap();
+        let cursor_rules = dir.path().join(".cursor/rules");
+        std::fs::create_dir_all(&cursor_rules).unwrap();
+
+        let mdc = "---\ndescription: managed\nalwaysApply: true\n---\nManaged content";
+        std::fs::write(cursor_rules.join("aisync-managed.mdc"), mdc).unwrap();
+
+        let count = InitEngine::import_rules(dir.path()).unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_import_rules_from_windsurf_md() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".ai/rules")).unwrap();
+        let windsurf_rules = dir.path().join(".windsurf/rules");
+        std::fs::create_dir_all(&windsurf_rules).unwrap();
+
+        let md = "---\ntrigger: always_on\ndescription: Always active rule\n---\n\nAlways do this.";
+        std::fs::write(windsurf_rules.join("always-rule.md"), md).unwrap();
+
+        let count = InitEngine::import_rules(dir.path()).unwrap();
+        assert_eq!(count, 1);
+
+        let canonical = std::fs::read_to_string(dir.path().join(".ai/rules/always-rule.md")).unwrap();
+        assert!(canonical.contains("always_apply: true"));
+        assert!(canonical.contains("Always do this."));
+    }
+
+    #[test]
+    fn test_import_rules_windsurf_glob_trigger() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".ai/rules")).unwrap();
+        let windsurf_rules = dir.path().join(".windsurf/rules");
+        std::fs::create_dir_all(&windsurf_rules).unwrap();
+
+        let md = "---\ntrigger: glob\nglobs: \"*.rs, *.toml\"\ndescription: Rust files\n---\n\nRust rule body.";
+        std::fs::write(windsurf_rules.join("rust-glob.md"), md).unwrap();
+
+        let count = InitEngine::import_rules(dir.path()).unwrap();
+        assert_eq!(count, 1);
+
+        let canonical = std::fs::read_to_string(dir.path().join(".ai/rules/rust-glob.md")).unwrap();
+        assert!(canonical.contains("always_apply: false"));
+        assert!(canonical.contains("globs: [\"*.rs\", \"*.toml\"]"));
+    }
+
+    #[test]
+    fn test_import_rules_windsurf_model_decision_trigger() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".ai/rules")).unwrap();
+        let windsurf_rules = dir.path().join(".windsurf/rules");
+        std::fs::create_dir_all(&windsurf_rules).unwrap();
+
+        let md = "---\ntrigger: model_decision\ndescription: Model decides\n---\n\nModel body.";
+        std::fs::write(windsurf_rules.join("model-rule.md"), md).unwrap();
+
+        let count = InitEngine::import_rules(dir.path()).unwrap();
+        assert_eq!(count, 1);
+
+        let canonical = std::fs::read_to_string(dir.path().join(".ai/rules/model-rule.md")).unwrap();
+        assert!(canonical.contains("always_apply: false"));
+    }
+
+    #[test]
+    fn test_import_rules_empty_directories() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".ai/rules")).unwrap();
+        // No .cursor/rules or .windsurf/rules directories
+
+        let count = InitEngine::import_rules(dir.path()).unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_import_rules_mixed_sources() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".ai/rules")).unwrap();
+
+        let cursor_rules = dir.path().join(".cursor/rules");
+        std::fs::create_dir_all(&cursor_rules).unwrap();
+        let mdc = "---\ndescription: Cursor rule\nalwaysApply: true\n---\nCursor content";
+        std::fs::write(cursor_rules.join("cursor-rule.mdc"), mdc).unwrap();
+
+        let windsurf_rules = dir.path().join(".windsurf/rules");
+        std::fs::create_dir_all(&windsurf_rules).unwrap();
+        let md = "---\ntrigger: always_on\ndescription: Windsurf rule\n---\nWindsurf content";
+        std::fs::write(windsurf_rules.join("windsurf-rule.md"), md).unwrap();
+
+        let count = InitEngine::import_rules(dir.path()).unwrap();
+        assert_eq!(count, 2);
+        assert!(dir.path().join(".ai/rules/cursor-rule.md").exists());
+        assert!(dir.path().join(".ai/rules/windsurf-rule.md").exists());
+    }
+
+    #[test]
+    fn test_import_rules_creates_rules_dir_if_missing() {
+        let dir = TempDir::new().unwrap();
+        // No .ai/rules directory yet
+        let cursor_rules = dir.path().join(".cursor/rules");
+        std::fs::create_dir_all(&cursor_rules).unwrap();
+
+        let mdc = "---\ndescription: A rule\nalwaysApply: true\n---\nContent";
+        std::fs::write(cursor_rules.join("my-rule.mdc"), mdc).unwrap();
+
+        let count = InitEngine::import_rules(dir.path()).unwrap();
+        assert_eq!(count, 1);
+        assert!(dir.path().join(".ai/rules/my-rule.md").exists());
+    }
+
+    #[test]
+    fn test_import_rules_windsurf_skips_project_md() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".ai/rules")).unwrap();
+        let windsurf_rules = dir.path().join(".windsurf/rules");
+        std::fs::create_dir_all(&windsurf_rules).unwrap();
+
+        let md = "---\ntrigger: always_on\ndescription: Project\n---\nProject instructions";
+        std::fs::write(windsurf_rules.join("project.md"), md).unwrap();
+
+        let count = InitEngine::import_rules(dir.path()).unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_import_rules_canonical_output_format() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".ai/rules")).unwrap();
+        let cursor_rules = dir.path().join(".cursor/rules");
+        std::fs::create_dir_all(&cursor_rules).unwrap();
+
+        let mdc = "---\ndescription: Detailed rule\nglobs: \"src/**/*.rs\"\nalwaysApply: false\n---\n\n# Rule Body\n\nDetailed content here.";
+        std::fs::write(cursor_rules.join("detailed.mdc"), mdc).unwrap();
+
+        InitEngine::import_rules(dir.path()).unwrap();
+
+        let canonical = std::fs::read_to_string(dir.path().join(".ai/rules/detailed.md")).unwrap();
+        // Verify it starts with frontmatter
+        assert!(canonical.starts_with("---\n"));
+        // Verify frontmatter closes
+        let parts: Vec<&str> = canonical.splitn(3, "---").collect();
+        assert!(parts.len() >= 3, "should have opening and closing ---");
+        // Verify body after frontmatter
+        assert!(canonical.contains("# Rule Body"));
+        assert!(canonical.contains("Detailed content here."));
+    }
+
+    #[test]
+    fn test_scaffold_calls_import_rules() {
+        let dir = TempDir::new().unwrap();
+        let cursor_rules = dir.path().join(".cursor/rules");
+        std::fs::create_dir_all(&cursor_rules).unwrap();
+
+        let mdc = "---\ndescription: Auto-imported\nalwaysApply: true\n---\nAuto content";
+        std::fs::write(cursor_rules.join("auto-rule.mdc"), mdc).unwrap();
+
+        let options = InitOptions {
+            force: false,
+            import_from: None,
+        };
+
+        InitEngine::scaffold(dir.path(), &[], None, &options).unwrap();
+
+        // scaffold should have called import_rules automatically
+        assert!(
+            dir.path().join(".ai/rules/auto-rule.md").exists(),
+            "scaffold should automatically import rules"
+        );
     }
 }
