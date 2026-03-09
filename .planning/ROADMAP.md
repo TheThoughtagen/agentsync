@@ -91,7 +91,10 @@ Plans:
   1. User can place `.md` files in `.ai/commands/` and `aisync sync` copies them to `.claude/commands/` and `.cursor/commands/`
   2. `aisync init` imports existing `.claude/commands/` files into `.ai/commands/`
   3. Stale aisync-managed command files are cleaned up when their canonical source is removed
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 15-01-PLAN.md — CommandEngine loader, shared adapter helper, Claude Code + Cursor sync, stale cleanup
+- [ ] 15-02-PLAN.md — Init command import from .claude/commands/
 
 ### Phase 16: Init Completeness
 **Goal**: The init workflow produces a fully synced project -- `aisync status` shows all tools OK immediately after init with no manual sync needed
@@ -125,7 +128,7 @@ Phases execute in numeric order. Phase 16 depends on 13, 14, and 15 completing. 
 | 12. Types & Trait Foundation | 1/1 | Complete    | 2026-03-09 | - |
 | 13. Multi-File Rule Sync | 2/2 | Complete    | 2026-03-09 | - |
 | 14. MCP Server Config & Security | v1.2 | 0/? | Not started | - |
-| 15. Command Sync | v1.2 | 0/? | Not started | - |
+| 15. Command Sync | v1.2 | 0/2 | Not started | - |
 | 16. Init Completeness | v1.2 | 0/? | Not started | - |
 
 ---
