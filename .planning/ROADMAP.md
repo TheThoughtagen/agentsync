@@ -108,7 +108,10 @@ Plans:
   2. `aisync status` only shows tools that are configured in `aisync.toml` or actually detected in the project -- no ghost tools
   3. When multiple instruction sources exist during init, user is presented with an interactive source tool selection
   4. `aisync sync` output uses correct action messages (no "Would create" phrasing during real sync)
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 16-01-PLAN.md — Fix ghost tool filtering and sync action messaging
+- [ ] 16-02-PLAN.md — Add auto-sync to init workflow, verify source selection
 
 ## Progress
 
@@ -132,7 +135,7 @@ Phases execute in numeric order. Phase 16 depends on 13, 14, and 15 completing. 
 | 13. Multi-File Rule Sync | 2/2 | Complete    | 2026-03-09 | - |
 | 14. MCP Server Config & Security | 2/2 | Complete    | 2026-03-09 | - |
 | 15. Command Sync | 2/2 | Complete    | 2026-03-09 | - |
-| 16. Init Completeness | v1.2 | 0/? | Not started | - |
+| 16. Init Completeness | v1.2 | 0/2 | Not started | - |
 
 ---
 *Roadmap created: 2026-03-08*
