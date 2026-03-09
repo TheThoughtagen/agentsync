@@ -18,14 +18,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-09)
 
 **Core value:** Every AI tool working on a project sees the same instructions, memory, and hooks -- always in sync, zero manual copying.
-**Current focus:** Phase 15 - Command Sync
+**Current focus:** Phase 14 - MCP Config Sync (Plan 01 complete)
 
 ## Current Position
 
-Phase: 15 of 16 (Command Sync)
+Phase: 14 of 16 (MCP Config Sync)
 Plan: 1 of 2 in current phase
-Status: Phase 15 Plan 01 complete
-Last activity: 2026-03-09 -- Phase 15 Plan 01 executed
+Status: Phase 14 Plan 01 complete
+Last activity: 2026-03-09 -- Phase 14 Plan 01 executed
 
 Progress: [████████░░] 80% (v1.2: 5/7 plans)
 
@@ -57,6 +57,10 @@ Progress: [████████░░] 80% (v1.2: 5/7 plans)
 - Commands use aisync-{name}.md naming convention matching rules pattern
 - Shared plan_directory_commands_sync helper in adapters/mod.rs for directory-based command sync
 - Stale aisync-* command files cleaned up automatically during sync
+- Used std::sync::LazyLock for regex compilation in SecurityScanner (stable since Rust 1.80)
+- Security warnings flow as WarnUnsupportedDimension with dimension=security through existing pipeline
+- McpEngine::generate_mcp_json omits empty args/env for cleaner output
+- sanitize_env uses env key name for ${KEY_NAME} substitution
 
 ### Pending Todos
 
@@ -71,5 +75,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-09
-Stopped at: Completed 15-01-PLAN.md
+Stopped at: Completed 14-01-PLAN.md (Phase 14, ready for Plan 02)
 Resume file: None

@@ -19,19 +19,19 @@ Requirements for v1.2 release. Each maps to roadmap phases.
 
 ### MCP Server Config Sync
 
-- [ ] **MCP-01**: User can define MCP servers in `.ai/mcp.toml` with server name, command, args, and env references
-- [ ] **MCP-02**: `aisync sync` generates `.claude/.mcp.json` from canonical MCP config
-- [ ] **MCP-03**: `aisync sync` generates `.cursor/mcp.json` from canonical MCP config
-- [ ] **MCP-04**: MCP sync strips hardcoded env values and replaces with `${VAR}` references to prevent API key leaks
+- [x] **MCP-01**: User can define MCP servers in `.ai/mcp.toml` with server name, command, args, and env references
+- [x] **MCP-02**: `aisync sync` generates `.claude/.mcp.json` from canonical MCP config
+- [x] **MCP-03**: `aisync sync` generates `.cursor/mcp.json` from canonical MCP config
+- [x] **MCP-04**: MCP sync strips hardcoded env values and replaces with `${VAR}` references to prevent API key leaks
 - [ ] **MCP-05**: `aisync init` imports existing tool MCP configs into `.ai/mcp.toml` (merging across tools)
-- [ ] **MCP-06**: Windsurf MCP is skipped with a warning (global-only config, not project-scoped)
-- [ ] **MCP-07**: MCP sync scopes to stdio transport only; warns when a server uses unsupported transport for a target tool
+- [x] **MCP-06**: Windsurf MCP is skipped with a warning (global-only config, not project-scoped)
+- [x] **MCP-07**: MCP sync scopes to stdio transport only; warns when a server uses unsupported transport for a target tool
 
 ### Security
 
-- [ ] **SEC-01**: Security scanner detects hardcoded API keys in MCP configs using regex patterns (AWS, GitHub, Slack, generic API keys)
-- [ ] **SEC-02**: Security warnings are displayed during sync and init, showing which files contain potential secrets
-- [ ] **SEC-03**: Security scanner warns but does not block — user can proceed after seeing warnings
+- [x] **SEC-01**: Security scanner detects hardcoded API keys in MCP configs using regex patterns (AWS, GitHub, Slack, generic API keys)
+- [x] **SEC-02**: Security warnings are displayed during sync and init, showing which files contain potential secrets
+- [x] **SEC-03**: Security scanner warns but does not block — user can proceed after seeing warnings
 
 ### Command Sync
 
@@ -104,16 +104,16 @@ Deferred to future release. Tracked but not in current roadmap.
 | RULES-05 | Phase 13 | Complete |
 | RULES-06 | Phase 13 | Complete |
 | RULES-07 | Phase 13 | Complete |
-| MCP-01 | Phase 14 | Pending |
-| MCP-02 | Phase 14 | Pending |
-| MCP-03 | Phase 14 | Pending |
-| MCP-04 | Phase 14 | Pending |
+| MCP-01 | Phase 14 | Complete |
+| MCP-02 | Phase 14 | Complete |
+| MCP-03 | Phase 14 | Complete |
+| MCP-04 | Phase 14 | Complete |
 | MCP-05 | Phase 14 | Pending |
-| MCP-06 | Phase 14 | Pending |
-| MCP-07 | Phase 14 | Pending |
-| SEC-01 | Phase 14 | Pending |
-| SEC-02 | Phase 14 | Pending |
-| SEC-03 | Phase 14 | Pending |
+| MCP-06 | Phase 14 | Complete |
+| MCP-07 | Phase 14 | Complete |
+| SEC-01 | Phase 14 | Complete |
+| SEC-02 | Phase 14 | Complete |
+| SEC-03 | Phase 14 | Complete |
 | CMD-01 | Phase 15 | Complete |
 | CMD-02 | Phase 15 | Complete |
 | CMD-03 | Phase 15 | Pending |
