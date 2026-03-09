@@ -132,7 +132,7 @@ Plans:
 | 7. Windsurf & Codex Adapters | 2/2 | Complete   | 2026-03-08 | - |
 | 8. Add-Tool Command | v1.1 | 0/2 | Not started | - |
 | 9. Plugin SDK Crate Extraction | 2/2 | Complete   | 2026-03-09 | - |
-| 10. Declarative TOML Adapters | 2/2 | Complete   | 2026-03-09 | - |
+| 10. Declarative TOML Adapters | 2/2 | Complete    | 2026-03-09 | - |
 | 11. Compile-Time Registration | v1.1 | 0/TBD | Not started | - |
 
 ---
