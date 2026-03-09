@@ -1,6 +1,7 @@
 pub mod adapter;
 pub mod adapters;
 pub mod add_tool;
+pub mod commands;
 pub mod conditional;
 pub mod config;
 pub mod declarative;
@@ -10,7 +11,6 @@ pub mod error;
 pub mod gitignore;
 pub mod hooks;
 pub mod init;
-pub mod managed_section;
 pub mod memory;
 pub mod rules;
 pub mod sync;
@@ -22,6 +22,7 @@ pub use adapter::{
 };
 pub use declarative::{DeclarativeAdapter, DeclarativeAdapterDef, discover_toml_adapters};
 pub use add_tool::AddToolEngine;
+pub use commands::CommandEngine;
 pub use conditional::ConditionalProcessor;
 pub use config::{AisyncConfig, DefaultsConfig, SyncStrategy, ToolConfig, ToolsConfig};
 pub use detection::DetectionEngine;
