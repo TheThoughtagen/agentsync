@@ -1,0 +1,13 @@
+[package]
+name = "aisync-adapter"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+description = "ToolAdapter trait for building aisync adapters"
+license = "MIT"
+repository = "https://github.com/pmannion/agentsync"
+publish = false
+
+[dependencies]
+aisync-types = { workspace = true }
+thiserror = { workspace = true }
