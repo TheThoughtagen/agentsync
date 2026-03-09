@@ -309,7 +309,7 @@ impl fmt::Display for SyncAction {
             SyncAction::CreateSymlink { link, target } => {
                 write!(
                     f,
-                    "Would create symlink: {} -> {}",
+                    "Create symlink: {} -> {}",
                     link.display(),
                     target.display()
                 )
@@ -317,38 +317,38 @@ impl fmt::Display for SyncAction {
             SyncAction::RemoveAndRelink { link, target } => {
                 write!(
                     f,
-                    "Would remove and relink: {} -> {}",
+                    "Remove and relink: {} -> {}",
                     link.display(),
                     target.display()
                 )
             }
             SyncAction::GenerateMdc { output, .. } => {
-                write!(f, "Would generate MDC file: {}", output.display())
+                write!(f, "Generate MDC file: {}", output.display())
             }
             SyncAction::UpdateGitignore { path, entries } => {
                 write!(
                     f,
-                    "Would update .gitignore at {} with {} entries",
+                    "Update .gitignore at {} with {} entries",
                     path.display(),
                     entries.len()
                 )
             }
             SyncAction::CreateDirectory { path } => {
-                write!(f, "Would create directory: {}", path.display())
+                write!(f, "Create directory: {}", path.display())
             }
             SyncAction::CreateFile { path, .. } => {
-                write!(f, "Would create file: {}", path.display())
+                write!(f, "Create file: {}", path.display())
             }
             SyncAction::RemoveFile { path } => {
-                write!(f, "Would remove file: {}", path.display())
+                write!(f, "Remove file: {}", path.display())
             }
             SyncAction::SkipExistingFile { path, reason } => {
-                write!(f, "Would skip {}: {}", path.display(), reason)
+                write!(f, "Skip {}: {}", path.display(), reason)
             }
             SyncAction::CreateMemorySymlink { link, target } => {
                 write!(
                     f,
-                    "Would create memory symlink: {} -> {}",
+                    "Create memory symlink: {} -> {}",
                     link.display(),
                     target.display()
                 )
@@ -358,7 +358,7 @@ impl fmt::Display for SyncAction {
             } => {
                 write!(
                     f,
-                    "Would update memory references in {} with {} entries",
+                    "Update memory references in {} with {} entries",
                     path.display(),
                     references.len()
                 )
@@ -366,7 +366,7 @@ impl fmt::Display for SyncAction {
             SyncAction::WriteHookTranslation { path, tool, .. } => {
                 write!(
                     f,
-                    "Would write hook translation for {:?} to {}",
+                    "Write hook translation for {:?} to {}",
                     tool,
                     path.display()
                 )
@@ -397,13 +397,13 @@ impl fmt::Display for SyncAction {
             } => {
                 write!(
                     f,
-                    "Would create rule file for '{}': {}",
+                    "Create rule file for '{}': {}",
                     rule_name,
                     output.display()
                 )
             }
             SyncAction::WriteMcpConfig { output, .. } => {
-                write!(f, "Would write MCP config: {}", output.display())
+                write!(f, "Write MCP config: {}", output.display())
             }
             SyncAction::CopyCommandFile {
                 output,
@@ -412,7 +412,7 @@ impl fmt::Display for SyncAction {
             } => {
                 write!(
                     f,
-                    "Would copy command '{}': {}",
+                    "Copy command '{}': {}",
                     command_name,
                     output.display()
                 )

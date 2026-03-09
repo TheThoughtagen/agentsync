@@ -61,7 +61,7 @@ fn print_dry_run(report: &SyncReport, verbose: bool) {
 
         println!("  {}:", tool_name.bold());
         for action in &tool_result.actions {
-            println!("    {action}");
+            println!("    Would: {action}");
             if let SyncAction::SkipExistingFile { .. } = action {
                 println!("      {}", "hint: run `aisync sync` to be prompted to replace, or `aisync sync --force` to auto-replace".yellow());
             }
@@ -173,6 +173,27 @@ fn print_results(report: &SyncReport, verbose: bool) {
                 }
                 SyncAction::GenerateMdc { output, .. } => {
                     println!("  {} {} (generated)", "✓".green(), output.display());
+                }
+                SyncAction::CreateFile { path, .. } => {
+                    println!("  {} {} (created)", "✓".green(), path.display());
+                }
+                SyncAction::CreateDirectory { path } => {
+                    println!("  {} {} (created)", "✓".green(), path.display());
+                }
+                SyncAction::CreateRuleFile { output, rule_name, .. } => {
+                    println!("  {} {} (rule: {})", "✓".green(), output.display(), rule_name);
+                }
+                SyncAction::WriteMcpConfig { output, .. } => {
+                    println!("  {} {} (MCP config)", "✓".green(), output.display());
+                }
+                SyncAction::CopyCommandFile { output, command_name, .. } => {
+                    println!("  {} {} (command: {})", "✓".green(), output.display(), command_name);
+                }
+                SyncAction::RemoveFile { path } => {
+                    println!("  {} {} (removed)", "✓".green(), path.display());
+                }
+                SyncAction::UpdateGitignore { path, entries } => {
+                    println!("  {} {} ({} entries)", "✓".green(), path.display(), entries.len());
                 }
                 other => {
                     println!("  {} {}", "✓".green(), other);
