@@ -441,6 +441,34 @@ fn strip_frontmatter(raw: &str, delimiter: &str) -> String {
 // Public loader
 // ---------------------------------------------------------------------------
 
+/// Scan `.ai/adapters/` for TOML adapter definition files.
+///
+/// Returns successfully parsed adapters; malformed files and builtin name
+/// collisions are logged to stderr and skipped.
+pub fn discover_toml_adapters(project_root: &Path) -> Vec<DeclarativeAdapter> {
+    let adapters_dir = project_root.join(".ai").join("adapters");
+    if !adapters_dir.is_dir() {
+        return vec![];
+    }
+
+    let mut adapters = Vec::new();
+    let entries = match std::fs::read_dir(&adapters_dir) {
+        Ok(e) => e,
+        Err(_) => return vec![],
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().is_some_and(|e| e == "toml") {
+            match load_toml_adapter(&path) {
+                Ok(adapter) => adapters.push(adapter),
+                Err(e) => eprintln!("Warning: skipping adapter {}: {e}", path.display()),
+            }
+        }
+    }
+    adapters
+}
+
 /// Parse a TOML file into a `DeclarativeAdapter`.
 pub fn load_toml_adapter(path: &Path) -> Result<DeclarativeAdapter, AdapterError> {
     let content = std::fs::read_to_string(path).map_err(AdapterError::Io)?;

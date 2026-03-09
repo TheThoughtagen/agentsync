@@ -60,10 +60,10 @@ impl SyncEngine {
 
         let mut results = Vec::new();
 
-        for (tool_kind, adapter, tool_config_opt) in Self::enabled_tools(config) {
+        for (tool_kind, adapter, tool_config_opt) in Self::enabled_tools(config, project_root) {
             let strategy = tool_config_opt
                 .map(|tc| tc.effective_sync_strategy(&config.defaults))
-                .unwrap_or(config.defaults.sync_strategy);
+                .unwrap_or_else(|| adapter.default_sync_strategy());
 
             let mut actions = Vec::new();
 
@@ -247,10 +247,10 @@ impl SyncEngine {
 
         let mut tools = Vec::new();
 
-        for (tool_kind, adapter, tool_config_opt) in Self::enabled_tools(config) {
+        for (tool_kind, adapter, tool_config_opt) in Self::enabled_tools(config, project_root) {
             let strategy = tool_config_opt
                 .map(|tc| tc.effective_sync_strategy(&config.defaults))
-                .unwrap_or(config.defaults.sync_strategy);
+                .unwrap_or_else(|| adapter.default_sync_strategy());
             match adapter.sync_status(project_root, &hash, strategy) {
                 Ok(status) => tools.push(status),
                 Err(_) => {
@@ -294,7 +294,7 @@ impl SyncEngine {
 
         let mut per_tool = Vec::new();
 
-        for (tool_kind, _adapter, _) in Self::enabled_tools(config) {
+        for (tool_kind, _adapter, _) in Self::enabled_tools(config, project_root) {
             let (synced, details) = match &tool_kind {
                 ToolKind::ClaudeCode => {
                     match crate::memory::MemoryEngine::claude_memory_path(project_root) {
@@ -405,7 +405,7 @@ impl SyncEngine {
 
         let mut per_tool = Vec::new();
 
-        for (tool_kind, adapter, _) in Self::enabled_tools(config) {
+        for (tool_kind, adapter, _) in Self::enabled_tools(config, project_root) {
             let translation = adapter.translate_hooks(&hooks_config);
             let (supported, translated, details) = match translation {
                 Ok(HookTranslation::Supported { .. }) => {
@@ -638,9 +638,10 @@ impl SyncEngine {
     }
 
     /// Returns an iterator of (ToolKind, AnyAdapter, Option<&ToolConfig>) for all enabled tools.
-    pub(crate) fn enabled_tools(
-        config: &AisyncConfig,
-    ) -> Vec<(ToolKind, AnyAdapter, Option<&crate::config::ToolConfig>)> {
+    pub(crate) fn enabled_tools<'a>(
+        config: &'a AisyncConfig,
+        project_root: &Path,
+    ) -> Vec<(ToolKind, AnyAdapter, Option<&'a crate::config::ToolConfig>)> {
         let mut tools = Vec::new();
         for adapter in AnyAdapter::all_builtin() {
             let key = adapter.name().as_str().to_string();
@@ -652,6 +653,20 @@ impl SyncEngine {
                 ));
             }
         }
+
+        // Include TOML-defined adapters from .ai/adapters/*.toml
+        for adapter in crate::declarative::discover_toml_adapters(project_root) {
+            let key = adapter.name().as_str().to_string();
+            if config.tools.is_enabled(&key) {
+                let tool_config = config.tools.get_tool(&key);
+                tools.push((
+                    adapter.name(),
+                    AnyAdapter::Plugin(std::sync::Arc::new(adapter)),
+                    tool_config,
+                ));
+            }
+        }
+
         tools
     }
 }

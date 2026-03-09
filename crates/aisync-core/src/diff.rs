@@ -28,7 +28,7 @@ impl DiffEngine {
 
         let mut diffs = Vec::new();
 
-        for (tool_kind, adapter, _) in SyncEngine::enabled_tools(config) {
+        for (tool_kind, adapter, _) in SyncEngine::enabled_tools(config, project_root) {
             let tool_file = adapter.native_instruction_path().to_string();
 
             // Apply conditional processing for this tool

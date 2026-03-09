@@ -197,7 +197,7 @@ impl WatchEngine {
         let mut expected_files = Vec::new();
         let mut watch_dirs = Vec::new();
 
-        for (_tool_kind, adapter, _tool_config) in SyncEngine::enabled_tools(config) {
+        for (_tool_kind, adapter, _tool_config) in SyncEngine::enabled_tools(config, project_root) {
             let watch_paths = adapter.watch_paths();
             let path = project_root.join(watch_paths.first().unwrap_or(&""));
 

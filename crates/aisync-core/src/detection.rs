@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use crate::adapter::{AnyAdapter, DetectionResult, ToolAdapter};
+use crate::declarative::discover_toml_adapters;
 use crate::error::DetectionError;
 
 /// Engine that scans a project directory for AI tool markers.
@@ -32,6 +33,21 @@ impl DetectionEngine {
                         path: project_root.display().to_string(),
                         source: std::io::Error::other(format!("adapter error: {e}")),
                     });
+                }
+            }
+        }
+
+        // Include TOML-defined adapters in detection.
+        // Errors from TOML adapters are non-fatal (user-provided, fail gracefully).
+        for adapter in discover_toml_adapters(project_root) {
+            match adapter.detect(project_root) {
+                Ok(result) if result.detected => results.push(result),
+                Ok(_) => {} // Not detected, skip
+                Err(e) => {
+                    eprintln!(
+                        "Warning: TOML adapter detection error for {}: {e}",
+                        adapter.display_name()
+                    );
                 }
             }
         }
