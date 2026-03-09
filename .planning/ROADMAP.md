@@ -112,10 +112,11 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. A community adapter crate using `inventory::submit!` is picked up by `aisync` binary without modifying any source in the main repository
   2. Documentation exists for both TOML and Rust adapter authoring paths, with working examples
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 11-01: TBD
+- [ ] 11-01-PLAN.md — AdapterFactory type + inventory integration in SyncEngine/DetectionEngine
+- [ ] 11-02-PLAN.md — Adapter authoring documentation (TOML + Rust paths) + example crate
 
 ## Progress
 
