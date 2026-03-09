@@ -11,6 +11,7 @@ pub mod error;
 pub mod gitignore;
 pub mod hooks;
 pub mod init;
+pub mod managed_section;
 pub mod memory;
 pub mod rules;
 pub mod sync;
