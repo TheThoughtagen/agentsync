@@ -285,6 +285,109 @@ env = { GITHUB_TOKEN = "${GITHUB_TOKEN}" }
         );
     }
 
+    // --- McpEngine::parse_mcp_json tests ---
+
+    #[test]
+    fn test_parse_mcp_json_valid_servers() {
+        let dir = TempDir::new().unwrap();
+        let json = r#"{
+            "mcpServers": {
+                "filesystem": {
+                    "command": "npx",
+                    "args": ["-y", "@modelcontextprotocol/server-filesystem"],
+                    "env": { "HOME": "/home/user" }
+                },
+                "github": {
+                    "command": "npx",
+                    "args": ["-y", "@modelcontextprotocol/server-github"],
+                    "env": { "GITHUB_TOKEN": "ghp_abc123" }
+                }
+            }
+        }"#;
+        let path = dir.path().join("mcp.json");
+        std::fs::write(&path, json).unwrap();
+
+        let config = McpEngine::parse_mcp_json(&path).unwrap();
+        assert_eq!(config.servers.len(), 2);
+        assert_eq!(config.servers["filesystem"].command, "npx");
+        assert_eq!(config.servers["filesystem"].args, vec!["-y", "@modelcontextprotocol/server-filesystem"]);
+        assert_eq!(config.servers["filesystem"].env["HOME"], "/home/user");
+        assert_eq!(config.servers["github"].command, "npx");
+    }
+
+    #[test]
+    fn test_parse_mcp_json_skips_http_servers() {
+        let dir = TempDir::new().unwrap();
+        let json = r#"{
+            "mcpServers": {
+                "local-tool": {
+                    "command": "npx",
+                    "args": ["-y", "my-tool"]
+                },
+                "remote-sse": {
+                    "url": "https://example.com/sse"
+                }
+            }
+        }"#;
+        let path = dir.path().join("mcp.json");
+        std::fs::write(&path, json).unwrap();
+
+        let config = McpEngine::parse_mcp_json(&path).unwrap();
+        assert_eq!(config.servers.len(), 1);
+        assert!(config.servers.contains_key("local-tool"));
+        assert!(!config.servers.contains_key("remote-sse"));
+    }
+
+    #[test]
+    fn test_parse_mcp_json_missing_file_returns_empty() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("nonexistent.json");
+
+        let config = McpEngine::parse_mcp_json(&path).unwrap();
+        assert!(config.servers.is_empty());
+    }
+
+    #[test]
+    fn test_parse_mcp_json_invalid_json_returns_empty() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("bad.json");
+        std::fs::write(&path, "not json at all").unwrap();
+
+        let config = McpEngine::parse_mcp_json(&path).unwrap();
+        assert!(config.servers.is_empty());
+    }
+
+    #[test]
+    fn test_parse_mcp_json_server_with_only_command() {
+        let dir = TempDir::new().unwrap();
+        let json = r#"{
+            "mcpServers": {
+                "simple": {
+                    "command": "my-tool"
+                }
+            }
+        }"#;
+        let path = dir.path().join("mcp.json");
+        std::fs::write(&path, json).unwrap();
+
+        let config = McpEngine::parse_mcp_json(&path).unwrap();
+        assert_eq!(config.servers.len(), 1);
+        assert_eq!(config.servers["simple"].command, "my-tool");
+        assert!(config.servers["simple"].args.is_empty());
+        assert!(config.servers["simple"].env.is_empty());
+    }
+
+    #[test]
+    fn test_parse_mcp_json_no_mcp_servers_key() {
+        let dir = TempDir::new().unwrap();
+        let json = r#"{ "other": "data" }"#;
+        let path = dir.path().join("mcp.json");
+        std::fs::write(&path, json).unwrap();
+
+        let config = McpEngine::parse_mcp_json(&path).unwrap();
+        assert!(config.servers.is_empty());
+    }
+
     #[test]
     fn test_generate_mcp_json_multiple_servers() {
         let config = McpConfig {

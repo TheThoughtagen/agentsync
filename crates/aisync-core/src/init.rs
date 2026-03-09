@@ -873,6 +873,238 @@ mod tests {
         assert_eq!(content, "Auto imported command");
     }
 
+    // --- import_mcp tests ---
+
+    #[test]
+    fn test_import_mcp_from_claude_mcp_json() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".ai")).unwrap();
+        std::fs::create_dir_all(dir.path().join(".claude")).unwrap();
+        let json = r#"{
+            "mcpServers": {
+                "filesystem": {
+                    "command": "npx",
+                    "args": ["-y", "@modelcontextprotocol/server-filesystem"],
+                    "env": { "HOME": "/home/user" }
+                }
+            }
+        }"#;
+        std::fs::write(dir.path().join(".claude/.mcp.json"), json).unwrap();
+
+        let count = InitEngine::import_mcp(dir.path()).unwrap();
+        assert_eq!(count, 1);
+
+        let toml_content = std::fs::read_to_string(dir.path().join(".ai/mcp.toml")).unwrap();
+        let config: crate::types::McpConfig = toml::from_str(&toml_content).unwrap();
+        assert_eq!(config.servers.len(), 1);
+        assert_eq!(config.servers["filesystem"].command, "npx");
+    }
+
+    #[test]
+    fn test_import_mcp_from_root_mcp_json_fallback() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".ai")).unwrap();
+        // No .claude/.mcp.json, but root .mcp.json exists
+        let json = r#"{
+            "mcpServers": {
+                "root-server": {
+                    "command": "node",
+                    "args": ["server.js"]
+                }
+            }
+        }"#;
+        std::fs::write(dir.path().join(".mcp.json"), json).unwrap();
+
+        let count = InitEngine::import_mcp(dir.path()).unwrap();
+        assert_eq!(count, 1);
+
+        let toml_content = std::fs::read_to_string(dir.path().join(".ai/mcp.toml")).unwrap();
+        let config: crate::types::McpConfig = toml::from_str(&toml_content).unwrap();
+        assert!(config.servers.contains_key("root-server"));
+    }
+
+    #[test]
+    fn test_import_mcp_from_cursor() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".ai")).unwrap();
+        std::fs::create_dir_all(dir.path().join(".cursor")).unwrap();
+        let json = r#"{
+            "mcpServers": {
+                "cursor-tool": {
+                    "command": "npx",
+                    "args": ["-y", "cursor-mcp"]
+                }
+            }
+        }"#;
+        std::fs::write(dir.path().join(".cursor/mcp.json"), json).unwrap();
+
+        let count = InitEngine::import_mcp(dir.path()).unwrap();
+        assert_eq!(count, 1);
+
+        let toml_content = std::fs::read_to_string(dir.path().join(".ai/mcp.toml")).unwrap();
+        let config: crate::types::McpConfig = toml::from_str(&toml_content).unwrap();
+        assert!(config.servers.contains_key("cursor-tool"));
+    }
+
+    #[test]
+    fn test_import_mcp_merge_first_seen_wins() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".ai")).unwrap();
+        std::fs::create_dir_all(dir.path().join(".claude")).unwrap();
+        std::fs::create_dir_all(dir.path().join(".cursor")).unwrap();
+
+        // Claude Code has "shared" server with command "claude-version"
+        let claude_json = r#"{
+            "mcpServers": {
+                "shared": {
+                    "command": "claude-version",
+                    "args": ["--claude"]
+                },
+                "claude-only": {
+                    "command": "claude-tool"
+                }
+            }
+        }"#;
+        std::fs::write(dir.path().join(".claude/.mcp.json"), claude_json).unwrap();
+
+        // Cursor has "shared" server with command "cursor-version"
+        let cursor_json = r#"{
+            "mcpServers": {
+                "shared": {
+                    "command": "cursor-version",
+                    "args": ["--cursor"]
+                },
+                "cursor-only": {
+                    "command": "cursor-tool"
+                }
+            }
+        }"#;
+        std::fs::write(dir.path().join(".cursor/mcp.json"), cursor_json).unwrap();
+
+        let count = InitEngine::import_mcp(dir.path()).unwrap();
+        assert_eq!(count, 3); // shared + claude-only + cursor-only
+
+        let toml_content = std::fs::read_to_string(dir.path().join(".ai/mcp.toml")).unwrap();
+        let config: crate::types::McpConfig = toml::from_str(&toml_content).unwrap();
+        // "shared" should have Claude Code's version (first-seen-wins)
+        assert_eq!(config.servers["shared"].command, "claude-version");
+        assert!(config.servers.contains_key("claude-only"));
+        assert!(config.servers.contains_key("cursor-only"));
+    }
+
+    #[test]
+    fn test_import_mcp_sanitizes_secrets() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".ai")).unwrap();
+        std::fs::create_dir_all(dir.path().join(".claude")).unwrap();
+
+        let json = r#"{
+            "mcpServers": {
+                "my-server": {
+                    "command": "npx",
+                    "args": ["-y", "server"],
+                    "env": { "AWS_KEY": "AKIAIOSFODNN7EXAMPLE" }
+                }
+            }
+        }"#;
+        std::fs::write(dir.path().join(".claude/.mcp.json"), json).unwrap();
+
+        InitEngine::import_mcp(dir.path()).unwrap();
+
+        let toml_content = std::fs::read_to_string(dir.path().join(".ai/mcp.toml")).unwrap();
+        let config: crate::types::McpConfig = toml::from_str(&toml_content).unwrap();
+        assert_eq!(config.servers["my-server"].env["AWS_KEY"], "${AWS_KEY}");
+    }
+
+    #[test]
+    fn test_import_mcp_no_configs_returns_zero() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".ai")).unwrap();
+
+        let count = InitEngine::import_mcp(dir.path()).unwrap();
+        assert_eq!(count, 0);
+        assert!(!dir.path().join(".ai/mcp.toml").exists());
+    }
+
+    #[test]
+    fn test_import_mcp_skips_http_servers() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".ai")).unwrap();
+        std::fs::create_dir_all(dir.path().join(".claude")).unwrap();
+
+        let json = r#"{
+            "mcpServers": {
+                "local": {
+                    "command": "npx",
+                    "args": ["my-tool"]
+                },
+                "remote": {
+                    "url": "https://example.com/mcp"
+                }
+            }
+        }"#;
+        std::fs::write(dir.path().join(".claude/.mcp.json"), json).unwrap();
+
+        let count = InitEngine::import_mcp(dir.path()).unwrap();
+        assert_eq!(count, 1);
+
+        let toml_content = std::fs::read_to_string(dir.path().join(".ai/mcp.toml")).unwrap();
+        let config: crate::types::McpConfig = toml::from_str(&toml_content).unwrap();
+        assert!(config.servers.contains_key("local"));
+        assert!(!config.servers.contains_key("remote"));
+    }
+
+    #[test]
+    fn test_import_mcp_creates_ai_dir_if_missing() {
+        let dir = TempDir::new().unwrap();
+        // No .ai directory
+        std::fs::create_dir_all(dir.path().join(".claude")).unwrap();
+        let json = r#"{
+            "mcpServers": {
+                "tool": {
+                    "command": "npx",
+                    "args": ["tool"]
+                }
+            }
+        }"#;
+        std::fs::write(dir.path().join(".claude/.mcp.json"), json).unwrap();
+
+        let count = InitEngine::import_mcp(dir.path()).unwrap();
+        assert_eq!(count, 1);
+        assert!(dir.path().join(".ai/mcp.toml").exists());
+    }
+
+    #[test]
+    fn test_scaffold_calls_import_mcp() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".claude")).unwrap();
+        let json = r#"{
+            "mcpServers": {
+                "auto-tool": {
+                    "command": "npx",
+                    "args": ["-y", "auto-tool"]
+                }
+            }
+        }"#;
+        std::fs::write(dir.path().join(".claude/.mcp.json"), json).unwrap();
+
+        let options = InitOptions {
+            force: false,
+            import_from: None,
+        };
+
+        InitEngine::scaffold(dir.path(), &[], None, &options).unwrap();
+
+        // scaffold should have called import_mcp automatically
+        assert!(
+            dir.path().join(".ai/mcp.toml").exists(),
+            "scaffold should automatically import MCP config"
+        );
+        let toml_content = std::fs::read_to_string(dir.path().join(".ai/mcp.toml")).unwrap();
+        let config: crate::types::McpConfig = toml::from_str(&toml_content).unwrap();
+        assert!(config.servers.contains_key("auto-tool"));
+    }
+
     #[test]
     fn test_scaffold_calls_import_rules() {
         let dir = TempDir::new().unwrap();
