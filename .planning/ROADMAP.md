@@ -66,7 +66,10 @@ Plans:
   3. Single-file tools (Claude Code, OpenCode, Codex) receive concatenated effective content from all rules appended to their instructions file
   4. `aisync init` imports existing Cursor `.mdc` and Windsurf `.md` rule files into `.ai/rules/` with frontmatter translated to canonical format
   5. Managed rule files use `aisync-` prefix so user-created native rules are never overwritten, and stale managed files are cleaned up when their canonical source is removed
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 13-01-PLAN.md — Rule loader, Cursor/Windsurf adapter implementations, sync engine wiring
+- [ ] 13-02-PLAN.md — Single-file tool concatenation and init rule import
 
 ### Phase 14: MCP Server Config & Security
 **Goal**: Users can define MCP servers once in `.ai/mcp.toml` and have them sync to Claude Code and Cursor with hardcoded secrets detected and stripped
@@ -120,7 +123,7 @@ Phases execute in numeric order. Phase 16 depends on 13, 14, and 15 completing. 
 | 10. Declarative TOML Adapters | v1.1 | 2/2 | Complete | 2026-03-09 |
 | 11. Compile-Time Registration | v1.1 | 2/2 | Complete | 2026-03-09 |
 | 12. Types & Trait Foundation | 1/1 | Complete    | 2026-03-09 | - |
-| 13. Multi-File Rule Sync | v1.2 | 0/? | Not started | - |
+| 13. Multi-File Rule Sync | v1.2 | 0/2 | Not started | - |
 | 14. MCP Server Config & Security | v1.2 | 0/? | Not started | - |
 | 15. Command Sync | v1.2 | 0/? | Not started | - |
 | 16. Init Completeness | v1.2 | 0/? | Not started | - |
