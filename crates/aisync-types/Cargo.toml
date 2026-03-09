@@ -1,0 +1,16 @@
+[package]
+name = "aisync-types"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+description = "Shared types for the aisync ecosystem"
+license = "MIT"
+repository = "https://github.com/pmannion/agentsync"
+publish = false
+
+[dependencies]
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
