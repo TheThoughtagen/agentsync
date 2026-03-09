@@ -3,6 +3,7 @@ pub mod adapters;
 pub mod add_tool;
 pub mod conditional;
 pub mod config;
+pub mod declarative;
 pub mod detection;
 pub mod diff;
 pub mod error;
@@ -18,6 +19,7 @@ pub mod watch;
 pub use adapter::{
     AnyAdapter, ClaudeCodeAdapter, CursorAdapter, DetectionResult, OpenCodeAdapter, ToolAdapter,
 };
+pub use declarative::{DeclarativeAdapter, DeclarativeAdapterDef};
 pub use add_tool::AddToolEngine;
 pub use conditional::ConditionalProcessor;
 pub use config::{AisyncConfig, DefaultsConfig, SyncStrategy, ToolConfig, ToolsConfig};
