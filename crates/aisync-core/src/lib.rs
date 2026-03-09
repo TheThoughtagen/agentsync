@@ -12,8 +12,10 @@ pub mod gitignore;
 pub mod hooks;
 pub mod init;
 pub mod managed_section;
+pub mod mcp;
 pub mod memory;
 pub mod rules;
+pub mod security;
 pub mod sync;
 pub mod types;
 pub mod watch;
@@ -25,6 +27,10 @@ pub use declarative::{DeclarativeAdapter, DeclarativeAdapterDef, discover_toml_a
 pub use add_tool::AddToolEngine;
 pub use commands::CommandEngine;
 pub use conditional::ConditionalProcessor;
+// McpEngine and SecurityScanner are used by sync.rs and adapters internally,
+// re-exported for external consumers.
+pub use mcp::McpEngine;
+pub use security::{SecurityScanner, SecurityWarning};
 pub use config::{AisyncConfig, DefaultsConfig, SyncStrategy, ToolConfig, ToolsConfig};
 pub use detection::DetectionEngine;
 pub use diff::DiffEngine;

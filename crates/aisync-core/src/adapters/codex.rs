@@ -313,6 +313,18 @@ impl ToolAdapter for CodexAdapter {
             reason: "Codex does not support hooks".to_string(),
         })
     }
+
+    fn plan_mcp_sync(
+        &self,
+        _project_root: &Path,
+        _mcp_config: &crate::types::McpConfig,
+    ) -> Result<Vec<SyncAction>, AdapterError> {
+        Ok(vec![SyncAction::WarnUnsupportedDimension {
+            tool: ToolKind::Codex,
+            dimension: "mcp".into(),
+            reason: "Codex does not support MCP server configuration".into(),
+        }])
+    }
 }
 
 #[cfg(test)]
@@ -691,5 +703,42 @@ mod tests {
             warn_action.is_none(),
             "expected no WarnContentSize for content under 32 KiB"
         );
+    }
+
+    // --- plan_mcp_sync tests ---
+
+    #[test]
+    fn test_plan_mcp_sync_returns_unsupported_warning() {
+        use crate::types::{McpConfig, McpServer};
+        use std::collections::BTreeMap;
+
+        let dir = TempDir::new().unwrap();
+        let config = McpConfig {
+            servers: BTreeMap::from([(
+                "fs".to_string(),
+                McpServer {
+                    command: "npx".to_string(),
+                    args: vec![],
+                    env: BTreeMap::new(),
+                },
+            )]),
+        };
+
+        let actions = CodexAdapter
+            .plan_mcp_sync(dir.path(), &config)
+            .unwrap();
+        assert_eq!(actions.len(), 1);
+        match &actions[0] {
+            SyncAction::WarnUnsupportedDimension {
+                tool,
+                dimension,
+                reason,
+            } => {
+                assert_eq!(*tool, ToolKind::Codex);
+                assert_eq!(dimension, "mcp");
+                assert!(reason.contains("does not support MCP"));
+            }
+            other => panic!("expected WarnUnsupportedDimension, got {other:?}"),
+        }
     }
 }

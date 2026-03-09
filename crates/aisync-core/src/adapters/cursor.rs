@@ -789,4 +789,55 @@ mod tests {
             .unwrap();
         assert!(actions.is_empty());
     }
+
+    // --- plan_mcp_sync tests ---
+
+    #[test]
+    fn test_plan_mcp_sync_generates_mcp_json() {
+        use crate::types::{McpConfig, McpServer};
+        use std::collections::BTreeMap;
+
+        let dir = TempDir::new().unwrap();
+        let config = McpConfig {
+            servers: BTreeMap::from([(
+                "github".to_string(),
+                McpServer {
+                    command: "npx".to_string(),
+                    args: vec!["-y".to_string(), "server-github".to_string()],
+                    env: BTreeMap::from([("TOKEN".to_string(), "${GITHUB_TOKEN}".to_string())]),
+                },
+            )]),
+        };
+
+        let actions = CursorAdapter
+            .plan_mcp_sync(dir.path(), &config)
+            .unwrap();
+        assert_eq!(actions.len(), 1);
+        match &actions[0] {
+            SyncAction::WriteMcpConfig { output, content } => {
+                assert_eq!(output, &dir.path().join(".cursor/mcp.json"));
+                let parsed: serde_json::Value = serde_json::from_str(content).unwrap();
+                assert!(parsed["mcpServers"]["github"].is_object());
+                assert_eq!(parsed["mcpServers"]["github"]["command"], "npx");
+                assert_eq!(parsed["mcpServers"]["github"]["env"]["TOKEN"], "${GITHUB_TOKEN}");
+            }
+            other => panic!("expected WriteMcpConfig, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_plan_mcp_sync_empty_config_returns_empty() {
+        use crate::types::McpConfig;
+        use std::collections::BTreeMap;
+
+        let dir = TempDir::new().unwrap();
+        let config = McpConfig {
+            servers: BTreeMap::new(),
+        };
+
+        let actions = CursorAdapter
+            .plan_mcp_sync(dir.path(), &config)
+            .unwrap();
+        assert!(actions.is_empty());
+    }
 }
