@@ -4,6 +4,11 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+/// Helper for serde default that returns `true`.
+fn default_true() -> bool {
+    true
+}
+
 /// Strategy for synchronizing configuration files between tools.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -160,6 +165,58 @@ pub struct ToolDiff {
     pub tool_file: String,
 }
 
+/// Metadata for a rule file (description, globs, always_apply).
+///
+/// Maps to YAML frontmatter in canonical rule files. Serde-enabled for
+/// serialization to JSON/YAML proxies.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuleMetadata {
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub globs: Vec<String>,
+    #[serde(default = "default_true")]
+    pub always_apply: bool,
+}
+
+/// A canonical rule file with metadata and content.
+///
+/// Not serde-enabled — contains PathBuf for internal pipeline use only.
+#[derive(Debug, Clone)]
+pub struct RuleFile {
+    pub name: String,
+    pub metadata: RuleMetadata,
+    pub content: String,
+    pub source_path: PathBuf,
+}
+
+/// An MCP server entry with command, args, and environment variables.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpServer {
+    pub command: String,
+    #[serde(default)]
+    pub args: Vec<String>,
+    #[serde(default)]
+    pub env: BTreeMap<String, String>,
+}
+
+/// MCP configuration containing a map of named servers.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpConfig {
+    #[serde(default)]
+    pub servers: BTreeMap<String, McpServer>,
+}
+
+/// A canonical command file with name, content, and source path.
+///
+/// Not serde-enabled — contains PathBuf for internal pipeline use only.
+#[derive(Debug, Clone)]
+pub struct CommandFile {
+    pub name: String,
+    pub content: String,
+    pub source_path: PathBuf,
+}
+
 /// A planned sync action that can be displayed (dry-run) or executed.
 #[derive(Debug, Clone, Serialize)]
 pub enum SyncAction {
@@ -220,6 +277,29 @@ pub enum SyncAction {
         actual_size: usize,
         limit: usize,
         unit: String,
+    },
+    // Rule sync actions
+    CreateRuleFile {
+        output: PathBuf,
+        content: String,
+        rule_name: String,
+    },
+    // MCP sync actions
+    WriteMcpConfig {
+        output: PathBuf,
+        content: String,
+    },
+    // Command sync actions
+    CopyCommandFile {
+        source: PathBuf,
+        output: PathBuf,
+        command_name: String,
+    },
+    // Dimension warnings
+    WarnUnsupportedDimension {
+        tool: ToolKind,
+        dimension: String,
+        reason: String,
     },
 }
 
@@ -310,6 +390,44 @@ impl fmt::Display for SyncAction {
                     limit,
                     unit,
                     path.display()
+                )
+            }
+            SyncAction::CreateRuleFile {
+                output, rule_name, ..
+            } => {
+                write!(
+                    f,
+                    "Would create rule file for '{}': {}",
+                    rule_name,
+                    output.display()
+                )
+            }
+            SyncAction::WriteMcpConfig { output, .. } => {
+                write!(f, "Would write MCP config: {}", output.display())
+            }
+            SyncAction::CopyCommandFile {
+                output,
+                command_name,
+                ..
+            } => {
+                write!(
+                    f,
+                    "Would copy command '{}': {}",
+                    command_name,
+                    output.display()
+                )
+            }
+            SyncAction::WarnUnsupportedDimension {
+                tool,
+                dimension,
+                reason,
+            } => {
+                write!(
+                    f,
+                    "Warning: {} sync unsupported for {}: {}",
+                    dimension,
+                    tool.display_name(),
+                    reason
                 )
             }
         }
@@ -584,5 +702,187 @@ mod tests {
         assert_eq!(serde_json::to_string(&SyncStrategy::Symlink).unwrap(), "\"symlink\"");
         assert_eq!(serde_json::to_string(&SyncStrategy::Copy).unwrap(), "\"copy\"");
         assert_eq!(serde_json::to_string(&SyncStrategy::Generate).unwrap(), "\"generate\"");
+    }
+
+    // --- New type tests (Phase 12, Plan 01) ---
+
+    #[test]
+    fn test_rule_metadata_construction() {
+        let meta = RuleMetadata {
+            description: Some("A test rule".into()),
+            globs: vec!["*.rs".into()],
+            always_apply: false,
+        };
+        assert_eq!(meta.description, Some("A test rule".into()));
+        assert_eq!(meta.globs, vec!["*.rs".to_string()]);
+        assert!(!meta.always_apply);
+    }
+
+    #[test]
+    fn test_rule_metadata_defaults() {
+        let meta: RuleMetadata = serde_json::from_str("{}").unwrap();
+        assert_eq!(meta.description, None);
+        assert!(meta.globs.is_empty());
+        assert!(meta.always_apply); // default_true
+    }
+
+    #[test]
+    fn test_rule_file_construction() {
+        let rf = RuleFile {
+            name: "my-rule".into(),
+            metadata: RuleMetadata {
+                description: None,
+                globs: vec![],
+                always_apply: true,
+            },
+            content: "rule content".into(),
+            source_path: PathBuf::from("/src/rules/my-rule.md"),
+        };
+        assert_eq!(rf.name, "my-rule");
+        assert_eq!(rf.content, "rule content");
+        assert_eq!(rf.source_path, PathBuf::from("/src/rules/my-rule.md"));
+    }
+
+    #[test]
+    fn test_mcp_server_construction() {
+        let server = McpServer {
+            command: "npx".into(),
+            args: vec!["-y".into(), "@modelcontextprotocol/server-filesystem".into()],
+            env: BTreeMap::from([("KEY".into(), "val".into())]),
+        };
+        assert_eq!(server.command, "npx");
+        assert_eq!(server.args.len(), 2);
+        assert_eq!(server.env.get("KEY"), Some(&"val".to_string()));
+    }
+
+    #[test]
+    fn test_mcp_server_defaults() {
+        let server: McpServer = serde_json::from_str(r#"{"command":"npx"}"#).unwrap();
+        assert_eq!(server.command, "npx");
+        assert!(server.args.is_empty());
+        assert!(server.env.is_empty());
+    }
+
+    #[test]
+    fn test_mcp_config_construction() {
+        let config = McpConfig {
+            servers: BTreeMap::from([("fs".into(), McpServer {
+                command: "npx".into(),
+                args: vec![],
+                env: BTreeMap::new(),
+            })]),
+        };
+        assert!(config.servers.contains_key("fs"));
+    }
+
+    #[test]
+    fn test_mcp_config_defaults() {
+        let config: McpConfig = serde_json::from_str("{}").unwrap();
+        assert!(config.servers.is_empty());
+    }
+
+    #[test]
+    fn test_command_file_construction() {
+        let cf = CommandFile {
+            name: "build".into(),
+            content: "cargo build".into(),
+            source_path: PathBuf::from("/commands/build.sh"),
+        };
+        assert_eq!(cf.name, "build");
+        assert_eq!(cf.content, "cargo build");
+        assert_eq!(cf.source_path, PathBuf::from("/commands/build.sh"));
+    }
+
+    #[test]
+    fn test_mcp_config_toml_roundtrip() {
+        let config = McpConfig {
+            servers: BTreeMap::from([("fs".into(), McpServer {
+                command: "npx".into(),
+                args: vec!["-y".into(), "server".into()],
+                env: BTreeMap::from([("HOME".into(), "/home".into())]),
+            })]),
+        };
+        let toml_str = toml::to_string(&config).unwrap();
+        let back: McpConfig = toml::from_str(&toml_str).unwrap();
+        assert_eq!(back.servers.len(), 1);
+        let server = back.servers.get("fs").unwrap();
+        assert_eq!(server.command, "npx");
+        assert_eq!(server.args, vec!["-y", "server"]);
+        assert_eq!(server.env.get("HOME"), Some(&"/home".to_string()));
+    }
+
+    #[test]
+    fn test_mcp_server_toml_roundtrip() {
+        let server = McpServer {
+            command: "node".into(),
+            args: vec!["index.js".into()],
+            env: BTreeMap::new(),
+        };
+        let toml_str = toml::to_string(&server).unwrap();
+        let back: McpServer = toml::from_str(&toml_str).unwrap();
+        assert_eq!(back.command, "node");
+        assert_eq!(back.args, vec!["index.js"]);
+    }
+
+    #[test]
+    fn test_rule_metadata_serde_json_roundtrip() {
+        let meta = RuleMetadata {
+            description: Some("test".into()),
+            globs: vec!["*.ts".into()],
+            always_apply: false,
+        };
+        let json = serde_json::to_string(&meta).unwrap();
+        let back: RuleMetadata = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.description, Some("test".into()));
+        assert_eq!(back.globs, vec!["*.ts".to_string()]);
+        assert!(!back.always_apply);
+    }
+
+    #[test]
+    fn test_sync_action_create_rule_file_display() {
+        let action = SyncAction::CreateRuleFile {
+            output: PathBuf::from(".cursor/rules/aisync-my-rule.mdc"),
+            content: "rule content".into(),
+            rule_name: "my-rule".into(),
+        };
+        let display = format!("{}", action);
+        assert!(display.contains("my-rule"), "display should contain rule name");
+        assert!(display.contains("aisync-my-rule.mdc"), "display should contain output path");
+    }
+
+    #[test]
+    fn test_sync_action_write_mcp_config_display() {
+        let action = SyncAction::WriteMcpConfig {
+            output: PathBuf::from(".cursor/mcp.json"),
+            content: "{}".into(),
+        };
+        let display = format!("{}", action);
+        assert!(display.contains("MCP"));
+        assert!(display.contains("mcp.json"));
+    }
+
+    #[test]
+    fn test_sync_action_copy_command_file_display() {
+        let action = SyncAction::CopyCommandFile {
+            source: PathBuf::from("commands/build.sh"),
+            output: PathBuf::from(".cursor/commands/build.sh"),
+            command_name: "build".into(),
+        };
+        let display = format!("{}", action);
+        assert!(display.contains("build"));
+        assert!(display.contains(".cursor/commands/build.sh"));
+    }
+
+    #[test]
+    fn test_sync_action_warn_unsupported_dimension_display() {
+        let action = SyncAction::WarnUnsupportedDimension {
+            tool: ToolKind::OpenCode,
+            dimension: "commands".into(),
+            reason: "no command format documented".into(),
+        };
+        let display = format!("{}", action);
+        assert!(display.contains("OpenCode"), "should contain tool name");
+        assert!(display.contains("commands"), "should contain dimension");
+        assert!(display.contains("no command format documented"), "should contain reason");
     }
 }
