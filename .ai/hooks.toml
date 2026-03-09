@@ -1,0 +1,14 @@
+[[Notification]]
+matcher = "Edit"
+
+[[Notification.hooks]]
+type = "command"
+command = 'echo "hook fired"'
+
+[[PreToolUse]]
+matcher = "Bash"
+
+[[PreToolUse.hooks]]
+type = "command"
+command = "cargo clippy --workspace --quiet 2>&1 | head -20"
+timeout = 30000

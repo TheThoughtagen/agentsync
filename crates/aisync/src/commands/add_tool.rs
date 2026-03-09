@@ -137,7 +137,7 @@ fn run_interactive(
         .collect();
 
     let selections = MultiSelect::new()
-        .with_prompt("Select tools to add")
+        .with_prompt("Select tools to add (space to toggle, enter to confirm)")
         .items(&items)
         .interact()?;
 

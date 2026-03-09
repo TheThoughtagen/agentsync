@@ -1,0 +1,27 @@
+{
+  "hooks": {
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "command": "echo \"hook fired\"",
+            "type": "command"
+          }
+        ],
+        "matcher": "Edit"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "cargo clippy --workspace --quiet 2>&1 | head -20",
+            "timeout": 30,
+            "type": "command"
+          }
+        ],
+        "matcher": "Bash"
+      }
+    ]
+  }
+}

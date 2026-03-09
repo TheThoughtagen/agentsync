@@ -1,0 +1,11 @@
+[servers.test-server]
+command = "npx"
+args = [
+    "-y",
+    "@modelcontextprotocol/server-test",
+]
+
+[servers.test-server.env]
+ALREADY_REF = "${MY_VAR}"
+ANTHROPIC_API_KEY = "${ANTHROPIC_API_KEY}"
+NORMAL_VALUE = "just-a-regular-string"

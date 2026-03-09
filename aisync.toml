@@ -1,0 +1,18 @@
+schema_version = 1
+
+[defaults]
+sync_strategy = "symlink"
+
+[tools.claude-code]
+enabled = true
+
+[tools.cursor]
+enabled = true
+sync_strategy = "generate"
+
+[tools.opencode]
+enabled = true
+
+[tools.windsurf]
+enabled = true
+sync_strategy = "generate"

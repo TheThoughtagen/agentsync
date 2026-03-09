@@ -20,6 +20,13 @@ Thumbs.db
 # Internal docs
 PRD.md
 
+# aisync sync targets (generated output)
+.cursor/
+.opencode/
+
 # aisync-managed
+CLAUDE.md
 .cursor/rules/project.mdc
+AGENTS.md
+project.md
 # /aisync-managed
