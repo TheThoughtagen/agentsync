@@ -10,7 +10,10 @@ pub enum AisyncError {
     Detection(#[from] DetectionError),
 
     #[error("adapter error for {tool}: {source}")]
-    Adapter { tool: String, source: AdapterError },
+    Adapter {
+        tool: String,
+        source: aisync_adapter::AdapterError,
+    },
 
     #[error("sync error: {0}")]
     Sync(#[from] SyncError),
@@ -51,12 +54,8 @@ pub enum DetectionError {
     },
 }
 
-/// Errors specific to individual tool adapters.
-#[derive(Debug, Error)]
-pub enum AdapterError {
-    #[error("detection failed: {0}")]
-    DetectionFailed(String),
-}
+/// Re-export AdapterError from aisync-adapter for backward compatibility.
+pub use aisync_adapter::AdapterError;
 
 /// Errors related to sync operations.
 #[derive(Debug, Error)]

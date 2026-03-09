@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use crate::adapter::{DetectionResult, ToolAdapter, WindsurfAdapter};
 use crate::config::SyncStrategy;
-use crate::error::AisyncError;
+use crate::adapter::AdapterError;
 use crate::types::{
     Confidence, DriftState, HookTranslation, HooksConfig, SyncAction, ToolKind, ToolSyncStatus,
     content_hash,
@@ -41,7 +41,7 @@ impl ToolAdapter for WindsurfAdapter {
         SyncStrategy::Generate
     }
 
-    fn detect(&self, project_root: &Path) -> Result<DetectionResult, AisyncError> {
+    fn detect(&self, project_root: &Path) -> Result<DetectionResult, AdapterError> {
         let mut markers = Vec::new();
         let mut version_hint = None;
         let windsurf_rules_dir = project_root.join(".windsurf").join("rules");
@@ -67,18 +67,15 @@ impl ToolAdapter for WindsurfAdapter {
         })
     }
 
-    fn read_instructions(&self, project_root: &Path) -> Result<Option<String>, AisyncError> {
+    fn read_instructions(&self, project_root: &Path) -> Result<Option<String>, AdapterError> {
         let path = project_root.join(WINDSURF_REL);
         if !path.exists() {
             return Ok(None);
         }
-        let raw = std::fs::read_to_string(&path).map_err(|e| AisyncError::Adapter {
-            tool: "windsurf".to_string(),
-            source: crate::error::AdapterError::DetectionFailed(format!(
+        let raw = std::fs::read_to_string(&path).map_err(|e| AdapterError::DetectionFailed(format!(
                 "failed to read {}: {e}",
                 path.display()
-            )),
-        })?;
+            )))?;
 
         // Strip YAML frontmatter: content between --- and ---
         let body = if let Some(after_open) = raw.strip_prefix("---") {
@@ -100,7 +97,7 @@ impl ToolAdapter for WindsurfAdapter {
         project_root: &Path,
         canonical_content: &str,
         _strategy: SyncStrategy,
-    ) -> Result<Vec<SyncAction>, AisyncError> {
+    ) -> Result<Vec<SyncAction>, AdapterError> {
         // Windsurf always uses Generate strategy
         let output_path = project_root.join(WINDSURF_REL);
         let expected_content = generate_windsurf_content(canonical_content);
@@ -127,13 +124,10 @@ impl ToolAdapter for WindsurfAdapter {
 
         if output_path.exists() {
             let existing =
-                std::fs::read_to_string(&output_path).map_err(|e| AisyncError::Adapter {
-                    tool: "windsurf".to_string(),
-                    source: crate::error::AdapterError::DetectionFailed(format!(
+                std::fs::read_to_string(&output_path).map_err(|e| AdapterError::DetectionFailed(format!(
                         "failed to read {}: {e}",
                         output_path.display()
-                    )),
-                })?;
+                    )))?;
             if existing == expected_content {
                 // Idempotent: no action needed
                 return Ok(vec![]);
@@ -153,7 +147,7 @@ impl ToolAdapter for WindsurfAdapter {
         project_root: &Path,
         canonical_hash: &str,
         _strategy: SyncStrategy,
-    ) -> Result<ToolSyncStatus, AisyncError> {
+    ) -> Result<ToolSyncStatus, AdapterError> {
         let path = project_root.join(WINDSURF_REL);
 
         if !path.exists() {
@@ -165,13 +159,10 @@ impl ToolAdapter for WindsurfAdapter {
             });
         }
 
-        let actual_content = std::fs::read(&path).map_err(|e| AisyncError::Adapter {
-            tool: "windsurf".to_string(),
-            source: crate::error::AdapterError::DetectionFailed(format!(
+        let actual_content = std::fs::read(&path).map_err(|e| AdapterError::DetectionFailed(format!(
                 "failed to read {}: {e}",
                 path.display()
-            )),
-        })?;
+            )))?;
 
         // Strip frontmatter and hash body only
         let actual_str = String::from_utf8_lossy(&actual_content);
@@ -214,7 +205,7 @@ impl ToolAdapter for WindsurfAdapter {
         &self,
         project_root: &Path,
         memory_files: &[PathBuf],
-    ) -> Result<Vec<SyncAction>, AisyncError> {
+    ) -> Result<Vec<SyncAction>, AdapterError> {
         if memory_files.is_empty() {
             return Ok(vec![]);
         }
@@ -239,7 +230,7 @@ impl ToolAdapter for WindsurfAdapter {
         }])
     }
 
-    fn translate_hooks(&self, _hooks: &HooksConfig) -> Result<HookTranslation, AisyncError> {
+    fn translate_hooks(&self, _hooks: &HooksConfig) -> Result<HookTranslation, AdapterError> {
         Ok(HookTranslation::Unsupported {
             tool: ToolKind::Windsurf,
             reason: "Windsurf does not support hooks".to_string(),

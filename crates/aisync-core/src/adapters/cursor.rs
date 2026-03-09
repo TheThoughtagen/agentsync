@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use crate::adapter::{CursorAdapter, DetectionResult, ToolAdapter};
 use crate::config::SyncStrategy;
-use crate::error::AisyncError;
+use crate::adapter::AdapterError;
 use crate::types::{Confidence, DriftState, SyncAction, ToolKind, ToolSyncStatus, content_hash};
 
 /// The output path relative to project root for generated .mdc file.
@@ -37,7 +37,7 @@ impl ToolAdapter for CursorAdapter {
         crate::config::SyncStrategy::Generate
     }
 
-    fn detect(&self, project_root: &Path) -> Result<DetectionResult, AisyncError> {
+    fn detect(&self, project_root: &Path) -> Result<DetectionResult, AdapterError> {
         let mut markers = Vec::new();
         let mut version_hint = None;
         let cursor_rules_dir = project_root.join(".cursor").join("rules");
@@ -62,18 +62,15 @@ impl ToolAdapter for CursorAdapter {
         })
     }
 
-    fn read_instructions(&self, project_root: &Path) -> Result<Option<String>, AisyncError> {
+    fn read_instructions(&self, project_root: &Path) -> Result<Option<String>, AdapterError> {
         let path = project_root.join(MDC_REL);
         if !path.exists() {
             return Ok(None);
         }
-        let raw = std::fs::read_to_string(&path).map_err(|e| AisyncError::Adapter {
-            tool: "cursor".to_string(),
-            source: crate::error::AdapterError::DetectionFailed(format!(
+        let raw = std::fs::read_to_string(&path).map_err(|e| AdapterError::DetectionFailed(format!(
                 "failed to read {}: {e}",
                 path.display()
-            )),
-        })?;
+            )))?;
 
         // Strip YAML frontmatter: content between --- and ---
         let body = if let Some(after_open) = raw.strip_prefix("---") {
@@ -97,7 +94,7 @@ impl ToolAdapter for CursorAdapter {
         project_root: &Path,
         canonical_content: &str,
         _strategy: SyncStrategy,
-    ) -> Result<Vec<SyncAction>, AisyncError> {
+    ) -> Result<Vec<SyncAction>, AdapterError> {
         // Cursor always uses Generate strategy
         let output_path = project_root.join(MDC_REL);
         let expected_content = generate_mdc_content(canonical_content);
@@ -113,13 +110,10 @@ impl ToolAdapter for CursorAdapter {
         if output_path.exists() {
             // Compare existing content
             let existing =
-                std::fs::read_to_string(&output_path).map_err(|e| AisyncError::Adapter {
-                    tool: "cursor".to_string(),
-                    source: crate::error::AdapterError::DetectionFailed(format!(
+                std::fs::read_to_string(&output_path).map_err(|e| AdapterError::DetectionFailed(format!(
                         "failed to read {}: {e}",
                         output_path.display()
-                    )),
-                })?;
+                    )))?;
             if existing == expected_content {
                 // Idempotent: no action needed
                 return Ok(vec![]);
@@ -138,7 +132,7 @@ impl ToolAdapter for CursorAdapter {
         &self,
         project_root: &Path,
         memory_files: &[PathBuf],
-    ) -> Result<Vec<SyncAction>, AisyncError> {
+    ) -> Result<Vec<SyncAction>, AdapterError> {
         if memory_files.is_empty() {
             return Ok(vec![]);
         }
@@ -166,7 +160,7 @@ impl ToolAdapter for CursorAdapter {
     fn translate_hooks(
         &self,
         _hooks: &crate::types::HooksConfig,
-    ) -> Result<crate::types::HookTranslation, AisyncError> {
+    ) -> Result<crate::types::HookTranslation, AdapterError> {
         Ok(crate::types::HookTranslation::Unsupported {
             tool: ToolKind::Cursor,
             reason: "Cursor does not support hooks".to_string(),
@@ -178,7 +172,7 @@ impl ToolAdapter for CursorAdapter {
         project_root: &Path,
         canonical_hash: &str,
         _strategy: SyncStrategy,
-    ) -> Result<ToolSyncStatus, AisyncError> {
+    ) -> Result<ToolSyncStatus, AdapterError> {
         let path = project_root.join(MDC_REL);
 
         if !path.exists() {
@@ -190,13 +184,10 @@ impl ToolAdapter for CursorAdapter {
             });
         }
 
-        let actual_content = std::fs::read(&path).map_err(|e| AisyncError::Adapter {
-            tool: "cursor".to_string(),
-            source: crate::error::AdapterError::DetectionFailed(format!(
+        let actual_content = std::fs::read(&path).map_err(|e| AdapterError::DetectionFailed(format!(
                 "failed to read {}: {e}",
                 path.display()
-            )),
-        })?;
+            )))?;
         let actual_hash = content_hash(&actual_content);
 
         // For Cursor, we compare the hash of the entire .mdc file (including frontmatter)

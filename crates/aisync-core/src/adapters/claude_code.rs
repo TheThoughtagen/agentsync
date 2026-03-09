@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use crate::adapter::{ClaudeCodeAdapter, DetectionResult, ToolAdapter};
 use crate::config::SyncStrategy;
-use crate::error::AisyncError;
+use crate::adapter::AdapterError;
 use crate::memory::MemoryEngine;
 use crate::types::{Confidence, DriftState, SyncAction, ToolKind, ToolSyncStatus, content_hash};
 
@@ -18,7 +18,7 @@ impl ClaudeCodeAdapter {
         &self,
         link_path: &Path,
         processed_content: &str,
-    ) -> Result<Vec<SyncAction>, AisyncError> {
+    ) -> Result<Vec<SyncAction>, AdapterError> {
         if let Ok(meta) = link_path.symlink_metadata() {
             if meta.file_type().is_symlink() {
                 // Existing symlink: transition to regular file.
@@ -67,7 +67,7 @@ impl ToolAdapter for ClaudeCodeAdapter {
         &["claude-only", "claude-code-only"]
     }
 
-    fn detect(&self, project_root: &Path) -> Result<DetectionResult, AisyncError> {
+    fn detect(&self, project_root: &Path) -> Result<DetectionResult, AdapterError> {
         let mut markers = Vec::new();
         let claude_md = project_root.join(TOOL_FILE);
         let claude_dir = project_root.join(".claude");
@@ -89,18 +89,15 @@ impl ToolAdapter for ClaudeCodeAdapter {
         })
     }
 
-    fn read_instructions(&self, project_root: &Path) -> Result<Option<String>, AisyncError> {
+    fn read_instructions(&self, project_root: &Path) -> Result<Option<String>, AdapterError> {
         let path = project_root.join(TOOL_FILE);
         if !path.exists() {
             return Ok(None);
         }
-        let content = std::fs::read_to_string(&path).map_err(|e| AisyncError::Adapter {
-            tool: "claude-code".to_string(),
-            source: crate::error::AdapterError::DetectionFailed(format!(
+        let content = std::fs::read_to_string(&path).map_err(|e| AdapterError::DetectionFailed(format!(
                 "failed to read {}: {e}",
                 path.display()
-            )),
-        })?;
+            )))?;
         Ok(Some(content))
     }
 
@@ -109,7 +106,7 @@ impl ToolAdapter for ClaudeCodeAdapter {
         project_root: &Path,
         canonical_content: &str,
         strategy: SyncStrategy,
-    ) -> Result<Vec<SyncAction>, AisyncError> {
+    ) -> Result<Vec<SyncAction>, AdapterError> {
         let link_path = project_root.join(TOOL_FILE);
         let target_rel = Path::new(CANONICAL_REL);
 
@@ -133,12 +130,9 @@ impl ToolAdapter for ClaudeCodeAdapter {
             if let Ok(meta) = link_path.symlink_metadata() {
                 if meta.file_type().is_symlink() {
                     let current_target =
-                        std::fs::read_link(&link_path).map_err(|e| AisyncError::Adapter {
-                            tool: "claude-code".to_string(),
-                            source: crate::error::AdapterError::DetectionFailed(format!(
+                        std::fs::read_link(&link_path).map_err(|e| AdapterError::DetectionFailed(format!(
                                 "failed to read symlink: {e}"
-                            )),
-                        })?;
+                            )))?;
                     if current_target == target_rel {
                         return Ok(vec![]);
                     }
@@ -165,24 +159,22 @@ impl ToolAdapter for ClaudeCodeAdapter {
         &self,
         project_root: &Path,
         memory_files: &[PathBuf],
-    ) -> Result<Vec<SyncAction>, AisyncError> {
+    ) -> Result<Vec<SyncAction>, AdapterError> {
         if memory_files.is_empty() {
             return Ok(vec![]);
         }
 
-        let claude_memory = MemoryEngine::claude_memory_path(project_root)?;
+        let claude_memory = MemoryEngine::claude_memory_path(project_root)
+            .map_err(|e| AdapterError::Other(format!("memory path error: {e}")))?;
         let target = project_root.join(".ai/memory");
 
         // Check if the symlink already exists and is correct
         if claude_memory.symlink_metadata().is_ok() {
             let meta = claude_memory
                 .symlink_metadata()
-                .map_err(|e| AisyncError::Adapter {
-                    tool: "claude-code".to_string(),
-                    source: crate::error::AdapterError::DetectionFailed(format!(
-                        "failed to read symlink metadata: {e}"
-                    )),
-                })?;
+                .map_err(|e| AdapterError::DetectionFailed(format!(
+                    "failed to read symlink metadata: {e}"
+                )))?;
 
             if meta.file_type().is_symlink() {
                 // Check if it points to the right target
@@ -227,7 +219,7 @@ impl ToolAdapter for ClaudeCodeAdapter {
     fn translate_hooks(
         &self,
         hooks: &crate::types::HooksConfig,
-    ) -> Result<crate::types::HookTranslation, AisyncError> {
+    ) -> Result<crate::types::HookTranslation, AdapterError> {
         let mut hooks_obj = serde_json::Map::new();
         for (event, groups) in &hooks.events {
             let groups_json: Vec<serde_json::Value> = groups
@@ -265,12 +257,9 @@ impl ToolAdapter for ClaudeCodeAdapter {
             hooks_obj.insert(event.clone(), serde_json::Value::Array(groups_json));
         }
         let json = serde_json::json!({ "hooks": hooks_obj });
-        let content = serde_json::to_string_pretty(&json).map_err(|e| AisyncError::Adapter {
-            tool: "claude-code".to_string(),
-            source: crate::error::AdapterError::DetectionFailed(format!(
+        let content = serde_json::to_string_pretty(&json).map_err(|e| AdapterError::Other(format!(
                 "JSON serialization failed: {e}"
-            )),
-        })?;
+            )))?;
         Ok(crate::types::HookTranslation::Supported {
             tool: ToolKind::ClaudeCode,
             content,
@@ -283,7 +272,7 @@ impl ToolAdapter for ClaudeCodeAdapter {
         project_root: &Path,
         canonical_hash: &str,
         strategy: SyncStrategy,
-    ) -> Result<ToolSyncStatus, AisyncError> {
+    ) -> Result<ToolSyncStatus, AdapterError> {
         let path = project_root.join(TOOL_FILE);
 
         // Check symlink metadata (doesn't follow symlinks)
@@ -311,13 +300,10 @@ impl ToolAdapter for ClaudeCodeAdapter {
             }
 
             // Read content via symlink and hash
-            let content = std::fs::read(&path).map_err(|e| AisyncError::Adapter {
-                tool: "claude-code".to_string(),
-                source: crate::error::AdapterError::DetectionFailed(format!(
+            let content = std::fs::read(&path).map_err(|e| AdapterError::DetectionFailed(format!(
                     "failed to read {}: {e}",
                     path.display()
-                )),
-            })?;
+                )))?;
             let hash = content_hash(&content);
             if hash == canonical_hash {
                 return Ok(ToolSyncStatus {
@@ -338,13 +324,10 @@ impl ToolAdapter for ClaudeCodeAdapter {
         }
 
         // Regular file -- hash and compare
-        let content = std::fs::read(&path).map_err(|e| AisyncError::Adapter {
-            tool: "claude-code".to_string(),
-            source: crate::error::AdapterError::DetectionFailed(format!(
+        let content = std::fs::read(&path).map_err(|e| AdapterError::DetectionFailed(format!(
                 "failed to read {}: {e}",
                 path.display()
-            )),
-        })?;
+            )))?;
         let hash = content_hash(&content);
         if strategy == SyncStrategy::Copy {
             // Copy strategy: regular file is expected, just check content

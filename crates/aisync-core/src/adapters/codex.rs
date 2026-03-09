@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use crate::adapter::{CodexAdapter, DetectionResult, ToolAdapter};
 use crate::config::SyncStrategy;
-use crate::error::AisyncError;
+use crate::adapter::AdapterError;
 use crate::types::{
     Confidence, DriftState, HookTranslation, HooksConfig, SyncAction, ToolKind, ToolSyncStatus,
     content_hash,
@@ -19,7 +19,7 @@ impl CodexAdapter {
         &self,
         link_path: &Path,
         processed_content: &str,
-    ) -> Result<Vec<SyncAction>, AisyncError> {
+    ) -> Result<Vec<SyncAction>, AdapterError> {
         if let Ok(meta) = link_path.symlink_metadata() {
             if meta.file_type().is_symlink() {
                 return Ok(vec![SyncAction::CreateFile {
@@ -62,7 +62,7 @@ impl ToolAdapter for CodexAdapter {
         &["codex-only"]
     }
 
-    fn detect(&self, project_root: &Path) -> Result<DetectionResult, AisyncError> {
+    fn detect(&self, project_root: &Path) -> Result<DetectionResult, AdapterError> {
         let codex_dir = project_root.join(".codex");
 
         if codex_dir.is_dir() {
@@ -84,18 +84,15 @@ impl ToolAdapter for CodexAdapter {
         }
     }
 
-    fn read_instructions(&self, project_root: &Path) -> Result<Option<String>, AisyncError> {
+    fn read_instructions(&self, project_root: &Path) -> Result<Option<String>, AdapterError> {
         let path = project_root.join(TOOL_FILE);
         if !path.exists() {
             return Ok(None);
         }
-        let content = std::fs::read_to_string(&path).map_err(|e| AisyncError::Adapter {
-            tool: "codex".to_string(),
-            source: crate::error::AdapterError::DetectionFailed(format!(
+        let content = std::fs::read_to_string(&path).map_err(|e| AdapterError::DetectionFailed(format!(
                 "failed to read {}: {e}",
                 path.display()
-            )),
-        })?;
+            )))?;
         Ok(Some(content))
     }
 
@@ -104,7 +101,7 @@ impl ToolAdapter for CodexAdapter {
         project_root: &Path,
         canonical_content: &str,
         strategy: SyncStrategy,
-    ) -> Result<Vec<SyncAction>, AisyncError> {
+    ) -> Result<Vec<SyncAction>, AdapterError> {
         let link_path = project_root.join(TOOL_FILE);
         let target_rel = Path::new(CANONICAL_REL);
 
@@ -150,12 +147,9 @@ impl ToolAdapter for CodexAdapter {
             if let Ok(meta) = link_path.symlink_metadata() {
                 if meta.file_type().is_symlink() {
                     let current_target =
-                        std::fs::read_link(&link_path).map_err(|e| AisyncError::Adapter {
-                            tool: "codex".to_string(),
-                            source: crate::error::AdapterError::DetectionFailed(format!(
+                        std::fs::read_link(&link_path).map_err(|e| AdapterError::DetectionFailed(format!(
                                 "failed to read symlink: {e}"
-                            )),
-                        })?;
+                            )))?;
                     if current_target == target_rel {
                         return Ok(prepend_warning(vec![], size_warning));
                     }
@@ -182,7 +176,7 @@ impl ToolAdapter for CodexAdapter {
         project_root: &Path,
         canonical_hash: &str,
         strategy: SyncStrategy,
-    ) -> Result<ToolSyncStatus, AisyncError> {
+    ) -> Result<ToolSyncStatus, AdapterError> {
         let path = project_root.join(TOOL_FILE);
 
         let meta = match path.symlink_metadata() {
@@ -207,13 +201,10 @@ impl ToolAdapter for CodexAdapter {
                 });
             }
 
-            let content = std::fs::read(&path).map_err(|e| AisyncError::Adapter {
-                tool: "codex".to_string(),
-                source: crate::error::AdapterError::DetectionFailed(format!(
+            let content = std::fs::read(&path).map_err(|e| AdapterError::DetectionFailed(format!(
                     "failed to read {}: {e}",
                     path.display()
-                )),
-            })?;
+                )))?;
             let hash = content_hash(&content);
             if hash == canonical_hash {
                 return Ok(ToolSyncStatus {
@@ -234,13 +225,10 @@ impl ToolAdapter for CodexAdapter {
         }
 
         // Regular file -- hash and compare
-        let content = std::fs::read(&path).map_err(|e| AisyncError::Adapter {
-            tool: "codex".to_string(),
-            source: crate::error::AdapterError::DetectionFailed(format!(
+        let content = std::fs::read(&path).map_err(|e| AdapterError::DetectionFailed(format!(
                 "failed to read {}: {e}",
                 path.display()
-            )),
-        })?;
+            )))?;
         let hash = content_hash(&content);
         if strategy == SyncStrategy::Copy {
             let drift = if hash == canonical_hash {
@@ -283,7 +271,7 @@ impl ToolAdapter for CodexAdapter {
         &self,
         project_root: &Path,
         memory_files: &[PathBuf],
-    ) -> Result<Vec<SyncAction>, AisyncError> {
+    ) -> Result<Vec<SyncAction>, AdapterError> {
         if memory_files.is_empty() {
             return Ok(vec![]);
         }
@@ -308,7 +296,7 @@ impl ToolAdapter for CodexAdapter {
         }])
     }
 
-    fn translate_hooks(&self, _hooks: &HooksConfig) -> Result<HookTranslation, AisyncError> {
+    fn translate_hooks(&self, _hooks: &HooksConfig) -> Result<HookTranslation, AdapterError> {
         Ok(HookTranslation::Unsupported {
             tool: ToolKind::Codex,
             reason: "Codex does not support hooks".to_string(),

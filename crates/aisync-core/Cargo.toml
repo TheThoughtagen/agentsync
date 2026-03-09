@@ -9,6 +9,7 @@ repository = "https://github.com/pmannion/agentsync"
 publish = false
 
 [dependencies]
+aisync-adapter = { workspace = true }
 aisync-types = { workspace = true }
 serde = { workspace = true }
 toml = { workspace = true }

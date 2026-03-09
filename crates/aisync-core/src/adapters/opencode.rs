@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use crate::adapter::{DetectionResult, OpenCodeAdapter, ToolAdapter};
 use crate::config::SyncStrategy;
-use crate::error::AisyncError;
+use crate::adapter::AdapterError;
 use crate::types::{Confidence, DriftState, SyncAction, ToolKind, ToolSyncStatus, content_hash};
 
 /// The relative symlink target path from project root to canonical instructions.
@@ -16,7 +16,7 @@ impl OpenCodeAdapter {
         &self,
         link_path: &Path,
         processed_content: &str,
-    ) -> Result<Vec<SyncAction>, AisyncError> {
+    ) -> Result<Vec<SyncAction>, AdapterError> {
         if let Ok(meta) = link_path.symlink_metadata() {
             if meta.file_type().is_symlink() {
                 return Ok(vec![SyncAction::CreateFile {
@@ -59,7 +59,7 @@ impl ToolAdapter for OpenCodeAdapter {
         &["opencode-only"]
     }
 
-    fn detect(&self, project_root: &Path) -> Result<DetectionResult, AisyncError> {
+    fn detect(&self, project_root: &Path) -> Result<DetectionResult, AdapterError> {
         let mut markers = Vec::new();
         let opencode_json = project_root.join("opencode.json");
         let agents_md = project_root.join(TOOL_FILE);
@@ -90,18 +90,15 @@ impl ToolAdapter for OpenCodeAdapter {
         })
     }
 
-    fn read_instructions(&self, project_root: &Path) -> Result<Option<String>, AisyncError> {
+    fn read_instructions(&self, project_root: &Path) -> Result<Option<String>, AdapterError> {
         let path = project_root.join(TOOL_FILE);
         if !path.exists() {
             return Ok(None);
         }
-        let content = std::fs::read_to_string(&path).map_err(|e| AisyncError::Adapter {
-            tool: "opencode".to_string(),
-            source: crate::error::AdapterError::DetectionFailed(format!(
+        let content = std::fs::read_to_string(&path).map_err(|e| AdapterError::DetectionFailed(format!(
                 "failed to read {}: {e}",
                 path.display()
-            )),
-        })?;
+            )))?;
         Ok(Some(content))
     }
 
@@ -110,7 +107,7 @@ impl ToolAdapter for OpenCodeAdapter {
         project_root: &Path,
         canonical_content: &str,
         strategy: SyncStrategy,
-    ) -> Result<Vec<SyncAction>, AisyncError> {
+    ) -> Result<Vec<SyncAction>, AdapterError> {
         let link_path = project_root.join(TOOL_FILE);
         let target_rel = Path::new(CANONICAL_REL);
 
@@ -132,12 +129,9 @@ impl ToolAdapter for OpenCodeAdapter {
             if let Ok(meta) = link_path.symlink_metadata() {
                 if meta.file_type().is_symlink() {
                     let current_target =
-                        std::fs::read_link(&link_path).map_err(|e| AisyncError::Adapter {
-                            tool: "opencode".to_string(),
-                            source: crate::error::AdapterError::DetectionFailed(format!(
+                        std::fs::read_link(&link_path).map_err(|e| AdapterError::DetectionFailed(format!(
                                 "failed to read symlink: {e}"
-                            )),
-                        })?;
+                            )))?;
                     if current_target == target_rel {
                         return Ok(vec![]);
                     }
@@ -163,7 +157,7 @@ impl ToolAdapter for OpenCodeAdapter {
         &self,
         project_root: &Path,
         memory_files: &[PathBuf],
-    ) -> Result<Vec<SyncAction>, AisyncError> {
+    ) -> Result<Vec<SyncAction>, AdapterError> {
         if memory_files.is_empty() {
             return Ok(vec![]);
         }
@@ -191,7 +185,7 @@ impl ToolAdapter for OpenCodeAdapter {
     fn translate_hooks(
         &self,
         hooks: &crate::types::HooksConfig,
-    ) -> Result<crate::types::HookTranslation, AisyncError> {
+    ) -> Result<crate::types::HookTranslation, AdapterError> {
         fn opencode_event_name(event: &str) -> Option<&'static str> {
             match event {
                 "PreToolUse" => Some("tool.execute.before"),
@@ -245,7 +239,7 @@ impl ToolAdapter for OpenCodeAdapter {
         project_root: &Path,
         canonical_hash: &str,
         strategy: SyncStrategy,
-    ) -> Result<ToolSyncStatus, AisyncError> {
+    ) -> Result<ToolSyncStatus, AdapterError> {
         let path = project_root.join(TOOL_FILE);
 
         let meta = match path.symlink_metadata() {
@@ -270,13 +264,10 @@ impl ToolAdapter for OpenCodeAdapter {
                 });
             }
 
-            let content = std::fs::read(&path).map_err(|e| AisyncError::Adapter {
-                tool: "opencode".to_string(),
-                source: crate::error::AdapterError::DetectionFailed(format!(
+            let content = std::fs::read(&path).map_err(|e| AdapterError::DetectionFailed(format!(
                     "failed to read {}: {e}",
                     path.display()
-                )),
-            })?;
+                )))?;
             let hash = content_hash(&content);
             if hash == canonical_hash {
                 return Ok(ToolSyncStatus {
@@ -297,13 +288,10 @@ impl ToolAdapter for OpenCodeAdapter {
         }
 
         // Regular file -- hash and compare
-        let content = std::fs::read(&path).map_err(|e| AisyncError::Adapter {
-            tool: "opencode".to_string(),
-            source: crate::error::AdapterError::DetectionFailed(format!(
+        let content = std::fs::read(&path).map_err(|e| AdapterError::DetectionFailed(format!(
                 "failed to read {}: {e}",
                 path.display()
-            )),
-        })?;
+            )))?;
         let hash = content_hash(&content);
         if strategy == SyncStrategy::Copy {
             let drift = if hash == canonical_hash {
