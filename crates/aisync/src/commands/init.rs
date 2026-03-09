@@ -4,7 +4,7 @@ use std::path::Path;
 use colored::Colorize;
 use dialoguer::{Confirm, Select};
 
-use aisync_core::{InitEngine, InitOptions};
+use aisync_core::{AisyncConfig, InitEngine, InitOptions, SyncAction, SyncEngine, SyncReport};
 
 /// Run the `aisync init` command with interactive prompts.
 pub fn run_init(verbose: bool) -> Result<(), Box<dyn std::error::Error>> {
@@ -126,12 +126,41 @@ pub fn run_init(verbose: bool) -> Result<(), Box<dyn std::error::Error>> {
         println!("\n{}", "Instructions imported successfully.".green());
     }
 
+    // Step 5: Auto-sync to achieve zero drift
+    println!("\n{}", "Syncing...".bold());
+
+    let config_path = project_root.join("aisync.toml");
+    let config = AisyncConfig::from_file(&config_path)?;
+
+    match SyncEngine::plan(&config, &project_root) {
+        Ok(planned) => {
+            // Convert SkipExistingFile to RemoveAndRelink during init
+            // (user already chose to initialize, so replacing native files is expected)
+            let adjusted = convert_skip_to_relink(planned);
+
+            match SyncEngine::execute(&adjusted, &project_root) {
+                Ok(result) => {
+                    print_init_sync_summary(&result, verbose);
+                }
+                Err(e) => {
+                    eprintln!("  {} Sync warning: {}", "!".yellow(), e);
+                    eprintln!("  Run `aisync sync` manually to complete setup.");
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("  {} Sync planning warning: {}", "!".yellow(), e);
+            eprintln!("  Run `aisync sync` manually to complete setup.");
+        }
+    }
+
     println!("\n{}", "Initialization complete!".green().bold());
 
     Ok(())
 }
 
 /// Resolve which import source to use, handling interactive prompts.
+/// Satisfies INIT-03: interactive source tool selection when multiple sources exist.
 /// Returns the content to import, or None for empty instructions.
 fn resolve_import(
     project_root: &Path,
@@ -216,5 +245,89 @@ fn resolve_import(
                 Ok(None)
             }
         }
+    }
+}
+
+/// During init, convert SkipExistingFile actions to RemoveAndRelink.
+/// The user has already chosen to initialize, so replacing native files is expected.
+fn convert_skip_to_relink(mut report: SyncReport) -> SyncReport {
+    for tool_result in &mut report.results {
+        let mut new_actions = Vec::new();
+        for action in tool_result.actions.drain(..) {
+            match &action {
+                SyncAction::SkipExistingFile { path, .. } => {
+                    // Convert to RemoveAndRelink with .ai/instructions.md target
+                    let target = std::path::PathBuf::from(".ai/instructions.md");
+                    new_actions.push(SyncAction::RemoveAndRelink {
+                        link: path.clone(),
+                        target,
+                    });
+                }
+                _ => new_actions.push(action),
+            }
+        }
+        tool_result.actions = new_actions;
+    }
+    report
+}
+
+/// Print a summarized sync report suitable for init output.
+/// Groups actions by type per tool for a compact overview.
+fn print_init_sync_summary(report: &SyncReport, verbose: bool) {
+    let mut success_count = 0u32;
+    let mut error_count = 0u32;
+
+    for tool_result in &report.results {
+        let tool_name = tool_result.tool.display_name();
+
+        if let Some(err) = &tool_result.error {
+            error_count += 1;
+            eprintln!("  {} {} -- {}", "!".yellow(), tool_name, err);
+            continue;
+        }
+
+        if tool_result.actions.is_empty() {
+            success_count += 1;
+            if verbose {
+                println!("  {} {} -- no actions needed", "\u{2714}".green(), tool_name);
+            }
+            continue;
+        }
+
+        success_count += 1;
+
+        if verbose {
+            // Verbose: show each action
+            println!("  {}:", tool_name.bold());
+            for action in &tool_result.actions {
+                println!("    {} {}", "\u{2714}".green(), action);
+            }
+        } else {
+            // Compact: show tool with action count summary
+            let action_count = tool_result.actions.len();
+            println!(
+                "  {} {} -- {} action(s)",
+                "\u{2714}".green(),
+                tool_name,
+                action_count
+            );
+        }
+    }
+
+    if error_count == 0 {
+        println!(
+            "\n{}",
+            format!("All {} tool(s) in sync.", success_count).green()
+        );
+    } else {
+        println!(
+            "\n{}",
+            format!(
+                "{}/{} tool(s) synced. Run `aisync sync` after fixing issues.",
+                success_count,
+                success_count + error_count
+            )
+            .yellow()
+        );
     }
 }
