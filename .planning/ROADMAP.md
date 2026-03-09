@@ -99,10 +99,11 @@ Plans:
   1. A `.ai/adapters/mytool.toml` file with detection rules, file mappings, and sync strategy is auto-discovered on `aisync sync`
   2. The TOML-defined adapter appears in `aisync status` output alongside built-in adapters
   3. A TOML adapter can generate output files using template syntax with instruction content interpolation
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 10-01: TBD
+- [ ] 10-01-PLAN.md — TOML adapter schema + DeclarativeAdapter ToolAdapter implementation
+- [ ] 10-02-PLAN.md — Auto-discovery of .ai/adapters/*.toml + SyncEngine/DetectionEngine integration
 
 ### Phase 11: Compile-Time Registration
 **Goal**: Community Rust adapter crates register automatically at compile time -- no central enum modification required
@@ -131,7 +132,7 @@ Plans:
 | 7. Windsurf & Codex Adapters | 2/2 | Complete   | 2026-03-08 | - |
 | 8. Add-Tool Command | v1.1 | 0/2 | Not started | - |
 | 9. Plugin SDK Crate Extraction | 2/2 | Complete   | 2026-03-09 | - |
-| 10. Declarative TOML Adapters | v1.1 | 0/TBD | Not started | - |
+| 10. Declarative TOML Adapters | v1.1 | 0/2 | Not started | - |
 | 11. Compile-Time Registration | v1.1 | 0/TBD | Not started | - |
 
 ---
