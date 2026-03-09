@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Adapter Expansion & Plugin SDK
 status: complete
-last_updated: "2026-03-09T12:21:40Z"
+last_updated: "2026-03-09T12:27:24Z"
 progress:
   total_phases: 6
   completed_phases: 6
-  total_plans: 12
-  completed_plans: 12
+  total_plans: 13
+  completed_plans: 13
 ---
 
 # Project State
@@ -23,19 +23,19 @@ See: .planning/PROJECT.md (updated 2026-03-07)
 ## Current Position
 
 Phase: 11 of 11 (Compile-Time Registration) -- sixth of 6 v1.1 phases
-Plan: 1 of 1 complete
+Plan: 2 of 2 complete
 Status: Milestone Complete
-Last activity: 2026-03-09 -- Completed 11-01 (Compile-Time Registration)
+Last activity: 2026-03-09 -- Completed 11-02 (Adapter Authoring Documentation)
 
 Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 29 (20 v1.0 + 9 v1.1)
-- v1.1 plans completed: 12
+- Total plans completed: 30 (20 v1.0 + 10 v1.1)
+- v1.1 plans completed: 13
 - Average duration: 7min
-- Total execution time: 56min
+- Total execution time: 59min
 
 ## Accumulated Context
 
@@ -78,6 +78,7 @@ Progress: [██████████] 100%
 - inventory 0.3 confirmed compatible with Rust 2024 edition
 - No re-export of inventory::submit! -- community crates depend on inventory directly
 - Three-tier deduplication: builtin > TOML > inventory (HashSet of seen names)
+- Empty [workspace] table in standalone example Cargo.toml prevents Cargo workspace auto-detection
 
 ### Pending Todos
 
@@ -91,6 +92,6 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-09
-Stopped at: Completed 11-01-PLAN.md (Phase 11 complete, v1.1 milestone complete)
-Resume file: .planning/phases/11-compile-time-registration/11-01-SUMMARY.md
+Stopped at: Completed 11-02-PLAN.md (Adapter authoring docs and example crate)
+Resume file: .planning/phases/11-compile-time-registration/11-02-SUMMARY.md
 Next: v1.1 milestone complete

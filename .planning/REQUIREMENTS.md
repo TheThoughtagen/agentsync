@@ -38,7 +38,7 @@ Requirements for Adapter Expansion & Plugin SDK milestone. Each maps to roadmap 
 - [x] **SDK-04**: DeclarativeAdapter struct implements ToolAdapter from parsed TOML definitions
 - [x] **SDK-05**: `.ai/adapters/*.toml` files auto-discovered and loaded as plugin adapters
 - [x] **SDK-06**: Compile-time registration via `inventory` crate for community Rust adapter crates
-- [ ] **SDK-07**: Documentation for community adapter authoring (both TOML and Rust paths)
+- [x] **SDK-07**: Documentation for community adapter authoring (both TOML and Rust paths)
 
 ## v2 Requirements
 
@@ -98,7 +98,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SDK-04 | Phase 10 | Complete |
 | SDK-05 | Phase 10 | Complete |
 | SDK-06 | Phase 11 | Complete |
-| SDK-07 | Phase 11 | Pending |
+| SDK-07 | Phase 11 | Complete |
 
 **Coverage:**
 - v1.1 requirements: 21 total
