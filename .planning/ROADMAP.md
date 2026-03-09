@@ -85,10 +85,11 @@ Plans:
   1. `aisync-types` crate compiles independently with only serde/thiserror dependencies and exports ToolKind, SyncStrategy, and related types
   2. `aisync-adapter` crate exports the ToolAdapter trait and can be added as a dependency by an external crate
   3. `aisync-core` depends on `aisync-types` and `aisync-adapter` (inverted dependency -- core depends on SDK, not vice versa)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 09-01: TBD
+- [ ] 09-01-PLAN.md — aisync-types crate extraction (shared types with serde+thiserror only)
+- [ ] 09-02-PLAN.md — aisync-adapter crate extraction (ToolAdapter trait + AdapterError)
 
 ### Phase 10: Declarative TOML Adapters
 **Goal**: Users can define new tool adapters via TOML files in `.ai/adapters/` without writing Rust
