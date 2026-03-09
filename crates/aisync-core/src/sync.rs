@@ -58,6 +58,9 @@ impl SyncEngine {
         // Scan for memory files
         let memory_files = crate::memory::MemoryEngine::list(project_root)?;
 
+        // Load canonical rule files
+        let rules = crate::rules::RuleEngine::load(project_root)?;
+
         let mut results = Vec::new();
 
         for (tool_kind, adapter, tool_config_opt) in Self::enabled_tools(config, project_root) {
@@ -124,6 +127,20 @@ impl SyncEngine {
                     }
                     Err(_) => {
                         // Hook translation error is non-fatal
+                    }
+                }
+            }
+
+            // Plan rule sync (if canonical rules exist)
+            if !rules.is_empty() {
+                match adapter.plan_rules_sync(project_root, &rules) {
+                    Ok(rule_actions) => actions.extend(rule_actions),
+                    Err(e) => {
+                        actions.push(SyncAction::WarnUnsupportedDimension {
+                            tool: tool_kind.clone(),
+                            dimension: "rules".into(),
+                            reason: format!("rule sync failed: {e}"),
+                        });
                     }
                 }
             }

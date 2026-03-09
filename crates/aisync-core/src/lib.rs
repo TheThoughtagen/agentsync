@@ -12,6 +12,7 @@ pub mod hooks;
 pub mod init;
 pub mod managed_section;
 pub mod memory;
+pub mod rules;
 pub mod sync;
 pub mod types;
 pub mod watch;
@@ -33,6 +34,7 @@ pub use gitignore::update_managed_section;
 pub use hooks::{HookEngine, HookSummary, VALID_EVENTS};
 pub use init::{ImportChoice, ImportSource, InitEngine, InitOptions};
 pub use memory::{ImportResult, MemoryEngine};
+pub use rules::RuleEngine;
 pub use sync::SyncEngine;
 pub use types::{
     Confidence, DriftState, HookGroup, HookHandler, HookStatusReport, HookTranslation, HooksConfig,
