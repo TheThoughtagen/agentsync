@@ -27,7 +27,7 @@
 - [ ] **Phase 8: Add-Tool Command** - Interactive CLI for mid-lifecycle tool adoption
 - [x] **Phase 9: Plugin SDK Crate Extraction** - Extract shared types and adapter trait into publishable crates (completed 2026-03-09)
 - [x] **Phase 10: Declarative TOML Adapters** - Enable adapter authoring without Rust via TOML definitions (completed 2026-03-09)
-- [ ] **Phase 11: Compile-Time Registration** - Community adapter crates register at build time
+- [ ] **Phase 11: Compile-Time Registration** - Community adapter crates register at build time (1/2 plans complete)
 
 ## Phase Details
 
@@ -115,7 +115,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 11-01-PLAN.md — AdapterFactory type + inventory integration in SyncEngine/DetectionEngine
+- [x] 11-01-PLAN.md — AdapterFactory type + inventory integration in SyncEngine/DetectionEngine
 - [ ] 11-02-PLAN.md — Adapter authoring documentation (TOML + Rust paths) + example crate
 
 ## Progress
@@ -134,7 +134,7 @@ Plans:
 | 8. Add-Tool Command | v1.1 | 0/2 | Not started | - |
 | 9. Plugin SDK Crate Extraction | 2/2 | Complete   | 2026-03-09 | - |
 | 10. Declarative TOML Adapters | 2/2 | Complete    | 2026-03-09 | - |
-| 11. Compile-Time Registration | v1.1 | 0/TBD | Not started | - |
+| 11. Compile-Time Registration | 1/2 | In Progress|  | - |
 
 ---
 *Roadmap created: 2026-03-08*

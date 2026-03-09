@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Adapter Expansion & Plugin SDK
-status: unknown
-last_updated: "2026-03-09T03:46:54.087Z"
+status: complete
+last_updated: "2026-03-09T12:21:40Z"
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 11
-  completed_plans: 11
+  total_phases: 6
+  completed_phases: 6
+  total_plans: 12
+  completed_plans: 12
 ---
 
 # Project State
@@ -18,24 +18,24 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-07)
 
 **Core value:** Every AI tool working on a project sees the same instructions, memory, and hooks -- always in sync, zero manual copying.
-**Current focus:** Phase 10 - Declarative TOML Adapters
+**Current focus:** Phase 11 - Compile-Time Registration (Complete)
 
 ## Current Position
 
-Phase: 10 of 11 (Declarative TOML Adapters) -- fifth of 6 v1.1 phases
-Plan: 2 of 2 complete
-Status: Phase Complete
-Last activity: 2026-03-09 -- Completed 10-02 (TOML Adapter Discovery & Integration)
+Phase: 11 of 11 (Compile-Time Registration) -- sixth of 6 v1.1 phases
+Plan: 1 of 1 complete
+Status: Milestone Complete
+Last activity: 2026-03-09 -- Completed 11-01 (Compile-Time Registration)
 
-Progress: [██████████] 95%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 28 (20 v1.0 + 8 v1.1)
-- v1.1 plans completed: 11
+- Total plans completed: 29 (20 v1.0 + 9 v1.1)
+- v1.1 plans completed: 12
 - Average duration: 7min
-- Total execution time: 54min
+- Total execution time: 56min
 
 ## Accumulated Context
 
@@ -75,6 +75,9 @@ Progress: [██████████] 95%
 - strip_frontmatter helper supports arbitrary delimiter strings (not just ---)
 - Strategy fallback uses adapter.default_sync_strategy() instead of config.defaults when no tool_config exists
 - TOML adapter detection errors are non-fatal (eprintln warning) unlike builtin adapter errors which return Err
+- inventory 0.3 confirmed compatible with Rust 2024 edition
+- No re-export of inventory::submit! -- community crates depend on inventory directly
+- Three-tier deduplication: builtin > TOML > inventory (HashSet of seen names)
 
 ### Pending Todos
 
@@ -82,12 +85,12 @@ None.
 
 ### Blockers/Concerns
 
-- `inventory` 0.3 compatibility with Rust 2024 edition needs verification before Phase 11
-- ToolKind Copy vs Custom(String) decision — DECIDED: Custom(String) variant, Clone migration
+- `inventory` 0.3 compatibility with Rust 2024 edition -- RESOLVED: works correctly
+- ToolKind Copy vs Custom(String) decision -- DECIDED: Custom(String) variant, Clone migration
 
 ## Session Continuity
 
 Last session: 2026-03-09
-Stopped at: Completed 10-02-PLAN.md (Phase 10 complete)
-Resume file: .planning/phases/10-declarative-toml-adapters/10-02-SUMMARY.md
-Next: Phase 11 (Plugin Registry)
+Stopped at: Completed 11-01-PLAN.md (Phase 11 complete, v1.1 milestone complete)
+Resume file: .planning/phases/11-compile-time-registration/11-01-SUMMARY.md
+Next: v1.1 milestone complete
