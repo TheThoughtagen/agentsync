@@ -278,6 +278,33 @@ impl ToolAdapter for ClaudeCodeAdapter {
         )
     }
 
+    fn plan_mcp_sync(
+        &self,
+        project_root: &Path,
+        mcp_config: &crate::types::McpConfig,
+    ) -> Result<Vec<SyncAction>, AdapterError> {
+        if mcp_config.servers.is_empty() {
+            return Ok(vec![]);
+        }
+        let json = crate::mcp::McpEngine::generate_mcp_json(mcp_config)
+            .map_err(|e| AdapterError::Other(format!("MCP JSON generation failed: {e}")))?;
+        Ok(vec![SyncAction::WriteMcpConfig {
+            output: project_root.join(".claude/.mcp.json"),
+            content: json,
+        }])
+    }
+
+    fn plan_commands_sync(
+        &self,
+        project_root: &Path,
+        commands: &[crate::types::CommandFile],
+    ) -> Result<Vec<SyncAction>, AdapterError> {
+        super::plan_directory_commands_sync(
+            project_root.join(".claude/commands"),
+            commands,
+        )
+    }
+
     fn sync_status(
         &self,
         project_root: &Path,
@@ -1006,5 +1033,96 @@ mod tests {
             }
             other => panic!("expected Supported, got {other:?}"),
         }
+    }
+
+    // --- plan_commands_sync tests ---
+
+    #[test]
+    fn test_plan_commands_sync_targets_claude_commands_dir() {
+        use crate::types::CommandFile;
+
+        let dir = TempDir::new().unwrap();
+        let commands = vec![CommandFile {
+            name: "build".to_string(),
+            content: "Build the project".to_string(),
+            source_path: PathBuf::from(".ai/commands/build.md"),
+        }];
+
+        let actions = ClaudeCodeAdapter
+            .plan_commands_sync(dir.path(), &commands)
+            .unwrap();
+
+        // Should target .claude/commands/
+        let copy_action = actions
+            .iter()
+            .find(|a| matches!(a, SyncAction::CopyCommandFile { .. }));
+        assert!(copy_action.is_some(), "expected CopyCommandFile action");
+        if let SyncAction::CopyCommandFile { output, command_name, .. } = copy_action.unwrap() {
+            assert!(
+                output.to_string_lossy().contains(".claude/commands/aisync-build.md"),
+                "should target .claude/commands/aisync-build.md, got: {}",
+                output.display()
+            );
+            assert_eq!(command_name, "build");
+        }
+    }
+
+    #[test]
+    fn test_plan_commands_sync_empty_returns_empty() {
+        let dir = TempDir::new().unwrap();
+        let actions = ClaudeCodeAdapter
+            .plan_commands_sync(dir.path(), &[])
+            .unwrap();
+        assert!(actions.is_empty());
+    }
+
+    // --- plan_mcp_sync tests ---
+
+    #[test]
+    fn test_plan_mcp_sync_generates_mcp_json() {
+        use crate::types::{McpConfig, McpServer};
+        use std::collections::BTreeMap;
+
+        let dir = TempDir::new().unwrap();
+        let config = McpConfig {
+            servers: BTreeMap::from([(
+                "fs".to_string(),
+                McpServer {
+                    command: "npx".to_string(),
+                    args: vec!["-y".to_string(), "server-fs".to_string()],
+                    env: BTreeMap::new(),
+                },
+            )]),
+        };
+
+        let actions = ClaudeCodeAdapter
+            .plan_mcp_sync(dir.path(), &config)
+            .unwrap();
+        assert_eq!(actions.len(), 1);
+        match &actions[0] {
+            SyncAction::WriteMcpConfig { output, content } => {
+                assert_eq!(output, &dir.path().join(".claude/.mcp.json"));
+                let parsed: serde_json::Value = serde_json::from_str(content).unwrap();
+                assert!(parsed["mcpServers"]["fs"].is_object());
+                assert_eq!(parsed["mcpServers"]["fs"]["command"], "npx");
+            }
+            other => panic!("expected WriteMcpConfig, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_plan_mcp_sync_empty_config_returns_empty() {
+        use crate::types::McpConfig;
+        use std::collections::BTreeMap;
+
+        let dir = TempDir::new().unwrap();
+        let config = McpConfig {
+            servers: BTreeMap::new(),
+        };
+
+        let actions = ClaudeCodeAdapter
+            .plan_mcp_sync(dir.path(), &config)
+            .unwrap();
+        assert!(actions.is_empty());
     }
 }

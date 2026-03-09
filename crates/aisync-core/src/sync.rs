@@ -61,6 +61,20 @@ impl SyncEngine {
         // Load canonical rule files
         let rules = crate::rules::RuleEngine::load(project_root)?;
 
+        // Load MCP config
+        let mcp_config = crate::mcp::McpEngine::load(project_root)?;
+
+        // Run security scan (warnings are advisory, don't block)
+        let security_warnings =
+            crate::security::SecurityScanner::scan_mcp_config(&mcp_config);
+
+        // Sanitize env values before passing to adapters
+        let mut mcp_config = mcp_config;
+        crate::mcp::McpEngine::sanitize_env(&mut mcp_config);
+
+        // Load canonical command files
+        let commands = crate::commands::CommandEngine::load(project_root)?;
+
         let mut results = Vec::new();
 
         for (tool_kind, adapter, tool_config_opt) in Self::enabled_tools(config, project_root) {
@@ -140,6 +154,47 @@ impl SyncEngine {
                             tool: tool_kind.clone(),
                             dimension: "rules".into(),
                             reason: format!("rule sync failed: {e}"),
+                        });
+                    }
+                }
+            }
+
+            // Plan MCP sync (if MCP servers exist)
+            if !mcp_config.servers.is_empty() {
+                // Emit security warnings as WarnUnsupportedDimension actions
+                // so they flow through the existing action display pipeline
+                for warning in &security_warnings {
+                    actions.push(SyncAction::WarnUnsupportedDimension {
+                        tool: tool_kind.clone(),
+                        dimension: "security".into(),
+                        reason: format!(
+                            "Potential secret in server '{}' env var '{}': matches {} pattern",
+                            warning.server_name, warning.env_key, warning.pattern_name
+                        ),
+                    });
+                }
+
+                match adapter.plan_mcp_sync(project_root, &mcp_config) {
+                    Ok(mcp_actions) => actions.extend(mcp_actions),
+                    Err(e) => {
+                        actions.push(SyncAction::WarnUnsupportedDimension {
+                            tool: tool_kind.clone(),
+                            dimension: "mcp".into(),
+                            reason: format!("MCP sync failed: {e}"),
+                        });
+                    }
+                }
+            }
+
+            // Plan command sync (if canonical commands exist)
+            if !commands.is_empty() {
+                match adapter.plan_commands_sync(project_root, &commands) {
+                    Ok(cmd_actions) => actions.extend(cmd_actions),
+                    Err(e) => {
+                        actions.push(SyncAction::WarnUnsupportedDimension {
+                            tool: tool_kind.clone(),
+                            dimension: "commands".into(),
+                            reason: format!("command sync failed: {e}"),
                         });
                     }
                 }

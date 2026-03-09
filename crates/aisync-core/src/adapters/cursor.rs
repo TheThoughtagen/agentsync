@@ -256,6 +256,33 @@ impl ToolAdapter for CursorAdapter {
         Ok(actions)
     }
 
+    fn plan_mcp_sync(
+        &self,
+        project_root: &Path,
+        mcp_config: &crate::types::McpConfig,
+    ) -> Result<Vec<SyncAction>, AdapterError> {
+        if mcp_config.servers.is_empty() {
+            return Ok(vec![]);
+        }
+        let json = crate::mcp::McpEngine::generate_mcp_json(mcp_config)
+            .map_err(|e| AdapterError::Other(format!("MCP JSON generation failed: {e}")))?;
+        Ok(vec![SyncAction::WriteMcpConfig {
+            output: project_root.join(".cursor/mcp.json"),
+            content: json,
+        }])
+    }
+
+    fn plan_commands_sync(
+        &self,
+        project_root: &Path,
+        commands: &[crate::types::CommandFile],
+    ) -> Result<Vec<SyncAction>, AdapterError> {
+        super::plan_directory_commands_sync(
+            project_root.join(".cursor/commands"),
+            commands,
+        )
+    }
+
     fn sync_status(
         &self,
         project_root: &Path,
@@ -721,5 +748,45 @@ mod tests {
             }
             other => panic!("expected Unsupported, got {other:?}"),
         }
+    }
+
+    // --- plan_commands_sync tests ---
+
+    #[test]
+    fn test_plan_commands_sync_targets_cursor_commands_dir() {
+        use crate::types::CommandFile;
+
+        let dir = TempDir::new().unwrap();
+        let commands = vec![CommandFile {
+            name: "build".to_string(),
+            content: "Build the project".to_string(),
+            source_path: std::path::PathBuf::from(".ai/commands/build.md"),
+        }];
+
+        let actions = CursorAdapter
+            .plan_commands_sync(dir.path(), &commands)
+            .unwrap();
+
+        let copy_action = actions
+            .iter()
+            .find(|a| matches!(a, SyncAction::CopyCommandFile { .. }));
+        assert!(copy_action.is_some(), "expected CopyCommandFile action");
+        if let SyncAction::CopyCommandFile { output, command_name, .. } = copy_action.unwrap() {
+            assert!(
+                output.to_string_lossy().contains(".cursor/commands/aisync-build.md"),
+                "should target .cursor/commands/aisync-build.md, got: {}",
+                output.display()
+            );
+            assert_eq!(command_name, "build");
+        }
+    }
+
+    #[test]
+    fn test_plan_commands_sync_empty_returns_empty() {
+        let dir = TempDir::new().unwrap();
+        let actions = CursorAdapter
+            .plan_commands_sync(dir.path(), &[])
+            .unwrap();
+        assert!(actions.is_empty());
     }
 }
