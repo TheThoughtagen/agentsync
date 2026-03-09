@@ -4,8 +4,8 @@ use crate::adapter::{CodexAdapter, DetectionResult, ToolAdapter};
 use crate::config::SyncStrategy;
 use crate::adapter::AdapterError;
 use crate::types::{
-    Confidence, DriftState, HookTranslation, HooksConfig, SyncAction, ToolKind, ToolSyncStatus,
-    content_hash,
+    Confidence, DriftState, HookTranslation, HooksConfig, RuleFile, SyncAction, ToolKind,
+    ToolSyncStatus, content_hash,
 };
 
 /// The relative symlink target path from project root to canonical instructions.
@@ -296,6 +296,17 @@ impl ToolAdapter for CodexAdapter {
         }])
     }
 
+    fn plan_rules_sync(
+        &self,
+        project_root: &Path,
+        rules: &[RuleFile],
+    ) -> Result<Vec<SyncAction>, AdapterError> {
+        crate::adapters::plan_single_file_rules_sync(
+            project_root.join(self.native_instruction_path()),
+            rules,
+        )
+    }
+
     fn translate_hooks(&self, _hooks: &HooksConfig) -> Result<HookTranslation, AdapterError> {
         Ok(HookTranslation::Unsupported {
             tool: ToolKind::Codex,
@@ -507,6 +518,53 @@ mod tests {
         let dir = TempDir::new().unwrap();
 
         let actions = CodexAdapter.plan_memory_sync(dir.path(), &[]).unwrap();
+        assert!(actions.is_empty());
+    }
+
+    // --- plan_rules_sync tests ---
+
+    #[test]
+    fn test_plan_rules_sync_returns_update_memory_references() {
+        use crate::types::RuleFile;
+        use crate::types::RuleMetadata;
+        use std::path::PathBuf;
+
+        let dir = TempDir::new().unwrap();
+        let rules = vec![RuleFile {
+            name: "testing".to_string(),
+            metadata: RuleMetadata {
+                description: Some("Testing rules".to_string()),
+                globs: vec![],
+                always_apply: true,
+            },
+            content: "Write tests first.".to_string(),
+            source_path: PathBuf::from(".ai/rules/testing.md"),
+        }];
+
+        let actions = CodexAdapter.plan_rules_sync(dir.path(), &rules).unwrap();
+        assert_eq!(actions.len(), 1);
+        match &actions[0] {
+            SyncAction::UpdateMemoryReferences {
+                path,
+                references,
+                marker_start,
+                marker_end,
+            } => {
+                assert_eq!(path, &dir.path().join("AGENTS.md"));
+                assert_eq!(marker_start, "<!-- aisync:rules -->");
+                assert_eq!(marker_end, "<!-- /aisync:rules -->");
+                assert_eq!(references.len(), 1);
+                assert!(references[0].contains("## Rule: testing"));
+                assert!(references[0].contains("Write tests first."));
+            }
+            other => panic!("expected UpdateMemoryReferences, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_plan_rules_sync_empty_rules_returns_empty() {
+        let dir = TempDir::new().unwrap();
+        let actions = CodexAdapter.plan_rules_sync(dir.path(), &[]).unwrap();
         assert!(actions.is_empty());
     }
 

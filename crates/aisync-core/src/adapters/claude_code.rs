@@ -4,7 +4,7 @@ use crate::adapter::{ClaudeCodeAdapter, DetectionResult, ToolAdapter};
 use crate::config::SyncStrategy;
 use crate::adapter::AdapterError;
 use crate::memory::MemoryEngine;
-use crate::types::{Confidence, DriftState, SyncAction, ToolKind, ToolSyncStatus, content_hash};
+use crate::types::{Confidence, DriftState, RuleFile, SyncAction, ToolKind, ToolSyncStatus, content_hash};
 
 /// The relative symlink target path from project root to canonical instructions.
 const CANONICAL_REL: &str = ".ai/instructions.md";
@@ -265,6 +265,17 @@ impl ToolAdapter for ClaudeCodeAdapter {
             content,
             format: "json".to_string(),
         })
+    }
+
+    fn plan_rules_sync(
+        &self,
+        project_root: &Path,
+        rules: &[RuleFile],
+    ) -> Result<Vec<SyncAction>, AdapterError> {
+        crate::adapters::plan_single_file_rules_sync(
+            project_root.join(self.native_instruction_path()),
+            rules,
+        )
     }
 
     fn sync_status(
@@ -827,6 +838,97 @@ mod tests {
             .sync_status(dir.path(), "wrong_hash_value", SyncStrategy::Symlink)
             .unwrap();
         assert!(matches!(status.drift, DriftState::Drifted { .. }));
+    }
+
+    // --- plan_rules_sync tests ---
+
+    #[test]
+    fn test_plan_rules_sync_returns_update_memory_references() {
+        use crate::types::RuleFile;
+        use crate::types::RuleMetadata;
+        use std::path::PathBuf;
+
+        let dir = TempDir::new().unwrap();
+        let rules = vec![
+            RuleFile {
+                name: "coding-standards".to_string(),
+                metadata: RuleMetadata {
+                    description: Some("Coding standards".to_string()),
+                    globs: vec!["*.rs".to_string()],
+                    always_apply: true,
+                },
+                content: "Use snake_case for variables.".to_string(),
+                source_path: PathBuf::from(".ai/rules/coding-standards.md"),
+            },
+            RuleFile {
+                name: "testing".to_string(),
+                metadata: RuleMetadata {
+                    description: Some("Testing rules".to_string()),
+                    globs: vec![],
+                    always_apply: true,
+                },
+                content: "Always write tests first.".to_string(),
+                source_path: PathBuf::from(".ai/rules/testing.md"),
+            },
+        ];
+
+        let actions = ClaudeCodeAdapter
+            .plan_rules_sync(dir.path(), &rules)
+            .unwrap();
+        assert_eq!(actions.len(), 1);
+        match &actions[0] {
+            SyncAction::UpdateMemoryReferences {
+                path,
+                references,
+                marker_start,
+                marker_end,
+            } => {
+                assert_eq!(path, &dir.path().join("CLAUDE.md"));
+                assert_eq!(marker_start, "<!-- aisync:rules -->");
+                assert_eq!(marker_end, "<!-- /aisync:rules -->");
+                assert_eq!(references.len(), 1);
+                let content = &references[0];
+                assert!(content.contains("## Rule: coding-standards"));
+                assert!(content.contains("Use snake_case for variables."));
+                assert!(content.contains("## Rule: testing"));
+                assert!(content.contains("Always write tests first."));
+            }
+            other => panic!("expected UpdateMemoryReferences, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_plan_rules_sync_empty_rules_returns_empty() {
+        let dir = TempDir::new().unwrap();
+        let actions = ClaudeCodeAdapter.plan_rules_sync(dir.path(), &[]).unwrap();
+        assert!(actions.is_empty());
+    }
+
+    #[test]
+    fn test_plan_rules_sync_skips_empty_content_rules() {
+        use crate::types::RuleFile;
+        use crate::types::RuleMetadata;
+        use std::path::PathBuf;
+
+        let dir = TempDir::new().unwrap();
+        let rules = vec![RuleFile {
+            name: "empty-rule".to_string(),
+            metadata: RuleMetadata {
+                description: None,
+                globs: vec![],
+                always_apply: true,
+            },
+            content: "".to_string(),
+            source_path: PathBuf::from(".ai/rules/empty-rule.md"),
+        }];
+
+        let actions = ClaudeCodeAdapter
+            .plan_rules_sync(dir.path(), &rules)
+            .unwrap();
+        assert!(
+            actions.is_empty(),
+            "should return empty when all rules have empty content"
+        );
     }
 
     // --- translate_hooks tests ---
