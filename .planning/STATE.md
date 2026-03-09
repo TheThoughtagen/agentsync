@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Real-World Hardening
 status: in-progress
-last_updated: "2026-03-09T16:58:54Z"
+last_updated: "2026-03-09T17:02:47.015Z"
 progress:
-  total_phases: 5
+  total_phases: 4
   completed_phases: 4
   total_plans: 7
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # Project State
@@ -63,6 +63,8 @@ Progress: [█████████░] 86% (v1.2: 6/7 plans)
 - sanitize_env uses env key name for ${KEY_NAME} substitution
 - import_commands follows identical pattern to import_rules for consistency
 - Commands copied verbatim during init (no frontmatter translation needed)
+- [Phase 14]: parse_mcp_json returns empty McpConfig for missing/invalid files (non-fatal import)
+- [Phase 14]: Claude Code sources checked first (.claude/.mcp.json then root fallback) before Cursor for first-seen-wins merge priority
 
 ### Pending Todos
 

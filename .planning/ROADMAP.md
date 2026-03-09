@@ -37,7 +37,7 @@
 
 - [x] **Phase 12: Types & Trait Foundation** - New types and trait methods that unblock all subsequent phases (completed 2026-03-09)
 - [x] **Phase 13: Multi-File Rule Sync** - Users can define rules once and have them sync to every tool's native format (completed 2026-03-09)
-- [ ] **Phase 14: MCP Server Config & Security** - Users can define MCP servers once and share them across tools without leaking secrets
+- [x] **Phase 14: MCP Server Config & Security** - Users can define MCP servers once and share them across tools without leaking secrets (completed 2026-03-09)
 - [x] **Phase 15: Command Sync** - Users can define slash commands once and have them available in all supporting tools (completed 2026-03-09)
 - [ ] **Phase 16: Init Completeness** - Init workflow produces a fully synced project with zero drift
 
@@ -130,7 +130,7 @@ Phases execute in numeric order. Phase 16 depends on 13, 14, and 15 completing. 
 | 11. Compile-Time Registration | v1.1 | 2/2 | Complete | 2026-03-09 |
 | 12. Types & Trait Foundation | 1/1 | Complete    | 2026-03-09 | - |
 | 13. Multi-File Rule Sync | 2/2 | Complete    | 2026-03-09 | - |
-| 14. MCP Server Config & Security | 1/2 | In Progress|  | - |
+| 14. MCP Server Config & Security | 2/2 | Complete   | 2026-03-09 | - |
 | 15. Command Sync | 2/2 | Complete   | 2026-03-09 | - |
 | 16. Init Completeness | v1.2 | 0/? | Not started | - |
 

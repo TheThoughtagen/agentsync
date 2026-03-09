@@ -23,7 +23,7 @@ Requirements for v1.2 release. Each maps to roadmap phases.
 - [x] **MCP-02**: `aisync sync` generates `.claude/.mcp.json` from canonical MCP config
 - [x] **MCP-03**: `aisync sync` generates `.cursor/mcp.json` from canonical MCP config
 - [x] **MCP-04**: MCP sync strips hardcoded env values and replaces with `${VAR}` references to prevent API key leaks
-- [ ] **MCP-05**: `aisync init` imports existing tool MCP configs into `.ai/mcp.toml` (merging across tools)
+- [x] **MCP-05**: `aisync init` imports existing tool MCP configs into `.ai/mcp.toml` (merging across tools)
 - [x] **MCP-06**: Windsurf MCP is skipped with a warning (global-only config, not project-scoped)
 - [x] **MCP-07**: MCP sync scopes to stdio transport only; warns when a server uses unsupported transport for a target tool
 
@@ -108,7 +108,7 @@ Deferred to future release. Tracked but not in current roadmap.
 | MCP-02 | Phase 14 | Complete |
 | MCP-03 | Phase 14 | Complete |
 | MCP-04 | Phase 14 | Complete |
-| MCP-05 | Phase 14 | Pending |
+| MCP-05 | Phase 14 | Complete |
 | MCP-06 | Phase 14 | Complete |
 | MCP-07 | Phase 14 | Complete |
 | SEC-01 | Phase 14 | Complete |
