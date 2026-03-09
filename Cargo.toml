@@ -22,5 +22,6 @@ notify-debouncer-mini = "0.7"
 similar = "2.7"
 ctrlc = "3.4"
 clap_complete = "4.5"
+inventory = "0.3"
 aisync-adapter = { path = "crates/aisync-adapter", version = "0.1.0" }
 aisync-types = { path = "crates/aisync-types", version = "0.1.0" }

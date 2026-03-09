@@ -11,3 +11,4 @@ publish = false
 [dependencies]
 aisync-types = { workspace = true }
 thiserror = { workspace = true }
+inventory = { workspace = true }

@@ -130,6 +130,30 @@ pub trait ToolAdapter: Send + Sync {
     }
 }
 
+/// A registration entry for compile-time adapter discovery.
+///
+/// Community adapter crates submit instances via `inventory::submit!`.
+/// The aisync binary iterates all submissions via `inventory::iter::<AdapterFactory>`.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// inventory::submit! {
+///     AdapterFactory {
+///         name: "my-tool",
+///         create: || Box::new(MyToolAdapter),
+///     }
+/// }
+/// ```
+pub struct AdapterFactory {
+    /// Identifier used for deduplication and logging.
+    pub name: &'static str,
+    /// Constructor function called once during adapter collection.
+    pub create: fn() -> Box<dyn ToolAdapter>,
+}
+
+inventory::collect!(AdapterFactory);
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -148,6 +172,42 @@ mod tests {
         assert_eq!(result.confidence, Confidence::High);
         assert_eq!(result.markers_found.len(), 1);
         assert_eq!(result.version_hint, Some("v1".to_string()));
+    }
+
+    /// Minimal test adapter for AdapterFactory tests.
+    struct TestAdapter;
+
+    impl ToolAdapter for TestAdapter {
+        fn name(&self) -> ToolKind {
+            ToolKind::Custom("test-factory".to_string())
+        }
+        fn display_name(&self) -> &str {
+            "Test Factory Adapter"
+        }
+        fn native_instruction_path(&self) -> &str {
+            ".test-factory/instructions.md"
+        }
+        fn detect(&self, _project_root: &Path) -> Result<DetectionResult, AdapterError> {
+            Ok(DetectionResult {
+                tool: self.name(),
+                detected: false,
+                confidence: Confidence::Medium,
+                markers_found: vec![],
+                version_hint: None,
+            })
+        }
+    }
+
+    #[test]
+    fn test_adapter_factory_create() {
+        let factory = AdapterFactory {
+            name: "test-factory",
+            create: || Box::new(TestAdapter),
+        };
+        assert_eq!(factory.name, "test-factory");
+        let adapter = (factory.create)();
+        assert_eq!(adapter.display_name(), "Test Factory Adapter");
+        assert_eq!(adapter.name(), ToolKind::Custom("test-factory".to_string()));
     }
 
     #[test]
