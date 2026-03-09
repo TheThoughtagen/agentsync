@@ -8,7 +8,7 @@ progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 11
-  completed_plans: 10
+  completed_plans: 11
 ---
 
 # Project State
@@ -23,19 +23,19 @@ See: .planning/PROJECT.md (updated 2026-03-07)
 ## Current Position
 
 Phase: 10 of 11 (Declarative TOML Adapters) -- fifth of 6 v1.1 phases
-Plan: 1 of 2 complete
-Status: In Progress
-Last activity: 2026-03-09 -- Completed 10-01 (TOML Adapter Schema & DeclarativeAdapter)
+Plan: 2 of 2 complete
+Status: Phase Complete
+Last activity: 2026-03-09 -- Completed 10-02 (TOML Adapter Discovery & Integration)
 
-Progress: [█████████░] 90%
+Progress: [██████████] 95%
 
 ## Performance Metrics
 
 **Velocity:**
 - Total plans completed: 28 (20 v1.0 + 8 v1.1)
-- v1.1 plans completed: 10
+- v1.1 plans completed: 11
 - Average duration: 7min
-- Total execution time: 50min
+- Total execution time: 54min
 
 ## Accumulated Context
 
@@ -73,6 +73,8 @@ Progress: [█████████░] 90%
 - Box::leak pattern for conditional_tags/watch_paths &'static str lifetime (acceptable for program-lifetime adapters)
 - Custom Default impl for DetectionDef to ensure match_any defaults to true even when entire section omitted
 - strip_frontmatter helper supports arbitrary delimiter strings (not just ---)
+- Strategy fallback uses adapter.default_sync_strategy() instead of config.defaults when no tool_config exists
+- TOML adapter detection errors are non-fatal (eprintln warning) unlike builtin adapter errors which return Err
 
 ### Pending Todos
 
@@ -86,6 +88,6 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-09
-Stopped at: Completed 10-01-PLAN.md
-Resume file: .planning/phases/10-declarative-toml-adapters/10-01-SUMMARY.md
-Next: 10-02 (Adapter Registry & Loading)
+Stopped at: Completed 10-02-PLAN.md (Phase 10 complete)
+Resume file: .planning/phases/10-declarative-toml-adapters/10-02-SUMMARY.md
+Next: Phase 11 (Plugin Registry)

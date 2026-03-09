@@ -26,7 +26,7 @@
 - [x] **Phase 7: Windsurf & Codex Adapters** - Add two new built-in adapters using refactored trait system (completed 2026-03-08)
 - [ ] **Phase 8: Add-Tool Command** - Interactive CLI for mid-lifecycle tool adoption
 - [x] **Phase 9: Plugin SDK Crate Extraction** - Extract shared types and adapter trait into publishable crates (completed 2026-03-09)
-- [ ] **Phase 10: Declarative TOML Adapters** - Enable adapter authoring without Rust via TOML definitions
+- [x] **Phase 10: Declarative TOML Adapters** - Enable adapter authoring without Rust via TOML definitions (completed 2026-03-09)
 - [ ] **Phase 11: Compile-Time Registration** - Community adapter crates register at build time
 
 ## Phase Details
@@ -132,7 +132,7 @@ Plans:
 | 7. Windsurf & Codex Adapters | 2/2 | Complete   | 2026-03-08 | - |
 | 8. Add-Tool Command | v1.1 | 0/2 | Not started | - |
 | 9. Plugin SDK Crate Extraction | 2/2 | Complete   | 2026-03-09 | - |
-| 10. Declarative TOML Adapters | 1/2 | In Progress|  | - |
+| 10. Declarative TOML Adapters | 2/2 | Complete   | 2026-03-09 | - |
 | 11. Compile-Time Registration | v1.1 | 0/TBD | Not started | - |
 
 ---
