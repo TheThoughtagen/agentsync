@@ -117,6 +117,9 @@ impl InitEngine {
         // Import existing tool-native rules into .ai/rules/
         Self::import_rules(project_root)?;
 
+        // Import existing Claude Code commands into .ai/commands/
+        Self::import_commands(project_root)?;
+
         Ok(())
     }
 
@@ -173,6 +176,45 @@ impl InitEngine {
                         write_canonical_rule(&output, &metadata, &content)?;
                         count += 1;
                     }
+                }
+            }
+        }
+
+        Ok(count)
+    }
+
+    /// Import existing Claude Code command files into canonical .ai/commands/ directory.
+    ///
+    /// Scans `.claude/commands/` for `*.md` files and copies them to `.ai/commands/`.
+    /// Skips files with `aisync-` prefix (managed files). Creates `.ai/commands/` if missing.
+    /// Returns the count of imported files.
+    pub fn import_commands(project_root: &Path) -> Result<usize, AisyncError> {
+        let commands_dir = project_root.join(".ai/commands");
+        std::fs::create_dir_all(&commands_dir)
+            .map_err(|e| InitError::ScaffoldFailed(e))?;
+
+        let claude_commands_dir = project_root.join(".claude/commands");
+        if !claude_commands_dir.is_dir() {
+            return Ok(0);
+        }
+
+        let mut count = 0;
+
+        if let Ok(entries) = std::fs::read_dir(&claude_commands_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().is_some_and(|ext| ext == "md") {
+                    let stem = path.file_stem().unwrap().to_string_lossy().to_string();
+                    // Skip aisync-* managed files
+                    if stem.starts_with("aisync-") {
+                        continue;
+                    }
+                    let content = std::fs::read_to_string(&path)
+                        .map_err(|e| InitError::ImportFailed(format!("read {}: {e}", path.display())))?;
+                    let output = commands_dir.join(format!("{stem}.md"));
+                    std::fs::write(&output, content)
+                        .map_err(|e| InitError::ScaffoldFailed(e))?;
+                    count += 1;
                 }
             }
         }
