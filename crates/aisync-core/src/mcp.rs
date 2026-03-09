@@ -2,7 +2,7 @@ use std::path::Path;
 
 use crate::error::{AisyncError, SyncError};
 use crate::security::SecurityScanner;
-use crate::types::{McpConfig, McpServer};
+use crate::types::McpConfig;
 
 /// Engine for loading and processing MCP server configuration from `.ai/mcp.toml`.
 pub struct McpEngine;
@@ -92,6 +92,7 @@ impl McpEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::McpServer;
     use std::collections::BTreeMap;
     use tempfile::TempDir;
 
