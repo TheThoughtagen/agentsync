@@ -63,15 +63,17 @@
 | 15. Command Sync | v1.2 | 2/2 | Complete | 2026-03-09 |
 | 16. Init Completeness | v1.2 | 2/2 | Complete | 2026-03-09 |
 
-### Phase 1: add cursor hooks support
+### Phase 1: add cursor plugin ecosystem support
 
-**Goal:** Enable Cursor hooks support by implementing translate_hooks on CursorAdapter and wiring sync.rs path routing and status detection
+**Goal:** Add hooks translation, skills sync, and agents sync for Cursor's plugin ecosystem — fix translate_hooks from Unsupported to Supported, add SkillEngine/AgentEngine loaders, wire into SyncEngine
 **Requirements**: TBD
 **Depends on:** Phase 0
-**Plans:** 1 plan
+**Plans:** 3 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Implement Cursor hooks translation and sync wiring
+- [ ] 01-01-PLAN.md — Foundation types, trait methods, and SkillEngine/AgentEngine loaders
+- [ ] 01-02-PLAN.md — CursorAdapter hooks fix, skills sync, agents sync, AnyAdapter dispatch
+- [ ] 01-03-PLAN.md — SyncEngine wiring, hook path routing, action execution
 
 ---
 *Roadmap created: 2026-03-08*
