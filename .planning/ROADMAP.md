@@ -63,6 +63,16 @@
 | 15. Command Sync | v1.2 | 2/2 | Complete | 2026-03-09 |
 | 16. Init Completeness | v1.2 | 2/2 | Complete | 2026-03-09 |
 
+### Phase 1: add cursor hooks support
+
+**Goal:** Enable Cursor hooks support by implementing translate_hooks on CursorAdapter and wiring sync.rs path routing and status detection
+**Requirements**: TBD
+**Depends on:** Phase 0
+**Plans:** 1 plan
+
+Plans:
+- [ ] 01-01-PLAN.md — Implement Cursor hooks translation and sync wiring
+
 ---
 *Roadmap created: 2026-03-08*
 *v1.0 milestone shipped: 2026-03-07*
