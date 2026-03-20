@@ -73,7 +73,7 @@ impl InitEngine {
     }
 
     /// Scaffold the .ai/ directory structure.
-    /// Creates: .ai/instructions.md, .ai/memory/, .ai/hooks/, .ai/commands/, aisync.toml
+    /// Creates: .ai/instructions.md, .ai/memory/, .ai/commands/, aisync.toml
     /// If import_content is Some, writes it to .ai/instructions.md.
     /// Otherwise creates empty .ai/instructions.md.
     /// Writes aisync.toml with detected tools enabled (or empty tools if none detected).
@@ -94,7 +94,6 @@ impl InitEngine {
         let dirs = [
             ai_dir.clone(),
             ai_dir.join("memory"),
-            ai_dir.join("hooks"),
             ai_dir.join("commands"),
         ];
         for dir in &dirs {
@@ -122,6 +121,9 @@ impl InitEngine {
 
         // Import existing MCP server configurations into .ai/mcp.toml
         Self::import_mcp(project_root)?;
+
+        // Import existing hook configurations into .ai/hooks.toml
+        Self::import_hooks(project_root)?;
 
         Ok(())
     }
@@ -279,6 +281,62 @@ impl InitEngine {
         Ok(count)
     }
 
+    /// Import existing hook configurations from Claude Code and Cursor.
+    ///
+    /// Reads `.claude/settings.json` (hooks key) and `.cursor/hooks.json`,
+    /// merges hook groups with first-seen-wins priority (Claude Code > Cursor),
+    /// converts timeouts from seconds to milliseconds, and writes `.ai/hooks.toml`.
+    /// Returns the count of imported hook groups. Returns 0 and writes nothing if no hooks found.
+    pub fn import_hooks(project_root: &Path) -> Result<usize, AisyncError> {
+        use crate::hooks::HookEngine;
+        use crate::types::{HookGroup, HooksConfig};
+        use std::collections::BTreeMap;
+
+        let mut merged: BTreeMap<String, Vec<HookGroup>> = BTreeMap::new();
+        let mut total_groups = 0;
+
+        // Import from Claude Code: .claude/settings.json
+        if let Some(hooks) = parse_claude_code_hooks(project_root)? {
+            for (event, groups) in hooks {
+                let entry = merged.entry(event).or_default();
+                for group in groups {
+                    if !has_duplicate(entry, &group) {
+                        entry.push(group);
+                        total_groups += 1;
+                    }
+                }
+            }
+        }
+
+        // Import from Cursor: .cursor/hooks.json
+        if let Some(hooks) = parse_cursor_hooks(project_root)? {
+            for (event, groups) in hooks {
+                let entry = merged.entry(event).or_default();
+                for group in groups {
+                    if !has_duplicate(entry, &group) {
+                        entry.push(group);
+                        total_groups += 1;
+                    }
+                }
+            }
+        }
+
+        if merged.is_empty() {
+            return Ok(0);
+        }
+
+        let config = HooksConfig { events: merged };
+
+        // Validate event names before writing
+        HookEngine::validate(&config)?;
+
+        let toml_str = HookEngine::serialize(&config)?;
+        let hooks_path = project_root.join(".ai/hooks.toml");
+        std::fs::write(&hooks_path, toml_str).map_err(InitError::ScaffoldFailed)?;
+
+        Ok(total_groups)
+    }
+
     /// Get the appropriate adapter for a tool kind.
     fn adapter_for_tool(tool: &ToolKind) -> AnyAdapter {
         AnyAdapter::for_tool(tool).unwrap_or_else(|| {
@@ -318,6 +376,212 @@ impl InitEngine {
             tools,
         }
     }
+}
+
+/// Check if a hook group already exists in the list (same matcher + same commands).
+fn has_duplicate(existing: &[crate::types::HookGroup], candidate: &crate::types::HookGroup) -> bool {
+    existing.iter().any(|g| {
+        g.matcher == candidate.matcher
+            && g.hooks.len() == candidate.hooks.len()
+            && g.hooks.iter().zip(candidate.hooks.iter()).all(|(a, b)| {
+                a.command == b.command && a.hook_type == b.hook_type
+            })
+    })
+}
+
+/// Parse hooks from `.claude/settings.json` into canonical format.
+/// Returns None if file doesn't exist or has no hooks key.
+/// Converts timeout from seconds to milliseconds.
+fn parse_claude_code_hooks(
+    project_root: &Path,
+) -> Result<Option<Vec<(String, Vec<crate::types::HookGroup>)>>, AisyncError> {
+    let path = project_root.join(".claude/settings.json");
+    if !path.exists() {
+        return Ok(None);
+    }
+    let content = std::fs::read_to_string(&path)
+        .map_err(|e| InitError::ImportFailed(format!("read {}: {e}", path.display())))?;
+    let json: serde_json::Value = serde_json::from_str(&content)
+        .map_err(|e| InitError::ImportFailed(format!("parse {}: {e}", path.display())))?;
+
+    let hooks_obj = match json.get("hooks").and_then(|v| v.as_object()) {
+        Some(obj) => obj,
+        None => return Ok(None),
+    };
+
+    let mut result = Vec::new();
+    for (event_name, groups_val) in hooks_obj {
+        let groups = parse_json_hook_groups(groups_val, 1000)?;
+        if !groups.is_empty() {
+            result.push((event_name.clone(), groups));
+        }
+    }
+
+    if result.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(result))
+    }
+}
+
+/// Reverse-map Cursor camelCase event names to canonical PascalCase.
+fn cursor_event_to_canonical(event: &str) -> Option<&'static str> {
+    match event {
+        "preToolUse" => Some("PreToolUse"),
+        "postToolUse" => Some("PostToolUse"),
+        "stop" => Some("Stop"),
+        "subagentStop" => Some("SubagentStop"),
+        _ => None,
+    }
+}
+
+/// Parse hooks from `.cursor/hooks.json` into canonical format.
+/// Returns None if file doesn't exist, has no hooks key, or was generated by aisync.
+/// Converts camelCase event names to PascalCase and timeout from seconds to milliseconds.
+fn parse_cursor_hooks(
+    project_root: &Path,
+) -> Result<Option<Vec<(String, Vec<crate::types::HookGroup>)>>, AisyncError> {
+    let path = project_root.join(".cursor/hooks.json");
+    if !path.exists() {
+        return Ok(None);
+    }
+    let content = std::fs::read_to_string(&path)
+        .map_err(|e| InitError::ImportFailed(format!("read {}: {e}", path.display())))?;
+
+    // Skip aisync-generated hooks files to avoid re-importing translated hooks
+    if content.contains("aisync-normalize.sh") {
+        return Ok(None);
+    }
+
+    let json: serde_json::Value = serde_json::from_str(&content)
+        .map_err(|e| InitError::ImportFailed(format!("parse {}: {e}", path.display())))?;
+
+    let hooks_obj = match json.get("hooks").and_then(|v| v.as_object()) {
+        Some(obj) => obj,
+        None => return Ok(None),
+    };
+
+    let mut result = Vec::new();
+    for (event_name, groups_val) in hooks_obj {
+        // Reverse-map camelCase to PascalCase
+        let canonical_event = match cursor_event_to_canonical(event_name) {
+            Some(name) => name.to_string(),
+            None => continue, // Skip unknown events
+        };
+        let groups = parse_cursor_json_hook_entries(groups_val, 1000)?;
+        if !groups.is_empty() {
+            result.push((canonical_event, groups));
+        }
+    }
+
+    if result.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(result))
+    }
+}
+
+/// Parse Claude Code-style hook groups from JSON: array of {matcher?, hooks: [{type, command, timeout?}]}
+fn parse_json_hook_groups(
+    val: &serde_json::Value,
+    timeout_multiplier: u64,
+) -> Result<Vec<crate::types::HookGroup>, AisyncError> {
+    let arr = match val.as_array() {
+        Some(a) => a,
+        None => return Ok(Vec::new()),
+    };
+
+    let mut groups = Vec::new();
+    for group_val in arr {
+        let matcher = group_val
+            .get("matcher")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
+        let hooks_arr = match group_val.get("hooks").and_then(|v| v.as_array()) {
+            Some(a) => a,
+            None => continue,
+        };
+
+        let mut handlers = Vec::new();
+        for hook_val in hooks_arr {
+            let command = match hook_val.get("command").and_then(|v| v.as_str()) {
+                Some(c) => c.to_string(),
+                None => continue,
+            };
+            let hook_type = hook_val
+                .get("type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("command")
+                .to_string();
+            let timeout = hook_val
+                .get("timeout")
+                .and_then(|v| v.as_u64())
+                .map(|t| t * timeout_multiplier);
+
+            handlers.push(crate::types::HookHandler {
+                hook_type,
+                command,
+                timeout,
+            });
+        }
+
+        if !handlers.is_empty() {
+            groups.push(crate::types::HookGroup {
+                matcher,
+                hooks: handlers,
+            });
+        }
+    }
+
+    Ok(groups)
+}
+
+/// Parse Cursor-style hook entries from JSON: array of {command, timeout?, matcher?}
+/// Cursor flattens hooks into individual entries (not grouped by matcher).
+/// We re-group by matcher for canonical format.
+fn parse_cursor_json_hook_entries(
+    val: &serde_json::Value,
+    timeout_multiplier: u64,
+) -> Result<Vec<crate::types::HookGroup>, AisyncError> {
+    let arr = match val.as_array() {
+        Some(a) => a,
+        None => return Ok(Vec::new()),
+    };
+
+    // Group entries by matcher value
+    let mut by_matcher: std::collections::BTreeMap<Option<String>, Vec<crate::types::HookHandler>> =
+        std::collections::BTreeMap::new();
+
+    for entry in arr {
+        let command = match entry.get("command").and_then(|v| v.as_str()) {
+            Some(c) => c.to_string(),
+            None => continue,
+        };
+        let matcher = entry
+            .get("matcher")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        let timeout = entry
+            .get("timeout")
+            .and_then(|v| v.as_u64())
+            .map(|t| t * timeout_multiplier);
+
+        by_matcher.entry(matcher).or_default().push(
+            crate::types::HookHandler {
+                hook_type: "command".to_string(),
+                command,
+                timeout,
+            },
+        );
+    }
+
+    let groups = by_matcher
+        .into_iter()
+        .map(|(matcher, hooks)| crate::types::HookGroup { matcher, hooks })
+        .collect();
+
+    Ok(groups)
 }
 
 /// Parse Cursor-format frontmatter (alwaysApply, globs as comma-separated, description)
@@ -452,7 +716,6 @@ mod tests {
         assert!(dir.path().join(".ai").is_dir());
         assert!(dir.path().join(".ai/instructions.md").exists());
         assert!(dir.path().join(".ai/memory").is_dir());
-        assert!(dir.path().join(".ai/hooks").is_dir());
         assert!(dir.path().join(".ai/commands").is_dir());
         assert!(dir.path().join("aisync.toml").exists());
     }
@@ -1183,5 +1446,360 @@ mod tests {
             dir.path().join(".ai/rules/auto-rule.md").exists(),
             "scaffold should automatically import rules"
         );
+    }
+
+    // --- import_hooks tests ---
+
+    #[test]
+    fn test_import_hooks_from_claude_code_settings() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".ai")).unwrap();
+        std::fs::create_dir_all(dir.path().join(".claude")).unwrap();
+
+        let json = r#"{
+            "hooks": {
+                "PostToolUse": [
+                    {
+                        "matcher": "Edit|Write",
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": "npm run lint",
+                                "timeout": 30
+                            }
+                        ]
+                    }
+                ]
+            }
+        }"#;
+        std::fs::write(dir.path().join(".claude/settings.json"), json).unwrap();
+
+        let count = InitEngine::import_hooks(dir.path()).unwrap();
+        assert_eq!(count, 1);
+
+        let config = crate::hooks::HookEngine::parse(dir.path()).unwrap();
+        assert!(config.events.contains_key("PostToolUse"));
+        let groups = &config.events["PostToolUse"];
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].matcher, Some("Edit|Write".to_string()));
+        assert_eq!(groups[0].hooks[0].command, "npm run lint");
+        // Timeout should be converted: 30s -> 30000ms
+        assert_eq!(groups[0].hooks[0].timeout, Some(30000));
+    }
+
+    #[test]
+    fn test_import_hooks_from_cursor_hooks_json() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".ai")).unwrap();
+        std::fs::create_dir_all(dir.path().join(".cursor")).unwrap();
+
+        let json = r#"{
+            "version": 1,
+            "hooks": {
+                "postToolUse": [
+                    {
+                        "command": "cargo fmt",
+                        "matcher": "Edit",
+                        "timeout": 10
+                    }
+                ]
+            }
+        }"#;
+        std::fs::write(dir.path().join(".cursor/hooks.json"), json).unwrap();
+
+        let count = InitEngine::import_hooks(dir.path()).unwrap();
+        assert_eq!(count, 1);
+
+        let config = crate::hooks::HookEngine::parse(dir.path()).unwrap();
+        // camelCase "postToolUse" should be mapped to PascalCase "PostToolUse"
+        assert!(config.events.contains_key("PostToolUse"));
+        let groups = &config.events["PostToolUse"];
+        assert_eq!(groups[0].hooks[0].command, "cargo fmt");
+        assert_eq!(groups[0].matcher, Some("Edit".to_string()));
+        assert_eq!(groups[0].hooks[0].timeout, Some(10000));
+    }
+
+    #[test]
+    fn test_import_hooks_merge_first_seen_wins() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".ai")).unwrap();
+        std::fs::create_dir_all(dir.path().join(".claude")).unwrap();
+        std::fs::create_dir_all(dir.path().join(".cursor")).unwrap();
+
+        // Claude Code has a PostToolUse hook
+        let claude_json = r#"{
+            "hooks": {
+                "PostToolUse": [
+                    {
+                        "matcher": "Edit",
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": "npm run lint",
+                                "timeout": 30
+                            }
+                        ]
+                    }
+                ]
+            }
+        }"#;
+        std::fs::write(dir.path().join(".claude/settings.json"), claude_json).unwrap();
+
+        // Cursor has the same hook (same matcher + command) plus a unique one
+        let cursor_json = r#"{
+            "version": 1,
+            "hooks": {
+                "postToolUse": [
+                    {
+                        "command": "npm run lint",
+                        "matcher": "Edit",
+                        "timeout": 30
+                    },
+                    {
+                        "command": "cargo test",
+                        "matcher": "Bash"
+                    }
+                ]
+            }
+        }"#;
+        std::fs::write(dir.path().join(".cursor/hooks.json"), cursor_json).unwrap();
+
+        let count = InitEngine::import_hooks(dir.path()).unwrap();
+        // Claude's Edit hook + Cursor's unique Bash hook = 2
+        assert_eq!(count, 2);
+
+        let config = crate::hooks::HookEngine::parse(dir.path()).unwrap();
+        let groups = &config.events["PostToolUse"];
+        assert_eq!(groups.len(), 2);
+        // First group from Claude Code
+        assert_eq!(groups[0].matcher, Some("Edit".to_string()));
+        assert_eq!(groups[0].hooks[0].command, "npm run lint");
+        // Second group from Cursor (unique)
+        assert_eq!(groups[1].matcher, Some("Bash".to_string()));
+        assert_eq!(groups[1].hooks[0].command, "cargo test");
+    }
+
+    #[test]
+    fn test_import_hooks_no_hooks_returns_zero() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".ai")).unwrap();
+
+        let count = InitEngine::import_hooks(dir.path()).unwrap();
+        assert_eq!(count, 0);
+        assert!(!dir.path().join(".ai/hooks.toml").exists());
+    }
+
+    #[test]
+    fn test_import_hooks_settings_json_without_hooks_key() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".ai")).unwrap();
+        std::fs::create_dir_all(dir.path().join(".claude")).unwrap();
+        std::fs::write(
+            dir.path().join(".claude/settings.json"),
+            r#"{"permissions": {}}"#,
+        )
+        .unwrap();
+
+        let count = InitEngine::import_hooks(dir.path()).unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_import_hooks_converts_timeout_seconds_to_ms() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".ai")).unwrap();
+        std::fs::create_dir_all(dir.path().join(".claude")).unwrap();
+
+        let json = r#"{
+            "hooks": {
+                "PreToolUse": [
+                    {
+                        "matcher": "Bash",
+                        "hooks": [
+                            {
+                                "type": "command",
+                                "command": "cargo clippy",
+                                "timeout": 120
+                            }
+                        ]
+                    }
+                ]
+            }
+        }"#;
+        std::fs::write(dir.path().join(".claude/settings.json"), json).unwrap();
+
+        InitEngine::import_hooks(dir.path()).unwrap();
+
+        let config = crate::hooks::HookEngine::parse(dir.path()).unwrap();
+        assert_eq!(config.events["PreToolUse"][0].hooks[0].timeout, Some(120000));
+    }
+
+    #[test]
+    fn test_import_hooks_cursor_skips_unknown_events() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".ai")).unwrap();
+        std::fs::create_dir_all(dir.path().join(".cursor")).unwrap();
+
+        let json = r#"{
+            "version": 1,
+            "hooks": {
+                "postToolUse": [
+                    {"command": "echo ok", "timeout": 5}
+                ],
+                "unknownEvent": [
+                    {"command": "echo bad"}
+                ]
+            }
+        }"#;
+        std::fs::write(dir.path().join(".cursor/hooks.json"), json).unwrap();
+
+        let count = InitEngine::import_hooks(dir.path()).unwrap();
+        assert_eq!(count, 1);
+
+        let config = crate::hooks::HookEngine::parse(dir.path()).unwrap();
+        assert!(config.events.contains_key("PostToolUse"));
+        assert!(!config.events.contains_key("unknownEvent"));
+    }
+
+    #[test]
+    fn test_import_hooks_multiple_events() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".ai")).unwrap();
+        std::fs::create_dir_all(dir.path().join(".claude")).unwrap();
+
+        let json = r#"{
+            "hooks": {
+                "PostToolUse": [
+                    {
+                        "matcher": "Edit|Write",
+                        "hooks": [{"type": "command", "command": "lint.sh", "timeout": 60}]
+                    },
+                    {
+                        "matcher": "Bash",
+                        "hooks": [{"type": "command", "command": "test.sh", "timeout": 30}]
+                    }
+                ],
+                "PreToolUse": [
+                    {
+                        "matcher": "Bash",
+                        "hooks": [{"type": "command", "command": "clippy.sh"}]
+                    }
+                ]
+            }
+        }"#;
+        std::fs::write(dir.path().join(".claude/settings.json"), json).unwrap();
+
+        let count = InitEngine::import_hooks(dir.path()).unwrap();
+        assert_eq!(count, 3);
+
+        let config = crate::hooks::HookEngine::parse(dir.path()).unwrap();
+        assert_eq!(config.events["PostToolUse"].len(), 2);
+        assert_eq!(config.events["PreToolUse"].len(), 1);
+    }
+
+    #[test]
+    fn test_scaffold_calls_import_hooks() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".claude")).unwrap();
+        let json = r#"{
+            "hooks": {
+                "PostToolUse": [
+                    {
+                        "matcher": "Edit",
+                        "hooks": [{"type": "command", "command": "auto-lint.sh", "timeout": 10}]
+                    }
+                ]
+            }
+        }"#;
+        std::fs::write(dir.path().join(".claude/settings.json"), json).unwrap();
+
+        let options = InitOptions {
+            force: false,
+            import_from: None,
+        };
+
+        InitEngine::scaffold(dir.path(), &[], None, &options).unwrap();
+
+        assert!(
+            dir.path().join(".ai/hooks.toml").exists(),
+            "scaffold should automatically import hooks"
+        );
+        let config = crate::hooks::HookEngine::parse(dir.path()).unwrap();
+        assert!(config.events.contains_key("PostToolUse"));
+        assert_eq!(config.events["PostToolUse"][0].hooks[0].command, "auto-lint.sh");
+    }
+
+    #[test]
+    fn test_import_hooks_cursor_regroups_by_matcher() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".ai")).unwrap();
+        std::fs::create_dir_all(dir.path().join(".cursor")).unwrap();
+
+        // Cursor flattens hooks - two entries with same matcher should be regrouped
+        let json = r#"{
+            "version": 1,
+            "hooks": {
+                "postToolUse": [
+                    {"command": "lint.sh", "matcher": "Edit", "timeout": 10},
+                    {"command": "format.sh", "matcher": "Edit", "timeout": 5},
+                    {"command": "test.sh", "matcher": "Bash"}
+                ]
+            }
+        }"#;
+        std::fs::write(dir.path().join(".cursor/hooks.json"), json).unwrap();
+
+        let count = InitEngine::import_hooks(dir.path()).unwrap();
+        assert_eq!(count, 2); // 2 groups: Edit (2 hooks) + Bash (1 hook)
+
+        let config = crate::hooks::HookEngine::parse(dir.path()).unwrap();
+        let groups = &config.events["PostToolUse"];
+        // Find the Edit group
+        let edit_group = groups.iter().find(|g| g.matcher.as_deref() == Some("Edit")).unwrap();
+        assert_eq!(edit_group.hooks.len(), 2);
+        assert_eq!(edit_group.hooks[0].command, "lint.sh");
+        assert_eq!(edit_group.hooks[1].command, "format.sh");
+        // Find the Bash group
+        let bash_group = groups.iter().find(|g| g.matcher.as_deref() == Some("Bash")).unwrap();
+        assert_eq!(bash_group.hooks.len(), 1);
+    }
+
+    #[test]
+    fn test_import_hooks_skips_aisync_generated_cursor_hooks() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".ai")).unwrap();
+        std::fs::create_dir_all(dir.path().join(".claude")).unwrap();
+        std::fs::create_dir_all(dir.path().join(".cursor")).unwrap();
+
+        // Claude Code has one hook
+        let claude_json = r#"{
+            "hooks": {
+                "PostToolUse": [
+                    {
+                        "matcher": "Edit",
+                        "hooks": [{"type": "command", "command": "lint.sh", "timeout": 10}]
+                    }
+                ]
+            }
+        }"#;
+        std::fs::write(dir.path().join(".claude/settings.json"), claude_json).unwrap();
+
+        // Cursor has aisync-generated hooks (should be skipped entirely)
+        let cursor_json = r#"{
+            "version": 1,
+            "hooks": {
+                "postToolUse": [
+                    {"command": ".cursor/hooks/aisync-normalize.sh lint.sh", "matcher": "Write", "timeout": 10}
+                ]
+            }
+        }"#;
+        std::fs::write(dir.path().join(".cursor/hooks.json"), cursor_json).unwrap();
+
+        let count = InitEngine::import_hooks(dir.path()).unwrap();
+        // Only the Claude Code hook should be imported, Cursor skipped
+        assert_eq!(count, 1);
+
+        let config = crate::hooks::HookEngine::parse(dir.path()).unwrap();
+        assert_eq!(config.events["PostToolUse"].len(), 1);
+        assert_eq!(config.events["PostToolUse"][0].hooks[0].command, "lint.sh");
     }
 }
