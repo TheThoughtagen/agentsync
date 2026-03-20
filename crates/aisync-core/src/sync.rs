@@ -733,6 +733,31 @@ impl SyncEngine {
                     .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
                 Ok(())
             }
+            SyncAction::WriteSkillFile { output, content, .. } => {
+                if let Some(parent) = output.parent() {
+                    std::fs::create_dir_all(parent)
+                        .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
+                }
+                std::fs::write(output, content)
+                    .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
+                Ok(())
+            }
+            SyncAction::WriteAgentFile { output, content, .. } => {
+                if let Some(parent) = output.parent() {
+                    std::fs::create_dir_all(parent)
+                        .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
+                }
+                std::fs::write(output, content)
+                    .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
+                Ok(())
+            }
+            SyncAction::RemoveSkillDir { path } => {
+                if path.is_dir() {
+                    std::fs::remove_dir_all(path)
+                        .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
+                }
+                Ok(())
+            }
             SyncAction::WarnUnsupportedDimension { .. } => {
                 // No filesystem change -- advisory only
                 Ok(())

@@ -8,8 +8,8 @@ pub use aisync_types;
 use std::path::{Path, PathBuf};
 
 use aisync_types::{
-    CommandFile, Confidence, DriftState, HookTranslation, HooksConfig, McpConfig, RuleFile,
-    SyncAction, SyncStrategy, ToolKind, ToolSyncStatus,
+    AgentFile, CommandFile, Confidence, DriftState, HookTranslation, HooksConfig, McpConfig,
+    RuleFile, SkillFile, SyncAction, SyncStrategy, ToolKind, ToolSyncStatus,
 };
 
 /// Errors specific to individual tool adapters.
@@ -158,6 +158,26 @@ pub trait ToolAdapter: Send + Sync {
         let _ = (project_root, commands);
         Ok(vec![])
     }
+
+    /// Plan skill file sync actions for this tool.
+    fn plan_skills_sync(
+        &self,
+        project_root: &Path,
+        skills: &[SkillFile],
+    ) -> Result<Vec<SyncAction>, AdapterError> {
+        let _ = (project_root, skills);
+        Ok(vec![])
+    }
+
+    /// Plan agent file sync actions for this tool.
+    fn plan_agents_sync(
+        &self,
+        project_root: &Path,
+        agents: &[AgentFile],
+    ) -> Result<Vec<SyncAction>, AdapterError> {
+        let _ = (project_root, agents);
+        Ok(vec![])
+    }
 }
 
 /// A registration entry for compile-time adapter discovery.
@@ -258,5 +278,51 @@ mod tests {
     fn test_adapter_error_other() {
         let err = AdapterError::Other("something went wrong".to_string());
         assert!(format!("{err}").contains("something went wrong"));
+    }
+
+    #[test]
+    fn test_plan_skills_sync_default_returns_empty() {
+        struct MinimalAdapter;
+        impl ToolAdapter for MinimalAdapter {
+            fn name(&self) -> ToolKind { ToolKind::Custom("minimal".to_string()) }
+            fn display_name(&self) -> &str { "Minimal" }
+            fn native_instruction_path(&self) -> &str { ".minimal/instructions.md" }
+            fn detect(&self, _: &Path) -> Result<DetectionResult, AdapterError> {
+                Ok(DetectionResult {
+                    tool: self.name(),
+                    detected: false,
+                    confidence: Confidence::Medium,
+                    markers_found: vec![],
+                    version_hint: None,
+                })
+            }
+        }
+        let adapter = MinimalAdapter;
+        let skills: Vec<aisync_types::SkillFile> = vec![];
+        let result = adapter.plan_skills_sync(Path::new("/tmp"), &skills).unwrap();
+        assert!(result.is_empty(), "default plan_skills_sync should return empty vec");
+    }
+
+    #[test]
+    fn test_plan_agents_sync_default_returns_empty() {
+        struct MinimalAdapter;
+        impl ToolAdapter for MinimalAdapter {
+            fn name(&self) -> ToolKind { ToolKind::Custom("minimal2".to_string()) }
+            fn display_name(&self) -> &str { "Minimal2" }
+            fn native_instruction_path(&self) -> &str { ".minimal2/instructions.md" }
+            fn detect(&self, _: &Path) -> Result<DetectionResult, AdapterError> {
+                Ok(DetectionResult {
+                    tool: self.name(),
+                    detected: false,
+                    confidence: Confidence::Medium,
+                    markers_found: vec![],
+                    version_hint: None,
+                })
+            }
+        }
+        let adapter = MinimalAdapter;
+        let agents: Vec<aisync_types::AgentFile> = vec![];
+        let result = adapter.plan_agents_sync(Path::new("/tmp"), &agents).unwrap();
+        assert!(result.is_empty(), "default plan_agents_sync should return empty vec");
     }
 }

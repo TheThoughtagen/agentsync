@@ -1,6 +1,7 @@
 pub mod adapter;
 pub mod adapters;
 pub mod add_tool;
+pub mod agents;
 pub mod commands;
 pub mod conditional;
 pub mod config;
@@ -16,6 +17,7 @@ pub mod mcp;
 pub mod memory;
 pub mod rules;
 pub mod security;
+pub mod skills;
 pub mod sync;
 pub mod types;
 pub mod watch;
@@ -25,12 +27,14 @@ pub use adapter::{
 };
 pub use declarative::{DeclarativeAdapter, DeclarativeAdapterDef, discover_toml_adapters};
 pub use add_tool::AddToolEngine;
+pub use agents::AgentEngine;
 pub use commands::CommandEngine;
 pub use conditional::ConditionalProcessor;
 // McpEngine and SecurityScanner are used by sync.rs and adapters internally,
 // re-exported for external consumers.
 pub use mcp::McpEngine;
 pub use security::{SecurityScanner, SecurityWarning};
+pub use skills::SkillEngine;
 pub use config::{AisyncConfig, DefaultsConfig, SyncStrategy, ToolConfig, ToolsConfig};
 pub use detection::DetectionEngine;
 pub use diff::DiffEngine;
