@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use crate::adapter::{CursorAdapter, DetectionResult, ToolAdapter};
 use crate::config::SyncStrategy;
 use crate::adapter::AdapterError;
-use crate::types::{Confidence, DriftState, RuleFile, RuleMetadata, SyncAction, ToolKind, ToolSyncStatus, content_hash};
+use crate::types::{AgentFile, Confidence, DriftState, RuleFile, RuleMetadata, SkillFile, SyncAction, ToolKind, ToolSyncStatus, content_hash};
 
 /// The output path relative to project root for generated .mdc file.
 const MDC_REL: &str = ".cursor/rules/project.mdc";
@@ -39,6 +39,19 @@ fn generate_cursor_rule_frontmatter(meta: &RuleMetadata) -> String {
 /// Generate full Cursor rule file content (frontmatter + body).
 fn generate_cursor_rule_content(meta: &RuleMetadata, body: &str) -> String {
     format!("{}{}", generate_cursor_rule_frontmatter(meta), body)
+}
+
+/// Map PascalCase canonical hook event names to Cursor camelCase names.
+/// Returns None for events that Cursor doesn't support (e.g., "Notification").
+fn event_name_to_cursor(event: &str) -> Option<&'static str> {
+    match event {
+        "PreToolUse" => Some("preToolUse"),
+        "PostToolUse" => Some("postToolUse"),
+        "Stop" => Some("stop"),
+        "SubagentStop" => Some("subagentStop"),
+        "Notification" => None, // Cursor has no equivalent
+        _ => None,
+    }
 }
 
 impl ToolAdapter for CursorAdapter {
@@ -184,12 +197,154 @@ impl ToolAdapter for CursorAdapter {
 
     fn translate_hooks(
         &self,
-        _hooks: &crate::types::HooksConfig,
+        hooks: &crate::types::HooksConfig,
     ) -> Result<crate::types::HookTranslation, AdapterError> {
-        Ok(crate::types::HookTranslation::Unsupported {
+        let mut hooks_obj = serde_json::Map::new();
+
+        for (event_name, groups) in &hooks.events {
+            if let Some(cursor_name) = event_name_to_cursor(event_name) {
+                let entries: Vec<serde_json::Value> = groups
+                    .iter()
+                    .flat_map(|group| {
+                        group.hooks.iter().map(move |h| {
+                            let mut entry = serde_json::Map::new();
+                            entry.insert("command".into(), serde_json::Value::String(h.command.clone()));
+                            if let Some(timeout_ms) = h.timeout {
+                                entry.insert(
+                                    "timeout".into(),
+                                    serde_json::Value::Number((timeout_ms / 1000).into()),
+                                );
+                            }
+                            if let Some(ref matcher) = group.matcher {
+                                entry.insert("matcher".into(), serde_json::Value::String(matcher.clone()));
+                            }
+                            serde_json::Value::Object(entry)
+                        })
+                    })
+                    .collect();
+                hooks_obj.insert(cursor_name.to_string(), serde_json::Value::Array(entries));
+            }
+        }
+
+        let root = serde_json::json!({ "version": 1, "hooks": hooks_obj });
+        let content = serde_json::to_string_pretty(&root).map_err(|e| {
+            AdapterError::Other(format!("JSON serialization failed: {e}"))
+        })?;
+
+
+        Ok(crate::types::HookTranslation::Supported {
             tool: ToolKind::Cursor,
-            reason: "Cursor does not support hooks".to_string(),
+            content,
+            format: "json".to_string(),
         })
+    }
+
+    fn plan_skills_sync(
+        &self,
+        project_root: &Path,
+        skills: &[SkillFile],
+    ) -> Result<Vec<SyncAction>, AdapterError> {
+        if skills.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let mut actions = Vec::new();
+        let skills_dir = project_root.join(".cursor").join("skills");
+
+        // Ensure directory exists
+        if !skills_dir.is_dir() {
+            actions.push(SyncAction::CreateDirectory {
+                path: skills_dir.clone(),
+            });
+        }
+
+        // Build expected managed directory names
+        let expected: HashSet<String> = skills
+            .iter()
+            .map(|s| format!("aisync-{}", s.name))
+            .collect();
+
+        // Generate skill files
+        for skill in skills {
+            let dir_name = format!("aisync-{}", skill.name);
+            let output = skills_dir.join(&dir_name).join("SKILL.md");
+
+            actions.push(SyncAction::WriteSkillFile {
+                output,
+                content: skill.content.clone(),
+                skill_name: skill.name.clone(),
+            });
+        }
+
+        // Scan for stale aisync-* directories
+        if skills_dir.is_dir() {
+            if let Ok(entries) = std::fs::read_dir(&skills_dir) {
+                for entry in entries.flatten() {
+                    let name = entry.file_name().to_string_lossy().to_string();
+                    if name.starts_with("aisync-") && entry.path().is_dir() && !expected.contains(&name) {
+                        actions.push(SyncAction::RemoveSkillDir {
+                            path: entry.path(),
+                        });
+                    }
+                }
+            }
+        }
+
+        Ok(actions)
+    }
+
+    fn plan_agents_sync(
+        &self,
+        project_root: &Path,
+        agents: &[AgentFile],
+    ) -> Result<Vec<SyncAction>, AdapterError> {
+        if agents.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let mut actions = Vec::new();
+        let agents_dir = project_root.join(".cursor").join("agents");
+
+        // Ensure directory exists
+        if !agents_dir.is_dir() {
+            actions.push(SyncAction::CreateDirectory {
+                path: agents_dir.clone(),
+            });
+        }
+
+        // Build expected managed filenames
+        let expected: HashSet<String> = agents
+            .iter()
+            .map(|a| format!("aisync-{}.md", a.name))
+            .collect();
+
+        // Generate agent files
+        for agent in agents {
+            let filename = format!("aisync-{}.md", agent.name);
+            let output = agents_dir.join(&filename);
+
+            actions.push(SyncAction::WriteAgentFile {
+                output,
+                content: agent.content.clone(),
+                agent_name: agent.name.clone(),
+            });
+        }
+
+        // Scan for stale aisync-*.md files
+        if agents_dir.is_dir() {
+            if let Ok(entries) = std::fs::read_dir(&agents_dir) {
+                for entry in entries.flatten() {
+                    let name = entry.file_name().to_string_lossy().to_string();
+                    if name.starts_with("aisync-") && name.ends_with(".md") && !expected.contains(&name) {
+                        actions.push(SyncAction::RemoveFile {
+                            path: entry.path(),
+                        });
+                    }
+                }
+            }
+        }
+
+        Ok(actions)
     }
 
     fn plan_rules_sync(
@@ -722,7 +877,7 @@ mod tests {
     // --- translate_hooks tests ---
 
     #[test]
-    fn test_translate_hooks_returns_unsupported() {
+    fn test_translate_hooks_returns_supported_with_version() {
         use crate::types::{HookGroup, HookHandler, HookTranslation, HooksConfig};
         use std::collections::BTreeMap;
 
@@ -742,12 +897,247 @@ mod tests {
 
         let result = CursorAdapter.translate_hooks(&config).unwrap();
         match result {
-            HookTranslation::Unsupported { tool, reason } => {
+            HookTranslation::Supported { tool, content, .. } => {
                 assert_eq!(tool, ToolKind::Cursor);
-                assert!(reason.contains("Cursor does not support hooks"));
+                let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+                assert_eq!(parsed["version"], 1);
             }
-            other => panic!("expected Unsupported, got {other:?}"),
+            other => panic!("expected Supported, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn test_translate_hooks_empty_config_produces_valid_json() {
+        use crate::types::{HookTranslation, HooksConfig};
+        use std::collections::BTreeMap;
+
+        let config = HooksConfig { events: BTreeMap::new() };
+        let result = CursorAdapter.translate_hooks(&config).unwrap();
+        match result {
+            HookTranslation::Supported { content, .. } => {
+                let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+                assert_eq!(parsed["version"], 1);
+                assert!(parsed["hooks"].is_object());
+                assert_eq!(parsed["hooks"].as_object().unwrap().len(), 0);
+            }
+            other => panic!("expected Supported, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_translate_hooks_pre_tool_use_translates_to_camel_case() {
+        use crate::types::{HookGroup, HookHandler, HookTranslation, HooksConfig};
+        use std::collections::BTreeMap;
+
+        let mut events = BTreeMap::new();
+        events.insert(
+            "PreToolUse".to_string(),
+            vec![HookGroup {
+                matcher: Some("Edit".to_string()),
+                hooks: vec![HookHandler {
+                    hook_type: "command".to_string(),
+                    command: "npm run lint".to_string(),
+                    timeout: Some(30000),
+                }],
+            }],
+        );
+        let config = HooksConfig { events };
+
+        let result = CursorAdapter.translate_hooks(&config).unwrap();
+        match result {
+            HookTranslation::Supported { content, .. } => {
+                let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+                // Should be camelCase "preToolUse"
+                let hooks = &parsed["hooks"]["preToolUse"];
+                assert!(hooks.is_array(), "expected preToolUse array");
+                assert_eq!(hooks[0]["command"], "npm run lint");
+                // timeout should be in seconds (30000ms -> 30s)
+                assert_eq!(hooks[0]["timeout"], 30);
+                assert_eq!(hooks[0]["matcher"], "Edit");
+            }
+            other => panic!("expected Supported, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_translate_hooks_notification_events_excluded() {
+        use crate::types::{HookGroup, HookHandler, HookTranslation, HooksConfig};
+        use std::collections::BTreeMap;
+
+        let mut events = BTreeMap::new();
+        events.insert(
+            "Notification".to_string(),
+            vec![HookGroup {
+                matcher: None,
+                hooks: vec![HookHandler {
+                    hook_type: "command".to_string(),
+                    command: "notify".to_string(),
+                    timeout: None,
+                }],
+            }],
+        );
+        let config = HooksConfig { events };
+
+        let result = CursorAdapter.translate_hooks(&config).unwrap();
+        match result {
+            HookTranslation::Supported { content, .. } => {
+                let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+                let hooks = parsed["hooks"].as_object().unwrap();
+                assert!(hooks.is_empty(), "Notification events should be excluded from Cursor hooks");
+            }
+            other => panic!("expected Supported, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_translate_hooks_matcher_included_when_present() {
+        use crate::types::{HookGroup, HookHandler, HookTranslation, HooksConfig};
+        use std::collections::BTreeMap;
+
+        let mut events = BTreeMap::new();
+        events.insert(
+            "PostToolUse".to_string(),
+            vec![HookGroup {
+                matcher: Some("Bash".to_string()),
+                hooks: vec![HookHandler {
+                    hook_type: "command".to_string(),
+                    command: "echo done".to_string(),
+                    timeout: None,
+                }],
+            }],
+        );
+        let config = HooksConfig { events };
+
+        let result = CursorAdapter.translate_hooks(&config).unwrap();
+        match result {
+            HookTranslation::Supported { content, .. } => {
+                let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+                let hook = &parsed["hooks"]["postToolUse"][0];
+                assert_eq!(hook["matcher"], "Bash");
+            }
+            other => panic!("expected Supported, got {other:?}"),
+        }
+    }
+
+    // --- plan_skills_sync tests ---
+
+    fn make_skill(name: &str, content: &str) -> crate::types::SkillFile {
+        crate::types::SkillFile {
+            name: name.to_string(),
+            content: content.to_string(),
+            source_path: std::path::PathBuf::from(format!(".ai/skills/{name}/SKILL.md")),
+        }
+    }
+
+    #[test]
+    fn test_plan_skills_sync_empty_returns_empty() {
+        let dir = TempDir::new().unwrap();
+        let actions = CursorAdapter.plan_skills_sync(dir.path(), &[]).unwrap();
+        assert!(actions.is_empty());
+    }
+
+    #[test]
+    fn test_plan_skills_sync_generates_correct_directory_structure() {
+        let dir = TempDir::new().unwrap();
+        let skills = vec![make_skill("my-skill", "# My Skill\nDoes things")];
+
+        let actions = CursorAdapter.plan_skills_sync(dir.path(), &skills).unwrap();
+
+        let write_action = actions.iter().find(|a| matches!(a, SyncAction::WriteSkillFile { .. }));
+        assert!(write_action.is_some(), "expected WriteSkillFile action");
+
+        if let SyncAction::WriteSkillFile { output, content, skill_name } = write_action.unwrap() {
+            assert!(
+                output.to_string_lossy().contains(".cursor/skills/aisync-my-skill/SKILL.md"),
+                "should target .cursor/skills/aisync-my-skill/SKILL.md, got: {}",
+                output.display()
+            );
+            assert_eq!(skill_name, "my-skill");
+            assert_eq!(content, "# My Skill\nDoes things");
+        }
+    }
+
+    #[test]
+    fn test_plan_skills_sync_removes_stale_directories() {
+        let dir = TempDir::new().unwrap();
+        let skills_dir = dir.path().join(".cursor/skills");
+        std::fs::create_dir_all(&skills_dir).unwrap();
+        // Create a stale aisync-managed skill directory
+        std::fs::create_dir_all(skills_dir.join("aisync-old-skill")).unwrap();
+        std::fs::write(skills_dir.join("aisync-old-skill/SKILL.md"), "old content").unwrap();
+
+        // Sync with a different set of skills (not containing "old-skill")
+        let skills = vec![make_skill("new-skill", "New skill content")];
+        let actions = CursorAdapter.plan_skills_sync(dir.path(), &skills).unwrap();
+
+        let remove_action = actions.iter().find(|a| {
+            if let SyncAction::RemoveSkillDir { path } = a {
+                path.to_string_lossy().contains("aisync-old-skill")
+            } else {
+                false
+            }
+        });
+        assert!(remove_action.is_some(), "expected RemoveSkillDir action for stale aisync-old-skill");
+    }
+
+    // --- plan_agents_sync tests ---
+
+    fn make_agent(name: &str, content: &str) -> crate::types::AgentFile {
+        crate::types::AgentFile {
+            name: name.to_string(),
+            content: content.to_string(),
+            source_path: std::path::PathBuf::from(format!(".ai/agents/{name}.md")),
+        }
+    }
+
+    #[test]
+    fn test_plan_agents_sync_empty_returns_empty() {
+        let dir = TempDir::new().unwrap();
+        let actions = CursorAdapter.plan_agents_sync(dir.path(), &[]).unwrap();
+        assert!(actions.is_empty());
+    }
+
+    #[test]
+    fn test_plan_agents_sync_generates_correct_file_paths() {
+        let dir = TempDir::new().unwrap();
+        let agents = vec![make_agent("backend-expert", "# Backend Expert")];
+
+        let actions = CursorAdapter.plan_agents_sync(dir.path(), &agents).unwrap();
+
+        let write_action = actions.iter().find(|a| matches!(a, SyncAction::WriteAgentFile { .. }));
+        assert!(write_action.is_some(), "expected WriteAgentFile action");
+
+        if let SyncAction::WriteAgentFile { output, content, agent_name } = write_action.unwrap() {
+            assert!(
+                output.to_string_lossy().contains(".cursor/agents/aisync-backend-expert.md"),
+                "should target .cursor/agents/aisync-backend-expert.md, got: {}",
+                output.display()
+            );
+            assert_eq!(agent_name, "backend-expert");
+            assert_eq!(content, "# Backend Expert");
+        }
+    }
+
+    #[test]
+    fn test_plan_agents_sync_removes_stale_files() {
+        let dir = TempDir::new().unwrap();
+        let agents_dir = dir.path().join(".cursor/agents");
+        std::fs::create_dir_all(&agents_dir).unwrap();
+        // Create a stale aisync-managed agent file
+        std::fs::write(agents_dir.join("aisync-old-agent.md"), "old agent").unwrap();
+
+        // Sync with a different set of agents (not containing "old-agent")
+        let agents = vec![make_agent("new-agent", "New agent content")];
+        let actions = CursorAdapter.plan_agents_sync(dir.path(), &agents).unwrap();
+
+        let remove_action = actions.iter().find(|a| {
+            if let SyncAction::RemoveFile { path } = a {
+                path.to_string_lossy().contains("aisync-old-agent.md")
+            } else {
+                false
+            }
+        });
+        assert!(remove_action.is_some(), "expected RemoveFile action for stale aisync-old-agent.md");
     }
 
     // --- plan_commands_sync tests ---
