@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-03-09)
 ## Current Position
 
 Phase: 01-add-cursor-plugin-ecosystem-support
-Current Plan: 01 of 3 (complete)
-Status: In Progress — plan 01 complete
-Last activity: 2026-03-20 — foundation types and engines for skills/agents
+Current Plan: 02 of 3 (complete)
+Status: In Progress — plan 02 complete
+Last activity: 2026-03-19 — CursorAdapter hooks/skills/agents + AnyAdapter dispatch
 
-Progress: [█░░░░░░░░░] 33% (Phase 01: 1/3 plans)
+Progress: [██░░░░░░░░] 67% (Phase 01: 2/3 plans)
 
 ## Performance Metrics
 
@@ -46,6 +46,7 @@ Progress: [█░░░░░░░░░] 33% (Phase 01: 1/3 plans)
 
 (Archived to PROJECT.md Key Decisions table — see v1.2 entries)
 - [Phase 01-add-cursor-plugin-ecosystem-support]: SkillEngine scans subdirectories in .ai/skills/ requiring SKILL.md; AgentEngine reads flat .ai/agents/*.md — mirrors CommandEngine pattern
+- [Phase 01-add-cursor-plugin-ecosystem-support Plan 02]: Cursor hooks.json flattens HookGroup to per-entry flat array with matcher inlined; Notification events silently skipped (no Cursor equivalent)
 
 ### Pending Todos
 
@@ -62,6 +63,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-20
-Stopped at: Completed 01-add-cursor-plugin-ecosystem-support-01-01-PLAN.md
+Last session: 2026-03-19
+Stopped at: Completed 01-add-cursor-plugin-ecosystem-support-01-02-PLAN.md
 Resume file: None

@@ -75,6 +75,10 @@ impl SyncEngine {
         // Load canonical command files
         let commands = crate::commands::CommandEngine::load(project_root)?;
 
+        // Load canonical skill and agent files
+        let skills = crate::skills::SkillEngine::load(project_root)?;
+        let agents = crate::agents::AgentEngine::load(project_root)?;
+
         let mut results = Vec::new();
 
         for (tool_kind, adapter, tool_config_opt) in Self::enabled_tools(config, project_root) {
@@ -128,6 +132,7 @@ impl SyncEngine {
                             ToolKind::OpenCode => {
                                 project_root.join(".opencode/plugins/aisync-hooks.js")
                             }
+                            ToolKind::Cursor => project_root.join(".cursor/hooks.json"),
                             _ => continue, // Should not happen for supported
                         };
                         actions.push(SyncAction::WriteHookTranslation {
@@ -195,6 +200,34 @@ impl SyncEngine {
                             tool: tool_kind.clone(),
                             dimension: "commands".into(),
                             reason: format!("command sync failed: {e}"),
+                        });
+                    }
+                }
+            }
+
+            // Plan skills sync (if canonical skills exist)
+            if !skills.is_empty() {
+                match adapter.plan_skills_sync(project_root, &skills) {
+                    Ok(skill_actions) => actions.extend(skill_actions),
+                    Err(e) => {
+                        actions.push(SyncAction::WarnUnsupportedDimension {
+                            tool: tool_kind.clone(),
+                            dimension: "skills".into(),
+                            reason: format!("skill sync failed: {e}"),
+                        });
+                    }
+                }
+            }
+
+            // Plan agents sync (if canonical agents exist)
+            if !agents.is_empty() {
+                match adapter.plan_agents_sync(project_root, &agents) {
+                    Ok(agent_actions) => actions.extend(agent_actions),
+                    Err(e) => {
+                        actions.push(SyncAction::WarnUnsupportedDimension {
+                            tool: tool_kind.clone(),
+                            dimension: "agents".into(),
+                            reason: format!("agent sync failed: {e}"),
                         });
                     }
                 }
@@ -1749,6 +1782,214 @@ instruction_path = "AIDER.md"
             .find(|t| t.tool == ToolKind::Custom("aider".to_string()));
         assert!(aider_status.is_some(), "aider should appear in status report");
         assert_eq!(aider_status.unwrap().drift, DriftState::Missing);
+    }
+
+    // --- Skills/Agents integration tests ---
+
+    fn cursor_only_config() -> AisyncConfig {
+        let mut tools = ToolsConfig::default();
+        tools.set_tool("cursor".into(), ToolConfig {
+            enabled: true,
+            sync_strategy: Some(SyncStrategy::Generate),
+        });
+        tools.set_tool("claude-code".into(), ToolConfig {
+            enabled: false,
+            sync_strategy: None,
+        });
+        tools.set_tool("opencode".into(), ToolConfig {
+            enabled: false,
+            sync_strategy: None,
+        });
+        tools.set_tool("windsurf".into(), ToolConfig {
+            enabled: false,
+            sync_strategy: None,
+        });
+        tools.set_tool("codex".into(), ToolConfig {
+            enabled: false,
+            sync_strategy: None,
+        });
+        AisyncConfig {
+            schema_version: 1,
+            defaults: DefaultsConfig {
+                sync_strategy: SyncStrategy::Generate,
+            },
+            tools,
+        }
+    }
+
+    #[test]
+    fn test_plan_cursor_with_skills_produces_write_skill_file_actions() {
+        let dir = TempDir::new().unwrap();
+        setup_canonical(dir.path(), "# Instructions");
+
+        // Create a canonical skill
+        let skill_dir = dir.path().join(".ai/skills/my-skill");
+        std::fs::create_dir_all(&skill_dir).unwrap();
+        std::fs::write(skill_dir.join("SKILL.md"), "# My Skill").unwrap();
+
+        let config = cursor_only_config();
+        let report = SyncEngine::plan(&config, dir.path()).unwrap();
+
+        let cursor_result = report.results.iter().find(|r| r.tool == ToolKind::Cursor).unwrap();
+        let has_write_skill = cursor_result.actions.iter().any(|a| {
+            matches!(a, SyncAction::WriteSkillFile { .. })
+        });
+        assert!(
+            has_write_skill,
+            "Cursor with .ai/skills/ should produce WriteSkillFile actions, got: {:?}",
+            cursor_result.actions
+        );
+    }
+
+    #[test]
+    fn test_plan_cursor_with_agents_produces_write_agent_file_actions() {
+        let dir = TempDir::new().unwrap();
+        setup_canonical(dir.path(), "# Instructions");
+
+        // Create a canonical agent
+        let agents_dir = dir.path().join(".ai/agents");
+        std::fs::create_dir_all(&agents_dir).unwrap();
+        std::fs::write(agents_dir.join("my-agent.md"), "# My Agent").unwrap();
+
+        let config = cursor_only_config();
+        let report = SyncEngine::plan(&config, dir.path()).unwrap();
+
+        let cursor_result = report.results.iter().find(|r| r.tool == ToolKind::Cursor).unwrap();
+        let has_write_agent = cursor_result.actions.iter().any(|a| {
+            matches!(a, SyncAction::WriteAgentFile { .. })
+        });
+        assert!(
+            has_write_agent,
+            "Cursor with .ai/agents/ should produce WriteAgentFile actions, got: {:?}",
+            cursor_result.actions
+        );
+    }
+
+    #[test]
+    fn test_plan_cursor_hooks_routes_to_cursor_hooks_json() {
+        let dir = TempDir::new().unwrap();
+        setup_canonical(dir.path(), "# Instructions");
+
+        // Create a hooks.toml in the canonical TOML format used by HookEngine
+        let ai_dir = dir.path().join(".ai");
+        std::fs::create_dir_all(&ai_dir).unwrap();
+        std::fs::write(
+            ai_dir.join("hooks.toml"),
+            r#"[[PostToolUse]]
+
+[[PostToolUse.hooks]]
+type = "command"
+command = "cargo fmt"
+"#,
+        ).unwrap();
+
+        let config = cursor_only_config();
+        let report = SyncEngine::plan(&config, dir.path()).unwrap();
+
+        let cursor_result = report.results.iter().find(|r| r.tool == ToolKind::Cursor).unwrap();
+        let hook_translation = cursor_result.actions.iter().find(|a| {
+            matches!(a, SyncAction::WriteHookTranslation { .. })
+        });
+        assert!(
+            hook_translation.is_some(),
+            "Cursor with hooks.toml should produce WriteHookTranslation (not WarnUnsupportedHooks), got: {:?}",
+            cursor_result.actions
+        );
+
+        // Verify the path is .cursor/hooks.json
+        if let Some(SyncAction::WriteHookTranslation { path, .. }) = hook_translation {
+            assert!(
+                path.ends_with(".cursor/hooks.json"),
+                "hook translation path should be .cursor/hooks.json, got: {:?}",
+                path
+            );
+        }
+    }
+
+    #[test]
+    fn test_plan_non_cursor_adapters_no_skill_agent_actions() {
+        let dir = TempDir::new().unwrap();
+        setup_canonical(dir.path(), "# Instructions");
+
+        // Create canonical skills and agents
+        let skill_dir = dir.path().join(".ai/skills/my-skill");
+        std::fs::create_dir_all(&skill_dir).unwrap();
+        std::fs::write(skill_dir.join("SKILL.md"), "# My Skill").unwrap();
+
+        let agents_dir = dir.path().join(".ai/agents");
+        std::fs::create_dir_all(&agents_dir).unwrap();
+        std::fs::write(agents_dir.join("my-agent.md"), "# My Agent").unwrap();
+
+        // Only non-Cursor tools
+        let mut tools = ToolsConfig::default();
+        tools.set_tool("claude-code".into(), ToolConfig {
+            enabled: true,
+            sync_strategy: Some(SyncStrategy::Symlink),
+        });
+        tools.set_tool("opencode".into(), ToolConfig {
+            enabled: true,
+            sync_strategy: Some(SyncStrategy::Symlink),
+        });
+        tools.set_tool("cursor".into(), ToolConfig {
+            enabled: false,
+            sync_strategy: None,
+        });
+        tools.set_tool("windsurf".into(), ToolConfig {
+            enabled: false,
+            sync_strategy: None,
+        });
+        tools.set_tool("codex".into(), ToolConfig {
+            enabled: false,
+            sync_strategy: None,
+        });
+        let config = AisyncConfig {
+            schema_version: 1,
+            defaults: DefaultsConfig { sync_strategy: SyncStrategy::Symlink },
+            tools,
+        };
+
+        let report = SyncEngine::plan(&config, dir.path()).unwrap();
+
+        for result in &report.results {
+            let has_skill_agent_action = result.actions.iter().any(|a| {
+                matches!(
+                    a,
+                    SyncAction::WriteSkillFile { .. }
+                        | SyncAction::WriteAgentFile { .. }
+                        | SyncAction::RemoveSkillDir { .. }
+                )
+            });
+            assert!(
+                !has_skill_agent_action,
+                "non-Cursor tool {:?} should produce no skill/agent actions, got: {:?}",
+                result.tool, result.actions
+            );
+        }
+    }
+
+    #[test]
+    fn test_execute_write_skill_file_creates_nested_file() {
+        let dir = TempDir::new().unwrap();
+        setup_canonical(dir.path(), "# Instructions");
+
+        // Create canonical skill
+        let skill_dir = dir.path().join(".ai/skills/my-skill");
+        std::fs::create_dir_all(&skill_dir).unwrap();
+        std::fs::write(skill_dir.join("SKILL.md"), "# My Skill Content").unwrap();
+
+        let config = cursor_only_config();
+        let plan = SyncEngine::plan(&config, dir.path()).unwrap();
+        let result = SyncEngine::execute(&plan, dir.path()).unwrap();
+        assert!(!result.has_errors(), "execute should not produce errors: {:?}", result);
+
+        // Verify the skill file was written at .cursor/skills/aisync-my-skill/SKILL.md
+        let skill_output = dir.path().join(".cursor/skills/aisync-my-skill/SKILL.md");
+        assert!(
+            skill_output.exists(),
+            "WriteSkillFile should create .cursor/skills/aisync-my-skill/SKILL.md"
+        );
+        let content = std::fs::read_to_string(&skill_output).unwrap();
+        assert_eq!(content, "# My Skill Content");
     }
 
     #[test]
