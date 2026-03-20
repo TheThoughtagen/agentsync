@@ -138,8 +138,16 @@ impl SyncEngine {
                         actions.push(SyncAction::WriteHookTranslation {
                             path,
                             content,
-                            tool,
+                            tool: tool.clone(),
                         });
+                        // For Cursor, also generate the stdin normalization shim
+                        if tool == ToolKind::Cursor {
+                            use crate::adapters::cursor::{normalize_shim_content, NORMALIZE_SHIM_PATH};
+                            actions.push(SyncAction::CreateFile {
+                                path: project_root.join(NORMALIZE_SHIM_PATH),
+                                content: normalize_shim_content().to_string(),
+                            });
+                        }
                     }
                     Ok(HookTranslation::Unsupported { tool, reason }) => {
                         actions.push(SyncAction::WarnUnsupportedHooks { tool, reason });
@@ -525,6 +533,16 @@ impl SyncEngine {
                                 false
                             }
                         }
+                        ToolKind::Cursor => {
+                            let hooks_json = project_root.join(".cursor/hooks.json");
+                            if hooks_json.exists() {
+                                let content =
+                                    std::fs::read_to_string(&hooks_json).unwrap_or_default();
+                                content.contains("\"hooks\"")
+                            } else {
+                                false
+                            }
+                        }
                         ToolKind::OpenCode => project_root
                             .join(".opencode/plugins/aisync-hooks.js")
                             .exists(),
@@ -533,6 +551,7 @@ impl SyncEngine {
                     let detail = if is_translated {
                         match &tool_kind {
                             ToolKind::ClaudeCode => Some("settings.json".to_string()),
+                            ToolKind::Cursor => Some("hooks.json".to_string()),
                             ToolKind::OpenCode => Some("aisync-hooks.js".to_string()),
                             _ => None,
                         }
@@ -628,6 +647,14 @@ impl SyncEngine {
                 }
                 std::fs::write(path, content)
                     .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
+                // Make .sh files executable
+                #[cfg(unix)]
+                if path.extension().is_some_and(|ext| ext == "sh") {
+                    use std::os::unix::fs::PermissionsExt;
+                    let perms = std::fs::Permissions::from_mode(0o755);
+                    std::fs::set_permissions(path, perms)
+                        .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
+                }
                 Ok(())
             }
             SyncAction::RemoveFile { path } => {
