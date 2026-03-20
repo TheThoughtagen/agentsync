@@ -291,9 +291,16 @@ impl ToolAdapter for CursorAdapter {
                     .flat_map(|group| {
                         group.hooks.iter().map(move |h| {
                             let mut entry = serde_json::Map::new();
-                            let cursor_command = translate_command_to_cursor(&h.command);
-                            let shimmed_command = format!("{} {}", NORMALIZE_SHIM_PATH, cursor_command);
-                            entry.insert("command".into(), serde_json::Value::String(shimmed_command));
+                            // Prompt hooks pass through as-is; command hooks get shim-wrapped
+                            if h.hook_type == "prompt" {
+                                entry.insert("type".into(), serde_json::Value::String("prompt".into()));
+                                entry.insert("prompt".into(), serde_json::Value::String(h.command.clone()));
+                            } else {
+                                entry.insert("type".into(), serde_json::Value::String("command".into()));
+                                let cursor_command = translate_command_to_cursor(&h.command);
+                                let shimmed_command = format!("{} {}", NORMALIZE_SHIM_PATH, cursor_command);
+                                entry.insert("command".into(), serde_json::Value::String(shimmed_command));
+                            }
                             if let Some(timeout_ms) = h.timeout {
                                 entry.insert(
                                     "timeout".into(),
@@ -505,7 +512,7 @@ impl ToolAdapter for CursorAdapter {
         if mcp_config.servers.is_empty() {
             return Ok(vec![]);
         }
-        let json = crate::mcp::McpEngine::generate_mcp_json(mcp_config)
+        let json = crate::mcp::McpEngine::generate_mcp_json_for_tool(mcp_config, &ToolKind::Cursor)
             .map_err(|e| AdapterError::Other(format!("MCP JSON generation failed: {e}")))?;
         Ok(vec![SyncAction::WriteMcpConfig {
             output: project_root.join(".cursor/mcp.json"),
@@ -1170,6 +1177,68 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_translate_hooks_prompt_type_passes_through_without_shim() {
+        use crate::types::{HookGroup, HookHandler, HookTranslation, HooksConfig};
+        use std::collections::BTreeMap;
+
+        let mut events = BTreeMap::new();
+        events.insert(
+            "PreToolUse".to_string(),
+            vec![HookGroup {
+                matcher: Some("Write".to_string()),
+                hooks: vec![HookHandler {
+                    hook_type: "prompt".to_string(),
+                    command: "Check that this write follows our coding standards".to_string(),
+                    timeout: None,
+                }],
+            }],
+        );
+        let config = HooksConfig { events };
+
+        let result = CursorAdapter.translate_hooks(&config).unwrap();
+        match result {
+            HookTranslation::Supported { content, .. } => {
+                let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+                let hook = &parsed["hooks"]["preToolUse"][0];
+                // Prompt hooks should not be shim-wrapped
+                assert_eq!(hook["type"], "prompt");
+                assert_eq!(hook["prompt"], "Check that this write follows our coding standards");
+                assert!(hook.get("command").is_none(), "prompt hooks should not have command field");
+            }
+            other => panic!("expected Supported, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_translate_hooks_cursor_only_event_maps_correctly() {
+        use crate::types::{HookGroup, HookHandler, HookTranslation, HooksConfig};
+        use std::collections::BTreeMap;
+
+        let mut events = BTreeMap::new();
+        events.insert(
+            "AfterFileEdit".to_string(),
+            vec![HookGroup {
+                matcher: None,
+                hooks: vec![HookHandler {
+                    hook_type: "command".to_string(),
+                    command: "echo edited".to_string(),
+                    timeout: None,
+                }],
+            }],
+        );
+        let config = HooksConfig { events };
+
+        let result = CursorAdapter.translate_hooks(&config).unwrap();
+        match result {
+            HookTranslation::Supported { content, .. } => {
+                let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+                assert!(parsed["hooks"]["afterFileEdit"].is_array());
+            }
+            other => panic!("expected Supported, got {other:?}"),
+        }
+    }
+
     // --- plan_skills_sync tests ---
 
     fn make_skill(name: &str, content: &str) -> crate::types::SkillFile {
@@ -1360,7 +1429,8 @@ mod tests {
                 let parsed: serde_json::Value = serde_json::from_str(content).unwrap();
                 assert!(parsed["mcpServers"]["github"].is_object());
                 assert_eq!(parsed["mcpServers"]["github"]["command"], "npx");
-                assert_eq!(parsed["mcpServers"]["github"]["env"]["TOKEN"], "${GITHUB_TOKEN}");
+                // Canonical ${GITHUB_TOKEN} should be translated to Cursor ${env:GITHUB_TOKEN}
+                assert_eq!(parsed["mcpServers"]["github"]["env"]["TOKEN"], "${env:GITHUB_TOKEN}");
             }
             other => panic!("expected WriteMcpConfig, got {other:?}"),
         }

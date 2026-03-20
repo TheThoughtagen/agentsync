@@ -125,6 +125,72 @@ impl McpEngine {
         Ok(McpConfig { servers })
     }
 
+    /// Translate canonical env var references `${VAR}` to Cursor format `${env:VAR}`.
+    pub fn env_to_cursor(value: &str) -> String {
+        let re = regex::Regex::new(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}").unwrap();
+        re.replace_all(value, |caps: &regex::Captures| {
+            let var = &caps[1];
+            // Skip if already in env: format
+            if var.starts_with("env:") {
+                caps[0].to_string()
+            } else {
+                format!("${{env:{}}}", var)
+            }
+        })
+        .to_string()
+    }
+
+    /// Translate Cursor env var references `${env:VAR}` to canonical format `${VAR}`.
+    pub fn env_from_cursor(value: &str) -> String {
+        value.replace("${env:", "${").to_string()
+    }
+
+    /// Generate `{"mcpServers": {...}}` JSON with tool-specific variable translation.
+    pub fn generate_mcp_json_for_tool(
+        mcp_config: &McpConfig,
+        tool: &crate::types::ToolKind,
+    ) -> Result<String, AisyncError> {
+        let translate_env = match tool {
+            crate::types::ToolKind::Cursor => Self::env_to_cursor,
+            _ => |v: &str| v.to_string(), // no translation for other tools
+        };
+
+        let mut servers = serde_json::Map::new();
+
+        for (name, server) in &mcp_config.servers {
+            let mut obj = serde_json::Map::new();
+            obj.insert(
+                "command".into(),
+                serde_json::Value::String(server.command.clone()),
+            );
+            if !server.args.is_empty() {
+                let args: Vec<serde_json::Value> = server
+                    .args
+                    .iter()
+                    .map(|a| serde_json::Value::String(a.clone()))
+                    .collect();
+                obj.insert("args".into(), serde_json::Value::Array(args));
+            }
+            if !server.env.is_empty() {
+                let env: serde_json::Map<String, serde_json::Value> = server
+                    .env
+                    .iter()
+                    .map(|(k, v)| (k.clone(), serde_json::Value::String(translate_env(v))))
+                    .collect();
+                obj.insert("env".into(), serde_json::Value::Object(env));
+            }
+            servers.insert(name.clone(), serde_json::Value::Object(obj));
+        }
+
+        let root = serde_json::json!({ "mcpServers": servers });
+        serde_json::to_string_pretty(&root).map_err(|e| {
+            AisyncError::Sync(SyncError::WriteFailed(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("JSON serialization failed: {e}"),
+            )))
+        })
+    }
+
     /// Generate `{"mcpServers": {...}}` JSON for the given MCP config.
     ///
     /// For each server:
@@ -498,5 +564,77 @@ env = { GITHUB_TOKEN = "${GITHUB_TOKEN}" }
         assert!(parsed["mcpServers"]["beta"].is_object());
         assert_eq!(parsed["mcpServers"]["alpha"]["command"], "cmd-a");
         assert_eq!(parsed["mcpServers"]["beta"]["command"], "cmd-b");
+    }
+
+    // --- env variable translation tests ---
+
+    #[test]
+    fn test_env_to_cursor_translates_var_refs() {
+        assert_eq!(McpEngine::env_to_cursor("${API_KEY}"), "${env:API_KEY}");
+        assert_eq!(McpEngine::env_to_cursor("${HOME}"), "${env:HOME}");
+    }
+
+    #[test]
+    fn test_env_to_cursor_skips_already_cursor_format() {
+        // ${env:VAR} regex won't match "env:" as a var name start (starts with letter/underscore)
+        // but env_to_cursor should not double-wrap
+        assert_eq!(McpEngine::env_to_cursor("literal-value"), "literal-value");
+    }
+
+    #[test]
+    fn test_env_to_cursor_handles_mixed_content() {
+        assert_eq!(
+            McpEngine::env_to_cursor("prefix-${TOKEN}-suffix"),
+            "prefix-${env:TOKEN}-suffix"
+        );
+    }
+
+    #[test]
+    fn test_env_from_cursor_translates_back() {
+        assert_eq!(McpEngine::env_from_cursor("${env:API_KEY}"), "${API_KEY}");
+        assert_eq!(McpEngine::env_from_cursor("${env:HOME}"), "${HOME}");
+    }
+
+    #[test]
+    fn test_env_from_cursor_passthrough_non_cursor() {
+        assert_eq!(McpEngine::env_from_cursor("${API_KEY}"), "${API_KEY}");
+        assert_eq!(McpEngine::env_from_cursor("literal"), "literal");
+    }
+
+    #[test]
+    fn test_generate_mcp_json_for_cursor_translates_env() {
+        let config = McpConfig {
+            servers: BTreeMap::from([(
+                "server".to_string(),
+                McpServer {
+                    command: "npx".to_string(),
+                    args: vec![],
+                    env: BTreeMap::from([("TOKEN".to_string(), "${API_KEY}".to_string())]),
+                },
+            )]),
+        };
+
+        let json = McpEngine::generate_mcp_json_for_tool(&config, &crate::types::ToolKind::Cursor).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed["mcpServers"]["server"]["env"]["TOKEN"], "${env:API_KEY}");
+    }
+
+    #[test]
+    fn test_generate_mcp_json_for_claude_code_no_translation() {
+        let config = McpConfig {
+            servers: BTreeMap::from([(
+                "server".to_string(),
+                McpServer {
+                    command: "npx".to_string(),
+                    args: vec![],
+                    env: BTreeMap::from([("TOKEN".to_string(), "${API_KEY}".to_string())]),
+                },
+            )]),
+        };
+
+        let json = McpEngine::generate_mcp_json_for_tool(&config, &crate::types::ToolKind::ClaudeCode).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        // Claude Code should keep canonical format unchanged
+        assert_eq!(parsed["mcpServers"]["server"]["env"]["TOKEN"], "${API_KEY}");
     }
 }

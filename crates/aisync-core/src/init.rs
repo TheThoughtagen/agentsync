@@ -215,10 +215,13 @@ impl InitEngine {
             merged.servers.entry(name).or_insert(server);
         }
 
-        // Import from Cursor: .cursor/mcp.json
+        // Import from Cursor: .cursor/mcp.json (translate ${env:VAR} → ${VAR})
         let cursor_path = project_root.join(".cursor/mcp.json");
         let cursor_config = McpEngine::parse_mcp_json(&cursor_path)?;
-        for (name, server) in cursor_config.servers {
+        for (name, mut server) in cursor_config.servers {
+            server.env = server.env.into_iter()
+                .map(|(k, v)| (k, McpEngine::env_from_cursor(&v)))
+                .collect();
             merged.servers.entry(name).or_insert(server);
         }
 
