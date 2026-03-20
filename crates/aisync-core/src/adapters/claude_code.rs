@@ -220,8 +220,14 @@ impl ToolAdapter for ClaudeCodeAdapter {
         &self,
         hooks: &crate::types::HooksConfig,
     ) -> Result<crate::types::HookTranslation, AdapterError> {
+        const CLAUDE_CODE_EVENTS: &[&str] = &[
+            "PreToolUse", "PostToolUse", "Notification", "Stop", "SubagentStop",
+        ];
         let mut hooks_obj = serde_json::Map::new();
         for (event, groups) in &hooks.events {
+            if !CLAUDE_CODE_EVENTS.contains(&event.as_str()) {
+                continue; // Skip events Claude Code doesn't support
+            }
             let groups_json: Vec<serde_json::Value> = groups
                 .iter()
                 .map(|g| {

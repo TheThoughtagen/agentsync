@@ -429,8 +429,22 @@ fn cursor_event_to_canonical(event: &str) -> Option<&'static str> {
     match event {
         "preToolUse" => Some("PreToolUse"),
         "postToolUse" => Some("PostToolUse"),
+        "postToolUseFailure" => Some("PostToolUseFailure"),
         "stop" => Some("Stop"),
         "subagentStop" => Some("SubagentStop"),
+        "subagentStart" => Some("SubagentStart"),
+        "sessionStart" => Some("SessionStart"),
+        "sessionEnd" => Some("SessionEnd"),
+        "beforeShellExecution" => Some("BeforeShellExecution"),
+        "afterShellExecution" => Some("AfterShellExecution"),
+        "beforeReadFile" => Some("BeforeReadFile"),
+        "afterFileEdit" => Some("AfterFileEdit"),
+        "beforeSubmitPrompt" => Some("BeforeSubmitPrompt"),
+        "preCompact" => Some("PreCompact"),
+        "afterAgentResponse" => Some("AfterAgentResponse"),
+        "afterAgentThought" => Some("AfterAgentThought"),
+        "beforeMCPExecution" => Some("BeforeMCPExecution"),
+        "afterMCPExecution" => Some("AfterMCPExecution"),
         _ => None,
     }
 }

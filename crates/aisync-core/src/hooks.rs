@@ -4,12 +4,31 @@ use crate::error::{AisyncError, HookError};
 use crate::types::{HookGroup, HookHandler, HooksConfig};
 
 /// Valid event names for hooks.
+/// Canonical names use PascalCase. This is a superset of all supported tool events.
+/// Events without equivalents in a given tool are silently skipped during translation.
 pub const VALID_EVENTS: &[&str] = &[
+    // Shared across Claude Code and Cursor
     "PreToolUse",
     "PostToolUse",
-    "Notification",
     "Stop",
     "SubagentStop",
+    // Claude Code only
+    "Notification",
+    // Cursor only
+    "PostToolUseFailure",
+    "SessionStart",
+    "SessionEnd",
+    "BeforeShellExecution",
+    "AfterShellExecution",
+    "BeforeReadFile",
+    "AfterFileEdit",
+    "BeforeSubmitPrompt",
+    "PreCompact",
+    "AfterAgentResponse",
+    "AfterAgentThought",
+    "SubagentStart",
+    "BeforeMCPExecution",
+    "AfterMCPExecution",
 ];
 
 /// Summary of a single hook for display purposes.

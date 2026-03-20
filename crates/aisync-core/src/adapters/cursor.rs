@@ -47,9 +47,23 @@ fn event_name_to_cursor(event: &str) -> Option<&'static str> {
     match event {
         "PreToolUse" => Some("preToolUse"),
         "PostToolUse" => Some("postToolUse"),
+        "PostToolUseFailure" => Some("postToolUseFailure"),
         "Stop" => Some("stop"),
         "SubagentStop" => Some("subagentStop"),
-        "Notification" => None, // Cursor has no equivalent
+        "SubagentStart" => Some("subagentStart"),
+        "SessionStart" => Some("sessionStart"),
+        "SessionEnd" => Some("sessionEnd"),
+        "BeforeShellExecution" => Some("beforeShellExecution"),
+        "AfterShellExecution" => Some("afterShellExecution"),
+        "BeforeReadFile" => Some("beforeReadFile"),
+        "AfterFileEdit" => Some("afterFileEdit"),
+        "BeforeSubmitPrompt" => Some("beforeSubmitPrompt"),
+        "PreCompact" => Some("preCompact"),
+        "AfterAgentResponse" => Some("afterAgentResponse"),
+        "AfterAgentThought" => Some("afterAgentThought"),
+        "BeforeMCPExecution" => Some("beforeMCPExecution"),
+        "AfterMCPExecution" => Some("afterMCPExecution"),
+        "Notification" => None, // Claude Code only, no Cursor equivalent
         _ => None,
     }
 }
