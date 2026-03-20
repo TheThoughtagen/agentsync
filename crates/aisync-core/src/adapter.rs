@@ -197,6 +197,22 @@ impl ToolAdapter for AnyAdapter {
     ) -> Result<Vec<aisync_adapter::aisync_types::SyncAction>, AdpErr> {
         dispatch_adapter!(self, a => a.plan_commands_sync(project_root, commands))
     }
+
+    fn plan_skills_sync(
+        &self,
+        project_root: &Path,
+        skills: &[aisync_adapter::aisync_types::SkillFile],
+    ) -> Result<Vec<aisync_adapter::aisync_types::SyncAction>, AdpErr> {
+        dispatch_adapter!(self, a => a.plan_skills_sync(project_root, skills))
+    }
+
+    fn plan_agents_sync(
+        &self,
+        project_root: &Path,
+        agents: &[aisync_adapter::aisync_types::AgentFile],
+    ) -> Result<Vec<aisync_adapter::aisync_types::SyncAction>, AdpErr> {
+        dispatch_adapter!(self, a => a.plan_agents_sync(project_root, agents))
+    }
 }
 
 #[cfg(test)]
@@ -419,5 +435,75 @@ mod tests {
         let adapter = AnyAdapter::ClaudeCode(ClaudeCodeAdapter);
         let result = adapter.plan_rules_sync(Path::new("."), &[]).unwrap();
         assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_any_adapter_plugin_plan_skills_sync() {
+        let plugin = AnyAdapter::Plugin(Arc::new(MinimalAdapter));
+        let result = plugin.plan_skills_sync(Path::new("."), &[]).unwrap();
+        assert!(result.is_empty(), "default plan_skills_sync should return empty for plugin");
+    }
+
+    #[test]
+    fn test_any_adapter_plugin_plan_agents_sync() {
+        let plugin = AnyAdapter::Plugin(Arc::new(MinimalAdapter));
+        let result = plugin.plan_agents_sync(Path::new("."), &[]).unwrap();
+        assert!(result.is_empty(), "default plan_agents_sync should return empty for plugin");
+    }
+
+    #[test]
+    fn test_any_adapter_claude_code_plan_skills_sync() {
+        let adapter = AnyAdapter::ClaudeCode(ClaudeCodeAdapter);
+        let result = adapter.plan_skills_sync(Path::new("."), &[]).unwrap();
+        assert!(result.is_empty(), "ClaudeCode default plan_skills_sync returns empty");
+    }
+
+    #[test]
+    fn test_any_adapter_claude_code_plan_agents_sync() {
+        let adapter = AnyAdapter::ClaudeCode(ClaudeCodeAdapter);
+        let result = adapter.plan_agents_sync(Path::new("."), &[]).unwrap();
+        assert!(result.is_empty(), "ClaudeCode default plan_agents_sync returns empty");
+    }
+
+    #[test]
+    fn test_any_adapter_cursor_plan_skills_sync_dispatches_to_cursor() {
+        use aisync_adapter::aisync_types::SkillFile;
+        use tempfile::TempDir;
+
+        let dir = TempDir::new().unwrap();
+        let cursor = AnyAdapter::Cursor(CursorAdapter);
+        let skills = vec![SkillFile {
+            name: "test-skill".to_string(),
+            content: "# Test Skill".to_string(),
+            source_path: std::path::PathBuf::from(".ai/skills/test-skill/SKILL.md"),
+        }];
+        let result = cursor.plan_skills_sync(dir.path(), &skills).unwrap();
+        // CursorAdapter returns WriteSkillFile actions, not empty
+        assert!(!result.is_empty(), "CursorAdapter.plan_skills_sync should produce actions");
+        assert!(
+            result.iter().any(|a| matches!(a, aisync_adapter::aisync_types::SyncAction::WriteSkillFile { .. })),
+            "expected WriteSkillFile action from CursorAdapter dispatch"
+        );
+    }
+
+    #[test]
+    fn test_any_adapter_cursor_plan_agents_sync_dispatches_to_cursor() {
+        use aisync_adapter::aisync_types::AgentFile;
+        use tempfile::TempDir;
+
+        let dir = TempDir::new().unwrap();
+        let cursor = AnyAdapter::Cursor(CursorAdapter);
+        let agents = vec![AgentFile {
+            name: "test-agent".to_string(),
+            content: "# Test Agent".to_string(),
+            source_path: std::path::PathBuf::from(".ai/agents/test-agent.md"),
+        }];
+        let result = cursor.plan_agents_sync(dir.path(), &agents).unwrap();
+        // CursorAdapter returns WriteAgentFile actions, not empty
+        assert!(!result.is_empty(), "CursorAdapter.plan_agents_sync should produce actions");
+        assert!(
+            result.iter().any(|a| matches!(a, aisync_adapter::aisync_types::SyncAction::WriteAgentFile { .. })),
+            "expected WriteAgentFile action from CursorAdapter dispatch"
+        );
     }
 }
