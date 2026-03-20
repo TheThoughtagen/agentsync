@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.2
-milestone_name: Real-World Hardening
-status: complete
-last_updated: "2026-03-09T19:46:39.524Z"
+milestone: v1.0
+milestone_name: milestone
+status: unknown
+last_updated: "2026-03-20T02:47:38.183Z"
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 9
-  completed_plans: 9
+  total_phases: 1
+  completed_phases: 0
+  total_plans: 3
+  completed_plans: 1
 ---
 
 # Project State
@@ -22,11 +22,12 @@ See: .planning/PROJECT.md (updated 2026-03-09)
 
 ## Current Position
 
-Milestone: v1.2 Real-World Hardening — SHIPPED 2026-03-09
-Status: All 3 milestones complete (v1.0, v1.1, v1.2)
-Last activity: 2026-03-09 — v1.2 milestone archived
+Phase: 01-add-cursor-plugin-ecosystem-support
+Current Plan: 01 of 3 (complete)
+Status: In Progress — plan 01 complete
+Last activity: 2026-03-20 — foundation types and engines for skills/agents
 
-Progress: [██████████] 100% (v1.2: 9/9 plans)
+Progress: [█░░░░░░░░░] 33% (Phase 01: 1/3 plans)
 
 ## Performance Metrics
 
@@ -44,10 +45,15 @@ Progress: [██████████] 100% (v1.2: 9/9 plans)
 ### Decisions
 
 (Archived to PROJECT.md Key Decisions table — see v1.2 entries)
+- [Phase 01-add-cursor-plugin-ecosystem-support]: SkillEngine scans subdirectories in .ai/skills/ requiring SKILL.md; AgentEngine reads flat .ai/agents/*.md — mirrors CommandEngine pattern
 
 ### Pending Todos
 
 None.
+
+### Roadmap Evolution
+
+- Phase 1 added: add cursor hooks support
 
 ### Blockers/Concerns
 
@@ -56,6 +62,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-09
-Stopped at: v1.2 milestone archived
+Last session: 2026-03-20
+Stopped at: Completed 01-add-cursor-plugin-ecosystem-support-01-01-PLAN.md
 Resume file: None
