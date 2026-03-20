@@ -217,6 +217,26 @@ pub struct CommandFile {
     pub source_path: PathBuf,
 }
 
+/// A canonical skill file loaded from `.ai/skills/{name}/SKILL.md`.
+///
+/// Not serde-enabled — contains PathBuf for internal pipeline use only.
+#[derive(Debug, Clone)]
+pub struct SkillFile {
+    pub name: String,        // directory name (e.g., "my-skill")
+    pub content: String,     // full SKILL.md content
+    pub source_path: PathBuf, // .ai/skills/{name}/SKILL.md
+}
+
+/// A canonical agent file loaded from `.ai/agents/{name}.md`.
+///
+/// Not serde-enabled — contains PathBuf for internal pipeline use only.
+#[derive(Debug, Clone)]
+pub struct AgentFile {
+    pub name: String,        // stem of file (e.g., "backend-expert")
+    pub content: String,     // full .md content
+    pub source_path: PathBuf, // .ai/agents/{name}.md
+}
+
 /// A planned sync action that can be displayed (dry-run) or executed.
 #[derive(Debug, Clone, Serialize)]
 pub enum SyncAction {
@@ -294,6 +314,22 @@ pub enum SyncAction {
         source: PathBuf,
         output: PathBuf,
         command_name: String,
+    },
+    // Skill sync actions
+    WriteSkillFile {
+        output: PathBuf,
+        content: String,
+        skill_name: String,
+    },
+    // Agent sync actions
+    WriteAgentFile {
+        output: PathBuf,
+        content: String,
+        agent_name: String,
+    },
+    // Stale skill directory cleanup
+    RemoveSkillDir {
+        path: PathBuf,
     },
     // Dimension warnings
     WarnUnsupportedDimension {
@@ -416,6 +452,33 @@ impl fmt::Display for SyncAction {
                     command_name,
                     output.display()
                 )
+            }
+            SyncAction::WriteSkillFile {
+                output,
+                skill_name,
+                ..
+            } => {
+                write!(
+                    f,
+                    "Write skill '{}' to {}",
+                    skill_name,
+                    output.display()
+                )
+            }
+            SyncAction::WriteAgentFile {
+                output,
+                agent_name,
+                ..
+            } => {
+                write!(
+                    f,
+                    "Write agent '{}' to {}",
+                    agent_name,
+                    output.display()
+                )
+            }
+            SyncAction::RemoveSkillDir { path } => {
+                write!(f, "Remove stale skill directory {}", path.display())
             }
             SyncAction::WarnUnsupportedDimension {
                 tool,
@@ -884,5 +947,64 @@ mod tests {
         assert!(display.contains("OpenCode"), "should contain tool name");
         assert!(display.contains("commands"), "should contain dimension");
         assert!(display.contains("no command format documented"), "should contain reason");
+    }
+
+    // --- Phase 01, Plan 01 tests: SkillFile, AgentFile, new SyncAction variants ---
+
+    #[test]
+    fn test_skill_file_construction() {
+        let sf = SkillFile {
+            name: "my-skill".into(),
+            content: "# My Skill\nDoes things".into(),
+            source_path: PathBuf::from(".ai/skills/my-skill/SKILL.md"),
+        };
+        assert_eq!(sf.name, "my-skill");
+        assert_eq!(sf.content, "# My Skill\nDoes things");
+        assert_eq!(sf.source_path, PathBuf::from(".ai/skills/my-skill/SKILL.md"));
+    }
+
+    #[test]
+    fn test_agent_file_construction() {
+        let af = AgentFile {
+            name: "backend-expert".into(),
+            content: "# Backend Expert\nHelps with backend tasks".into(),
+            source_path: PathBuf::from(".ai/agents/backend-expert.md"),
+        };
+        assert_eq!(af.name, "backend-expert");
+        assert_eq!(af.content, "# Backend Expert\nHelps with backend tasks");
+        assert_eq!(af.source_path, PathBuf::from(".ai/agents/backend-expert.md"));
+    }
+
+    #[test]
+    fn test_sync_action_write_skill_file_display() {
+        let action = SyncAction::WriteSkillFile {
+            output: PathBuf::from(".cursor/skills/my-skill/SKILL.md"),
+            content: "skill content".into(),
+            skill_name: "my-skill".into(),
+        };
+        let display = format!("{}", action);
+        assert!(display.contains("my-skill"), "display should contain skill name");
+        assert!(display.contains(".cursor/skills/my-skill/SKILL.md"), "display should contain output path");
+    }
+
+    #[test]
+    fn test_sync_action_write_agent_file_display() {
+        let action = SyncAction::WriteAgentFile {
+            output: PathBuf::from(".cursor/agents/backend-expert.md"),
+            content: "agent content".into(),
+            agent_name: "backend-expert".into(),
+        };
+        let display = format!("{}", action);
+        assert!(display.contains("backend-expert"), "display should contain agent name");
+        assert!(display.contains(".cursor/agents/backend-expert.md"), "display should contain output path");
+    }
+
+    #[test]
+    fn test_sync_action_remove_skill_dir_display() {
+        let action = SyncAction::RemoveSkillDir {
+            path: PathBuf::from(".cursor/skills/old-skill"),
+        };
+        let display = format!("{}", action);
+        assert!(display.contains("old-skill"), "display should reference the path");
     }
 }
