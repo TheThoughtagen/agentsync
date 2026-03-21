@@ -218,8 +218,12 @@ impl ToolAdapter for OpenCodeAdapter {
                 lines.push(format!("    \"{}\": async (input, output) => {{", oc_event));
                 for group in groups {
                     for hook in &group.hooks {
+                        // Strip Claude Code env vars for project-relative paths
+                        let translated = hook.command
+                            .replace("$CLAUDE_PROJECT_DIR/", "")
+                            .replace("${CLAUDE_PROJECT_DIR}/", "");
                         // Escape any single quotes in the command
-                        let escaped = hook.command.replace('\'', "'\\''");
+                        let escaped = translated.replace('\'', "'\\''");
                         lines.push(format!("      await $`{escaped}`;"));
                     }
                 }
