@@ -23,7 +23,7 @@ fi
 check_status=0
 output=$(aisync check --json 2>/dev/null) || check_status=$?
 
-if [ $check_status -ne 0 ]; then
+if [ "$check_status" -ne 0 ]; then
   drifted=$(echo "$output" | jq -r '.drifted // [] | .[] // empty' 2>/dev/null || true)
   if [ -n "$drifted" ]; then
     echo "AgentSync: Config drift detected. Run /aisync:sync to fix."

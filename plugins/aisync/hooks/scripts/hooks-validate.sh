@@ -22,7 +22,7 @@ fi
 
 # Validate by attempting translation
 output=$(aisync hooks translate 2>&1) || {
-  echo "{\"systemMessage\": \"hooks.toml validation failed: $output\"}" >&2
+  jq -n --arg msg "hooks.toml validation failed: $output" '{"systemMessage": $msg}' >&2
   exit 2
 }
 

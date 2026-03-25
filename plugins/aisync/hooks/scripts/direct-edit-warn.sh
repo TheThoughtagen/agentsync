@@ -35,7 +35,8 @@ rel_path="${file_path#"$CLAUDE_PROJECT_DIR"/}"
 
 for target in "${synced_targets[@]}"; do
   if [[ "$rel_path" == "$target" ]]; then
-    echo "{\"systemMessage\": \"WARNING: '$rel_path' is managed by AgentSync and will be overwritten on next sync. Edit the canonical source in .ai/ instead (e.g., .ai/instructions.md for CLAUDE.md/AGENTS.md).\"}" >&2
+    msg="WARNING: '${rel_path}' is managed by AgentSync and will be overwritten on next sync. Edit the canonical source in .ai/ instead (e.g., .ai/instructions.md for CLAUDE.md/AGENTS.md)."
+    jq -n --arg msg "$msg" '{"systemMessage": $msg}' >&2
     exit 2
   fi
 done
