@@ -62,9 +62,15 @@ impl<'de> Deserialize<'de> for PluginSource {
                 })
             }
         } else if let Some(rest) = s.strip_prefix("path:") {
-            Ok(PluginSource::Path {
-                path: PathBuf::from(rest),
-            })
+            if rest.is_empty() {
+                Err(serde::de::Error::custom(
+                    "invalid path source format: path cannot be empty",
+                ))
+            } else {
+                Ok(PluginSource::Path {
+                    path: PathBuf::from(rest),
+                })
+            }
         } else {
             Err(serde::de::Error::custom(format!(
                 "unknown plugin source prefix: expected 'github:', 'npm:', or 'path:', got '{s}'"
@@ -1176,6 +1182,12 @@ mod tests {
     #[test]
     fn test_plugin_source_npm_empty_error() {
         let result = serde_json::from_str::<PluginSource>("\"npm:\"");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_plugin_source_path_empty_error() {
+        let result = serde_json::from_str::<PluginSource>("\"path:\"");
         assert!(result.is_err());
     }
 
