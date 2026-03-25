@@ -2208,4 +2208,62 @@ source = "npm:test-plugin"
             );
         }
     }
+
+    #[test]
+    fn test_execute_write_plugins_config_merges_with_existing_settings() {
+        let dir = TempDir::new().unwrap();
+
+        // Create .claude/settings.json with existing hooks content
+        let claude_dir = dir.path().join(".claude");
+        std::fs::create_dir_all(&claude_dir).unwrap();
+        let settings_path = claude_dir.join("settings.json");
+        std::fs::write(
+            &settings_path,
+            r#"{"hooks": {"PreToolUse": []}}"#,
+        )
+        .unwrap();
+
+        // Build a SyncReport with a single WritePluginsConfig action
+        let report = SyncReport {
+            results: vec![ToolSyncResult {
+                tool: ToolKind::ClaudeCode,
+                actions: vec![SyncAction::WritePluginsConfig {
+                    output: settings_path.clone(),
+                    content: r#"{"plugins": {"aisync": {"source": "github:whiskeyhouse/agentsync"}}}"#
+                        .to_string(),
+                }],
+                error: None,
+            }],
+        };
+
+        let result = SyncEngine::execute(&report, dir.path()).unwrap();
+        assert!(
+            !result.has_errors(),
+            "execute should not produce errors: {:?}",
+            result
+        );
+
+        // Read the resulting settings.json and verify merge
+        let merged: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&settings_path).unwrap()).unwrap();
+
+        assert!(
+            merged.get("hooks").is_some(),
+            "existing 'hooks' key should be preserved after merge"
+        );
+        assert!(
+            merged.get("plugins").is_some(),
+            "'plugins' key should be present after merge"
+        );
+        assert_eq!(
+            merged["hooks"]["PreToolUse"],
+            serde_json::json!([]),
+            "hooks.PreToolUse should remain an empty array"
+        );
+        assert_eq!(
+            merged["plugins"]["aisync"]["source"],
+            "github:whiskeyhouse/agentsync",
+            "plugins.aisync.source should match"
+        );
+    }
 }
