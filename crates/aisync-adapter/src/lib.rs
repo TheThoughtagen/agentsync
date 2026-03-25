@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 use aisync_types::{
     AgentFile, CommandFile, Confidence, DriftState, HookTranslation, HooksConfig, McpConfig,
-    RuleFile, SkillFile, SyncAction, SyncStrategy, ToolKind, ToolSyncStatus,
+    PluginsConfig, RuleFile, SkillFile, SyncAction, SyncStrategy, ToolKind, ToolSyncStatus,
 };
 
 /// Errors specific to individual tool adapters.
@@ -178,6 +178,16 @@ pub trait ToolAdapter: Send + Sync {
         let _ = (project_root, agents);
         Ok(vec![])
     }
+
+    /// Plan plugin sync actions for this tool.
+    fn plan_plugins_sync(
+        &self,
+        project_root: &Path,
+        config: &PluginsConfig,
+    ) -> Result<Vec<SyncAction>, AdapterError> {
+        let _ = (project_root, config);
+        Ok(vec![])
+    }
 }
 
 /// A registration entry for compile-time adapter discovery.
@@ -301,6 +311,29 @@ mod tests {
         let skills: Vec<aisync_types::SkillFile> = vec![];
         let result = adapter.plan_skills_sync(Path::new("/tmp"), &skills).unwrap();
         assert!(result.is_empty(), "default plan_skills_sync should return empty vec");
+    }
+
+    #[test]
+    fn test_plan_plugins_sync_default_returns_empty() {
+        struct MinimalAdapter;
+        impl ToolAdapter for MinimalAdapter {
+            fn name(&self) -> ToolKind { ToolKind::Custom("minimal-plug".to_string()) }
+            fn display_name(&self) -> &str { "MinimalPlug" }
+            fn native_instruction_path(&self) -> &str { ".minimal/instructions.md" }
+            fn detect(&self, _: &Path) -> Result<DetectionResult, AdapterError> {
+                Ok(DetectionResult {
+                    tool: self.name(),
+                    detected: false,
+                    confidence: Confidence::Medium,
+                    markers_found: vec![],
+                    version_hint: None,
+                })
+            }
+        }
+        let adapter = MinimalAdapter;
+        let config = std::collections::BTreeMap::new();
+        let result = adapter.plan_plugins_sync(Path::new("/tmp"), &config).unwrap();
+        assert!(result.is_empty(), "default plan_plugins_sync should return empty vec");
     }
 
     #[test]

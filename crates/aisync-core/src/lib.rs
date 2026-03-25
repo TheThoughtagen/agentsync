@@ -15,6 +15,7 @@ pub mod init;
 pub mod managed_section;
 pub mod mcp;
 pub mod memory;
+pub mod plugins;
 pub mod rules;
 pub mod security;
 pub mod skills;
@@ -33,6 +34,7 @@ pub use conditional::ConditionalProcessor;
 // McpEngine and SecurityScanner are used by sync.rs and adapters internally,
 // re-exported for external consumers.
 pub use mcp::McpEngine;
+pub use plugins::PluginEngine;
 pub use security::{SecurityScanner, SecurityWarning};
 pub use skills::SkillEngine;
 pub use config::{AisyncConfig, DefaultsConfig, SyncStrategy, ToolConfig, ToolsConfig};
@@ -50,7 +52,8 @@ pub use rules::RuleEngine;
 pub use sync::SyncEngine;
 pub use types::{
     Confidence, DriftState, HookGroup, HookHandler, HookStatusReport, HookTranslation, HooksConfig,
-    MemoryStatusReport, StatusReport, SyncAction, SyncReport, ToolDiff, ToolHookStatus, ToolKind,
-    ToolMemoryStatus, ToolSyncResult, ToolSyncStatus, WatchEvent, content_hash,
+    MemoryStatusReport, PluginRef, PluginSource, PluginsConfig, StatusReport, SyncAction,
+    SyncReport, ToolDiff, ToolHookStatus, ToolKind, ToolMemoryStatus, ToolSyncResult,
+    ToolSyncStatus, WatchEvent, content_hash,
 };
 pub use watch::WatchEngine;

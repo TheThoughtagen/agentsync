@@ -4,6 +4,86 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+// --- Plugin types ---
+
+/// Source location for a plugin.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PluginSource {
+    GitHub { owner: String, repo: String },
+    Npm { package: String },
+    Path { path: PathBuf },
+}
+
+impl fmt::Display for PluginSource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PluginSource::GitHub { owner, repo } => write!(f, "github:{owner}/{repo}"),
+            PluginSource::Npm { package } => write!(f, "npm:{package}"),
+            PluginSource::Path { path } => write!(f, "path:{}", path.display()),
+        }
+    }
+}
+
+impl Serialize for PluginSource {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for PluginSource {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        if let Some(rest) = s.strip_prefix("github:") {
+            let parts: Vec<&str> = rest.splitn(2, '/').collect();
+            if parts.len() == 2 && !parts[0].is_empty() && !parts[1].is_empty() {
+                Ok(PluginSource::GitHub {
+                    owner: parts[0].to_string(),
+                    repo: parts[1].to_string(),
+                })
+            } else {
+                Err(serde::de::Error::custom(format!(
+                    "invalid github source format: expected 'github:owner/repo', got '{s}'"
+                )))
+            }
+        } else if let Some(rest) = s.strip_prefix("npm:") {
+            if rest.is_empty() {
+                Err(serde::de::Error::custom(
+                    "invalid npm source format: package name cannot be empty",
+                ))
+            } else {
+                Ok(PluginSource::Npm {
+                    package: rest.to_string(),
+                })
+            }
+        } else if let Some(rest) = s.strip_prefix("path:") {
+            Ok(PluginSource::Path {
+                path: PathBuf::from(rest),
+            })
+        } else {
+            Err(serde::de::Error::custom(format!(
+                "unknown plugin source prefix: expected 'github:', 'npm:', or 'path:', got '{s}'"
+            )))
+        }
+    }
+}
+
+/// A reference to a plugin with its source and optional description.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PluginRef {
+    pub source: PluginSource,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+/// Map of plugin name to plugin reference.
+pub type PluginsConfig = BTreeMap<String, PluginRef>;
+
 /// Helper for serde default that returns `true`.
 fn default_true() -> bool {
     true
@@ -997,6 +1077,106 @@ mod tests {
         let display = format!("{}", action);
         assert!(display.contains("backend-expert"), "display should contain agent name");
         assert!(display.contains(".cursor/agents/backend-expert.md"), "display should contain output path");
+    }
+
+    // --- Plugin type tests ---
+
+    #[test]
+    fn test_plugin_source_github_serde() {
+        let source = PluginSource::GitHub {
+            owner: "org".into(),
+            repo: "repo".into(),
+        };
+        let json = serde_json::to_string(&source).unwrap();
+        assert_eq!(json, "\"github:org/repo\"");
+        let back: PluginSource = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, source);
+    }
+
+    #[test]
+    fn test_plugin_source_npm_serde() {
+        let source = PluginSource::Npm {
+            package: "@scope/pkg".into(),
+        };
+        let json = serde_json::to_string(&source).unwrap();
+        assert_eq!(json, "\"npm:@scope/pkg\"");
+        let back: PluginSource = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, source);
+    }
+
+    #[test]
+    fn test_plugin_source_path_serde() {
+        let source = PluginSource::Path {
+            path: PathBuf::from("./local"),
+        };
+        let json = serde_json::to_string(&source).unwrap();
+        assert_eq!(json, "\"path:./local\"");
+        let back: PluginSource = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, source);
+    }
+
+    #[test]
+    fn test_plugin_source_display() {
+        assert_eq!(
+            format!("{}", PluginSource::GitHub { owner: "a".into(), repo: "b".into() }),
+            "github:a/b"
+        );
+        assert_eq!(
+            format!("{}", PluginSource::Npm { package: "pkg".into() }),
+            "npm:pkg"
+        );
+        assert_eq!(
+            format!("{}", PluginSource::Path { path: PathBuf::from("./x") }),
+            "path:./x"
+        );
+    }
+
+    #[test]
+    fn test_plugin_ref_construction() {
+        let pr = PluginRef {
+            source: PluginSource::GitHub { owner: "o".into(), repo: "r".into() },
+            description: Some("desc".into()),
+        };
+        assert_eq!(pr.description, Some("desc".into()));
+    }
+
+    #[test]
+    fn test_plugin_ref_toml_roundtrip() {
+        let pr = PluginRef {
+            source: PluginSource::Npm { package: "my-pkg".into() },
+            description: Some("A plugin".into()),
+        };
+        let toml_str = toml::to_string(&pr).unwrap();
+        let back: PluginRef = toml::from_str(&toml_str).unwrap();
+        assert_eq!(back, pr);
+    }
+
+    #[test]
+    fn test_plugins_config_type_alias() {
+        let mut config: PluginsConfig = BTreeMap::new();
+        config.insert("test".into(), PluginRef {
+            source: PluginSource::Path { path: PathBuf::from("./test") },
+            description: None,
+        });
+        assert_eq!(config.len(), 1);
+    }
+
+    #[test]
+    fn test_plugin_source_invalid_prefix_error() {
+        let result = serde_json::from_str::<PluginSource>("\"ftp:something\"");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_plugin_source_github_missing_repo_error() {
+        let result = serde_json::from_str::<PluginSource>("\"github:owner-only\"");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_plugin_source_npm_empty_error() {
+        let result = serde_json::from_str::<PluginSource>("\"npm:\"");
+        assert!(result.is_err());
     }
 
     #[test]
