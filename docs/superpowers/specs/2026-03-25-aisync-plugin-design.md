@@ -43,7 +43,8 @@ Location: `crates/aisync-core/src/plugins.rs`
 
 Responsibilities:
 - `load()` — Parse `.ai/plugins.toml` into `PluginsConfig` (BTreeMap of plugin name to `PluginRef`)
-- `plan_sync()` — Generate per-adapter sync actions for plugin references
+
+Note: `PluginEngine` only loads data. Translation is handled by each adapter's `plan_plugins_sync()`, matching the pattern used by `McpEngine`, `HookEngine`, etc.
 
 Types:
 ```rust
@@ -65,7 +66,7 @@ pub type PluginsConfig = BTreeMap<String, PluginRef>;
 
 Add to `ToolAdapter` trait:
 ```rust
-fn plan_plugins_sync(&self, config: &PluginsConfig, project_root: &Path) -> Vec<SyncAction>;
+fn plan_plugins_sync(&self, project_root: &Path, config: &PluginsConfig) -> Vec<SyncAction>;
 ```
 
 **Claude Code adapter** — Writes plugin refs into `.claude/settings.json`:
@@ -84,6 +85,8 @@ fn plan_plugins_sync(&self, config: &PluginsConfig, project_root: &Path) -> Vec<
 **Cursor adapter** — Translates to Cursor's extension/plugin config format where possible. Returns `PluginTranslation::Unsupported { reason }` for source types Cursor can't represent.
 
 **OpenCode adapter** — Translates to `opencode.json` plugin references where possible. Same unsupported pattern.
+
+**New `SyncAction` variants** — Plugin sync requires merging into existing JSON files (e.g., `.claude/settings.json` may already have other settings). Add `MergeJsonFile { path, key, value }` variant to `SyncAction` for partial JSON updates, or reuse the existing `CreateFile` approach with a read-merge-write strategy in the execution phase. Decision deferred to implementation.
 
 ### Integration with Existing Commands
 
@@ -117,14 +120,12 @@ plugins/
     │   │   └── SKILL.md
     │   └── hook-authoring/
     │       └── SKILL.md
-    ├── hooks/
-    │   ├── hooks.json
-    │   └── scripts/
-    │       ├── drift-check.sh
-    │       ├── direct-edit-warn.sh
-    │       └── hooks-validate.sh
-    └── scripts/
-        └── pre-commit-check.sh
+    └── hooks/
+        ├── hooks.json
+        └── scripts/
+            ├── drift-check.sh
+            ├── direct-edit-warn.sh
+            └── hooks-validate.sh
 ```
 
 ### Plugin Manifest
@@ -251,6 +252,8 @@ Content teaches Claude:
 
 ### Hooks
 
+**Important note on event names:** The plugin's `hooks.json` is consumed directly by Claude Code's native hook system, *not* by aisync's hook translator. Claude Code natively supports `SessionStart`, `UserPromptSubmit`, `PostToolUse`, etc. These events are only classified as "Cursor-only" in aisync's `VALID_EVENTS` / `CLAUDE_CODE_EVENTS` for the purposes of aisync's cross-tool *translation* layer. A separate task should update aisync's event classification to reflect that Claude Code now supports these events natively.
+
 **`hooks/hooks.json`** (plugin wrapper format):
 ```json
 {
@@ -320,10 +323,10 @@ if [ ! -f "$CLAUDE_PROJECT_DIR/aisync.toml" ]; then
 fi
 
 # Run drift check
-output=$(aisync check --json 2>/dev/null) || true
-status=$?
+check_status=0
+output=$(aisync check --json 2>/dev/null) || check_status=$?
 
-if [ $status -ne 0 ]; then
+if [ $check_status -ne 0 ]; then
   drifted=$(echo "$output" | jq -r '.drifted // [] | .[] // empty' 2>/dev/null || true)
   if [ -n "$drifted" ]; then
     echo "AgentSync: Config drift detected. Run /aisync:sync to fix."
@@ -334,10 +337,15 @@ fi
 exit 0
 ```
 
-**`hooks/scripts/direct-edit-warn.sh`** — PostToolUse edit warning:
+**`hooks/scripts/direct-edit-warn.sh`** — PostToolUse edit warning (exit 2 feeds `systemMessage` back to Claude as context, not a hard block):
 ```bash
 #!/bin/bash
 set -euo pipefail
+
+# Require jq for JSON parsing
+if ! command -v jq &>/dev/null; then
+  exit 0
+fi
 
 input=$(cat)
 tool_name=$(echo "$input" | jq -r '.tool_name // empty')
@@ -381,6 +389,11 @@ exit 0
 #!/bin/bash
 set -euo pipefail
 
+# Require jq for JSON parsing
+if ! command -v jq &>/dev/null; then
+  exit 0
+fi
+
 input=$(cat)
 file_path=$(echo "$input" | jq -r '.tool_input.file_path // empty')
 
@@ -417,7 +430,7 @@ exit 0
 ## Dependencies
 
 - `aisync` CLI must be installed and on PATH for hooks and commands to function
-- `jq` required by hook scripts for JSON parsing
+- `jq` used by hook scripts for JSON parsing (scripts gracefully no-op if `jq` is missing)
 - Project must have `aisync.toml` for hooks to activate (graceful no-op otherwise)
 
 ## Testing Strategy
