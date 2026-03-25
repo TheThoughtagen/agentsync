@@ -79,6 +79,9 @@ impl SyncEngine {
         let skills = crate::skills::SkillEngine::load(project_root)?;
         let agents = crate::agents::AgentEngine::load(project_root)?;
 
+        // Load plugin configuration
+        let plugins_config = crate::plugins::PluginEngine::load(project_root)?;
+
         let mut results = Vec::new();
 
         for (tool_kind, adapter, tool_config_opt) in Self::enabled_tools(config, project_root) {
@@ -236,6 +239,20 @@ impl SyncEngine {
                             tool: tool_kind.clone(),
                             dimension: "agents".into(),
                             reason: format!("agent sync failed: {e}"),
+                        });
+                    }
+                }
+            }
+
+            // Plan plugins sync (if plugins.toml exists)
+            if !plugins_config.is_empty() {
+                match adapter.plan_plugins_sync(project_root, &plugins_config) {
+                    Ok(plugin_actions) => actions.extend(plugin_actions),
+                    Err(e) => {
+                        actions.push(SyncAction::WarnUnsupportedDimension {
+                            tool: tool_kind.clone(),
+                            dimension: "plugins".into(),
+                            reason: format!("plugin sync failed: {e}"),
                         });
                     }
                 }
@@ -781,6 +798,42 @@ impl SyncEngine {
                         .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
                 }
                 std::fs::write(output, content)
+                    .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
+                Ok(())
+            }
+            SyncAction::WritePluginsConfig { output, content } => {
+                if let Some(parent) = output.parent() {
+                    std::fs::create_dir_all(parent)
+                        .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
+                }
+                // Merge "plugins" key into existing settings.json (same pattern as hooks)
+                let plugins_value: serde_json::Value = serde_json::from_str(content)
+                    .map_err(|e| {
+                        AisyncError::Sync(SyncError::WriteFailed(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            format!("failed to parse plugins JSON: {e}"),
+                        )))
+                    })?;
+                let mut settings = if output.exists() {
+                    let existing = std::fs::read_to_string(output)
+                        .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
+                    serde_json::from_str::<serde_json::Value>(&existing)
+                        .unwrap_or_else(|_| serde_json::Value::Object(serde_json::Map::new()))
+                } else {
+                    serde_json::Value::Object(serde_json::Map::new())
+                };
+                if let (Some(settings_map), Some(plugins_obj)) =
+                    (settings.as_object_mut(), plugins_value.get("plugins"))
+                {
+                    settings_map.insert("plugins".to_string(), plugins_obj.clone());
+                }
+                let serialized = serde_json::to_string_pretty(&settings).map_err(|e| {
+                    AisyncError::Sync(SyncError::WriteFailed(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        format!("failed to serialize settings.json: {e}"),
+                    )))
+                })?;
+                std::fs::write(output, serialized)
                     .map_err(|e| AisyncError::Sync(SyncError::WriteFailed(e)))?;
                 Ok(())
             }
@@ -2056,5 +2109,103 @@ instruction_path = "AIDER.md"
             .iter()
             .find(|r| r.tool == ToolKind::Custom("aider".to_string()));
         assert!(aider_result.is_none(), "disabled aider should not appear in sync plan");
+    }
+
+    #[test]
+    fn test_plan_includes_plugins_for_claude_code() {
+        let dir = TempDir::new().unwrap();
+        setup_canonical(dir.path(), "# Instructions");
+
+        // Create plugins.toml
+        let ai_dir = dir.path().join(".ai");
+        std::fs::write(
+            ai_dir.join("plugins.toml"),
+            r#"
+[plugins.my-plugin]
+source = "github:org/my-plugin"
+description = "A test plugin"
+"#,
+        )
+        .unwrap();
+
+        let config = all_enabled_config();
+        let report = SyncEngine::plan(&config, dir.path()).unwrap();
+
+        let cc_result = report
+            .results
+            .iter()
+            .find(|r| r.tool == ToolKind::ClaudeCode)
+            .expect("should have ClaudeCode result");
+
+        let plugin_action = cc_result.actions.iter().find(|a| {
+            matches!(a, SyncAction::WritePluginsConfig { .. })
+        });
+        assert!(
+            plugin_action.is_some(),
+            "ClaudeCode should have a WritePluginsConfig action when plugins.toml exists"
+        );
+
+        if let Some(SyncAction::WritePluginsConfig { output, content }) = plugin_action {
+            assert!(output.ends_with(".claude/settings.json"));
+            let parsed: serde_json::Value = serde_json::from_str(content).unwrap();
+            assert_eq!(parsed["plugins"]["my-plugin"]["source"], "github:org/my-plugin");
+        }
+    }
+
+    #[test]
+    fn test_plan_plugins_cursor_and_opencode_return_no_plugin_actions() {
+        let dir = TempDir::new().unwrap();
+        setup_canonical(dir.path(), "# Instructions");
+
+        // Create plugins.toml
+        let ai_dir = dir.path().join(".ai");
+        std::fs::write(
+            ai_dir.join("plugins.toml"),
+            r#"
+[plugins.test]
+source = "npm:test-plugin"
+"#,
+        )
+        .unwrap();
+
+        let config = all_enabled_config();
+        let report = SyncEngine::plan(&config, dir.path()).unwrap();
+
+        for tool_kind in &[ToolKind::Cursor, ToolKind::OpenCode] {
+            let result = report
+                .results
+                .iter()
+                .find(|r| &r.tool == tool_kind)
+                .unwrap_or_else(|| panic!("should have {:?} result", tool_kind));
+
+            let plugin_action = result.actions.iter().find(|a| {
+                matches!(a, SyncAction::WritePluginsConfig { .. })
+            });
+            assert!(
+                plugin_action.is_none(),
+                "{:?} should not have WritePluginsConfig (placeholder returns empty)",
+                tool_kind
+            );
+        }
+    }
+
+    #[test]
+    fn test_plan_no_plugins_when_no_plugins_toml() {
+        let dir = TempDir::new().unwrap();
+        setup_canonical(dir.path(), "# Instructions");
+
+        let config = all_enabled_config();
+        let report = SyncEngine::plan(&config, dir.path()).unwrap();
+
+        for result in &report.results {
+            let plugin_action = result.actions.iter().find(|a| {
+                matches!(a, SyncAction::WritePluginsConfig { .. })
+            });
+            assert!(
+                plugin_action.is_none(),
+                "{:?} should not have WritePluginsConfig when no plugins.toml exists",
+                result.tool
+            );
+        }
     }
 }

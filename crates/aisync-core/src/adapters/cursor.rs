@@ -531,6 +531,16 @@ impl ToolAdapter for CursorAdapter {
         )
     }
 
+    fn plan_plugins_sync(
+        &self,
+        _project_root: &Path,
+        _config: &crate::types::PluginsConfig,
+    ) -> Result<Vec<SyncAction>, AdapterError> {
+        // TODO: Cursor plugin format is not yet defined.
+        // Placeholder for future work.
+        Ok(vec![])
+    }
+
     fn sync_status(
         &self,
         project_root: &Path,
@@ -1450,5 +1460,33 @@ mod tests {
             .plan_mcp_sync(dir.path(), &config)
             .unwrap();
         assert!(actions.is_empty());
+    }
+
+    // --- plan_plugins_sync tests ---
+
+    #[test]
+    fn test_plan_plugins_sync_returns_empty() {
+        use crate::types::{PluginRef, PluginSource};
+
+        let dir = TempDir::new().unwrap();
+        let mut config = std::collections::BTreeMap::new();
+        config.insert(
+            "test".to_string(),
+            PluginRef {
+                source: PluginSource::GitHub {
+                    owner: "org".to_string(),
+                    repo: "repo".to_string(),
+                },
+                description: None,
+            },
+        );
+
+        let actions = CursorAdapter
+            .plan_plugins_sync(dir.path(), &config)
+            .unwrap();
+        assert!(
+            actions.is_empty(),
+            "Cursor plan_plugins_sync should return empty (placeholder)"
+        );
     }
 }

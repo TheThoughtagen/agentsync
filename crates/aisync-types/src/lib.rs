@@ -417,6 +417,11 @@ pub enum SyncAction {
     RemoveSkillDir {
         path: PathBuf,
     },
+    // Plugin sync actions
+    WritePluginsConfig {
+        output: PathBuf,
+        content: String,
+    },
     // Dimension warnings
     WarnUnsupportedDimension {
         tool: ToolKind,
@@ -565,6 +570,9 @@ impl fmt::Display for SyncAction {
             }
             SyncAction::RemoveSkillDir { path } => {
                 write!(f, "Remove stale skill directory {}", path.display())
+            }
+            SyncAction::WritePluginsConfig { output, .. } => {
+                write!(f, "Write plugins config: {}", output.display())
             }
             SyncAction::WarnUnsupportedDimension {
                 tool,

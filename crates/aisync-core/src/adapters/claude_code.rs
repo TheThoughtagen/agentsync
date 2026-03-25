@@ -300,6 +300,58 @@ impl ToolAdapter for ClaudeCodeAdapter {
         }])
     }
 
+    fn plan_plugins_sync(
+        &self,
+        project_root: &Path,
+        config: &crate::types::PluginsConfig,
+    ) -> Result<Vec<SyncAction>, AdapterError> {
+        if config.is_empty() {
+            return Ok(vec![]);
+        }
+
+        // Build a JSON object representing plugin entries for .claude/settings.json.
+        //
+        // Assumption: Claude Code settings.json supports a top-level "plugins" key
+        // containing an object keyed by plugin name with source/description metadata.
+        // The exact schema is TBD; this represents a reasonable structure based on
+        // how other settings (hooks, MCP) are organized in settings.json.
+        //
+        // Structure:
+        // {
+        //   "plugins": {
+        //     "<name>": {
+        //       "source": "<source-string>",      // e.g. "github:owner/repo"
+        //       "description": "<optional-desc>"
+        //     }
+        //   }
+        // }
+        let mut plugins_obj = serde_json::Map::new();
+        for (name, plugin_ref) in config {
+            let mut entry = serde_json::Map::new();
+            entry.insert(
+                "source".to_string(),
+                serde_json::Value::String(plugin_ref.source.to_string()),
+            );
+            if let Some(desc) = &plugin_ref.description {
+                entry.insert(
+                    "description".to_string(),
+                    serde_json::Value::String(desc.clone()),
+                );
+            }
+            plugins_obj.insert(name.clone(), serde_json::Value::Object(entry));
+        }
+
+        let json = serde_json::json!({ "plugins": plugins_obj });
+        let content = serde_json::to_string_pretty(&json).map_err(|e| {
+            AdapterError::Other(format!("JSON serialization failed: {e}"))
+        })?;
+
+        Ok(vec![SyncAction::WritePluginsConfig {
+            output: project_root.join(".claude/settings.json"),
+            content,
+        }])
+    }
+
     fn plan_commands_sync(
         &self,
         project_root: &Path,
@@ -1130,5 +1182,167 @@ mod tests {
             .plan_mcp_sync(dir.path(), &config)
             .unwrap();
         assert!(actions.is_empty());
+    }
+
+    // --- plan_plugins_sync tests ---
+
+    #[test]
+    fn test_plan_plugins_sync_empty_config_returns_empty() {
+        let dir = TempDir::new().unwrap();
+        let config = std::collections::BTreeMap::new();
+
+        let actions = ClaudeCodeAdapter
+            .plan_plugins_sync(dir.path(), &config)
+            .unwrap();
+        assert!(actions.is_empty());
+    }
+
+    #[test]
+    fn test_plan_plugins_sync_github_source() {
+        use crate::types::{PluginRef, PluginSource};
+
+        let dir = TempDir::new().unwrap();
+        let mut config = std::collections::BTreeMap::new();
+        config.insert(
+            "my-plugin".to_string(),
+            PluginRef {
+                source: PluginSource::GitHub {
+                    owner: "org".to_string(),
+                    repo: "repo".to_string(),
+                },
+                description: Some("A GitHub plugin".to_string()),
+            },
+        );
+
+        let actions = ClaudeCodeAdapter
+            .plan_plugins_sync(dir.path(), &config)
+            .unwrap();
+        assert_eq!(actions.len(), 1);
+        match &actions[0] {
+            SyncAction::WritePluginsConfig { output, content } => {
+                assert_eq!(output, &dir.path().join(".claude/settings.json"));
+                let parsed: serde_json::Value = serde_json::from_str(content).unwrap();
+                let plugin = &parsed["plugins"]["my-plugin"];
+                assert_eq!(plugin["source"], "github:org/repo");
+                assert_eq!(plugin["description"], "A GitHub plugin");
+            }
+            other => panic!("expected WritePluginsConfig, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_plan_plugins_sync_npm_source() {
+        use crate::types::{PluginRef, PluginSource};
+
+        let dir = TempDir::new().unwrap();
+        let mut config = std::collections::BTreeMap::new();
+        config.insert(
+            "npm-plugin".to_string(),
+            PluginRef {
+                source: PluginSource::Npm {
+                    package: "@scope/my-pkg".to_string(),
+                },
+                description: None,
+            },
+        );
+
+        let actions = ClaudeCodeAdapter
+            .plan_plugins_sync(dir.path(), &config)
+            .unwrap();
+        assert_eq!(actions.len(), 1);
+        match &actions[0] {
+            SyncAction::WritePluginsConfig { output, content } => {
+                assert_eq!(output, &dir.path().join(".claude/settings.json"));
+                let parsed: serde_json::Value = serde_json::from_str(content).unwrap();
+                let plugin = &parsed["plugins"]["npm-plugin"];
+                assert_eq!(plugin["source"], "npm:@scope/my-pkg");
+                assert!(plugin.get("description").is_none() || plugin["description"].is_null());
+            }
+            other => panic!("expected WritePluginsConfig, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_plan_plugins_sync_path_source() {
+        use crate::types::{PluginRef, PluginSource};
+
+        let dir = TempDir::new().unwrap();
+        let mut config = std::collections::BTreeMap::new();
+        config.insert(
+            "local-plugin".to_string(),
+            PluginRef {
+                source: PluginSource::Path {
+                    path: PathBuf::from("./my-local-plugin"),
+                },
+                description: Some("A local plugin".to_string()),
+            },
+        );
+
+        let actions = ClaudeCodeAdapter
+            .plan_plugins_sync(dir.path(), &config)
+            .unwrap();
+        assert_eq!(actions.len(), 1);
+        match &actions[0] {
+            SyncAction::WritePluginsConfig { output, content } => {
+                assert_eq!(output, &dir.path().join(".claude/settings.json"));
+                let parsed: serde_json::Value = serde_json::from_str(content).unwrap();
+                let plugin = &parsed["plugins"]["local-plugin"];
+                assert_eq!(plugin["source"], "path:./my-local-plugin");
+                assert_eq!(plugin["description"], "A local plugin");
+            }
+            other => panic!("expected WritePluginsConfig, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_plan_plugins_sync_multiple_sources() {
+        use crate::types::{PluginRef, PluginSource};
+
+        let dir = TempDir::new().unwrap();
+        let mut config = std::collections::BTreeMap::new();
+        config.insert(
+            "alpha".to_string(),
+            PluginRef {
+                source: PluginSource::GitHub {
+                    owner: "org".to_string(),
+                    repo: "alpha".to_string(),
+                },
+                description: None,
+            },
+        );
+        config.insert(
+            "beta".to_string(),
+            PluginRef {
+                source: PluginSource::Npm {
+                    package: "beta-pkg".to_string(),
+                },
+                description: Some("Beta".to_string()),
+            },
+        );
+        config.insert(
+            "gamma".to_string(),
+            PluginRef {
+                source: PluginSource::Path {
+                    path: PathBuf::from("../gamma"),
+                },
+                description: None,
+            },
+        );
+
+        let actions = ClaudeCodeAdapter
+            .plan_plugins_sync(dir.path(), &config)
+            .unwrap();
+        assert_eq!(actions.len(), 1);
+        match &actions[0] {
+            SyncAction::WritePluginsConfig { content, .. } => {
+                let parsed: serde_json::Value = serde_json::from_str(content).unwrap();
+                let plugins = parsed["plugins"].as_object().unwrap();
+                assert_eq!(plugins.len(), 3);
+                assert_eq!(plugins["alpha"]["source"], "github:org/alpha");
+                assert_eq!(plugins["beta"]["source"], "npm:beta-pkg");
+                assert_eq!(plugins["gamma"]["source"], "path:../gamma");
+            }
+            other => panic!("expected WritePluginsConfig, got {other:?}"),
+        }
     }
 }

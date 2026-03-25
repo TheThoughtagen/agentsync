@@ -213,6 +213,14 @@ impl ToolAdapter for AnyAdapter {
     ) -> Result<Vec<aisync_adapter::aisync_types::SyncAction>, AdpErr> {
         dispatch_adapter!(self, a => a.plan_agents_sync(project_root, agents))
     }
+
+    fn plan_plugins_sync(
+        &self,
+        project_root: &Path,
+        config: &aisync_adapter::aisync_types::PluginsConfig,
+    ) -> Result<Vec<aisync_adapter::aisync_types::SyncAction>, AdpErr> {
+        dispatch_adapter!(self, a => a.plan_plugins_sync(project_root, config))
+    }
 }
 
 #[cfg(test)]
