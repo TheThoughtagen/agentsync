@@ -14,6 +14,9 @@ Thumbs.db
 # Internal planning
 .planning/
 
+# Worktrees
+.worktrees/
+
 # Local user preferences
 .claude/settings.local.json
 
