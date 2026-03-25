@@ -1,0 +1,11 @@
+{
+  "name": "aisync",
+  "version": "0.1.0",
+  "description": "AgentSync integration for Claude Code — sync AI tool configs across harnesses",
+  "author": {
+    "name": "Whiskeyhouse"
+  },
+  "repository": "https://github.com/whiskeyhouse/agentsync",
+  "license": "MIT",
+  "keywords": ["sync", "config", "cursor", "opencode", "hooks", "mcp"]
+}
