@@ -682,6 +682,92 @@ pub struct ToolHookStatus {
     pub details: Option<String>,
 }
 
+// --- Plugin translation types ---
+
+/// Identifies a component type within a plugin package.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ComponentKind {
+    Instructions,
+    Hooks,
+    Mcp,
+    Rules,
+    Commands,
+    Skills,
+    Agents,
+}
+
+impl fmt::Display for ComponentKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let name = match self {
+            ComponentKind::Instructions => "instructions",
+            ComponentKind::Hooks => "hooks",
+            ComponentKind::Mcp => "mcp",
+            ComponentKind::Rules => "rules",
+            ComponentKind::Commands => "commands",
+            ComponentKind::Skills => "skills",
+            ComponentKind::Agents => "agents",
+        };
+        f.write_str(name)
+    }
+}
+
+/// Report from importing a tool-native plugin into canonical format.
+#[derive(Debug, Clone)]
+pub struct ImportReport {
+    pub name: String,
+    pub source_tool: ToolKind,
+    pub components_imported: Vec<ComponentKind>,
+    pub components_skipped: Vec<(ComponentKind, String)>,
+}
+
+/// Report from exporting a canonical plugin to tool-native format(s).
+#[derive(Debug, Clone)]
+pub struct ExportReport {
+    pub tool: ToolKind,
+    pub components_exported: Vec<(ComponentKind, Vec<PathBuf>)>,
+    pub components_skipped: Vec<(ComponentKind, String)>,
+}
+
+/// Manifest for a canonical plugin (`plugin.toml`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CanonicalPluginManifest {
+    pub metadata: PluginMetadata,
+    #[serde(default)]
+    pub components: PluginComponents,
+}
+
+/// Metadata section of a canonical plugin manifest.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PluginMetadata {
+    pub name: String,
+    #[serde(default)]
+    pub version: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub source_tool: Option<String>,
+}
+
+/// Component presence flags in a canonical plugin manifest.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct PluginComponents {
+    #[serde(default)]
+    pub has_instructions: bool,
+    #[serde(default)]
+    pub has_hooks: bool,
+    #[serde(default)]
+    pub has_mcp: bool,
+    #[serde(default)]
+    pub has_rules: bool,
+    #[serde(default)]
+    pub has_commands: bool,
+    #[serde(default)]
+    pub has_skills: bool,
+    #[serde(default)]
+    pub has_agents: bool,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1206,5 +1292,93 @@ mod tests {
         };
         let display = format!("{}", action);
         assert!(display.contains("old-skill"), "display should reference the path");
+    }
+
+    // --- ComponentKind tests ---
+
+    #[test]
+    fn test_component_kind_display() {
+        assert_eq!(ComponentKind::Instructions.to_string(), "instructions");
+        assert_eq!(ComponentKind::Hooks.to_string(), "hooks");
+        assert_eq!(ComponentKind::Mcp.to_string(), "mcp");
+        assert_eq!(ComponentKind::Rules.to_string(), "rules");
+        assert_eq!(ComponentKind::Commands.to_string(), "commands");
+        assert_eq!(ComponentKind::Skills.to_string(), "skills");
+        assert_eq!(ComponentKind::Agents.to_string(), "agents");
+    }
+
+    #[test]
+    fn test_component_kind_serde_roundtrip() {
+        let kinds = vec![
+            ComponentKind::Instructions,
+            ComponentKind::Hooks,
+            ComponentKind::Mcp,
+            ComponentKind::Rules,
+            ComponentKind::Commands,
+            ComponentKind::Skills,
+            ComponentKind::Agents,
+        ];
+        for kind in &kinds {
+            let json = serde_json::to_string(kind).unwrap();
+            let back: ComponentKind = serde_json::from_str(&json).unwrap();
+            assert_eq!(&back, kind);
+        }
+    }
+
+    #[test]
+    fn test_canonical_plugin_manifest_toml_roundtrip() {
+        let manifest = CanonicalPluginManifest {
+            metadata: PluginMetadata {
+                name: "test-plugin".to_string(),
+                version: Some("1.0.0".to_string()),
+                description: Some("A test plugin".to_string()),
+                source_tool: Some("cursor".to_string()),
+            },
+            components: PluginComponents {
+                has_instructions: true,
+                has_hooks: true,
+                has_mcp: false,
+                has_rules: true,
+                has_commands: false,
+                has_skills: false,
+                has_agents: false,
+            },
+        };
+
+        let toml_str = toml::to_string(&manifest).unwrap();
+        let back: CanonicalPluginManifest = toml::from_str(&toml_str).unwrap();
+
+        assert_eq!(back.metadata.name, "test-plugin");
+        assert_eq!(back.metadata.version, Some("1.0.0".to_string()));
+        assert_eq!(back.metadata.description, Some("A test plugin".to_string()));
+        assert_eq!(back.metadata.source_tool, Some("cursor".to_string()));
+        assert!(back.components.has_instructions);
+        assert!(back.components.has_hooks);
+        assert!(!back.components.has_mcp);
+        assert!(back.components.has_rules);
+        assert!(!back.components.has_commands);
+        assert!(!back.components.has_skills);
+        assert!(!back.components.has_agents);
+    }
+
+    #[test]
+    fn test_canonical_plugin_manifest_minimal_toml() {
+        let toml_str = r#"
+[metadata]
+name = "minimal"
+"#;
+        let manifest: CanonicalPluginManifest = toml::from_str(toml_str).unwrap();
+        assert_eq!(manifest.metadata.name, "minimal");
+        assert_eq!(manifest.metadata.version, None);
+        assert_eq!(manifest.metadata.description, None);
+        assert_eq!(manifest.metadata.source_tool, None);
+        // All component flags should default to false
+        assert!(!manifest.components.has_instructions);
+        assert!(!manifest.components.has_hooks);
+        assert!(!manifest.components.has_mcp);
+        assert!(!manifest.components.has_rules);
+        assert!(!manifest.components.has_commands);
+        assert!(!manifest.components.has_skills);
+        assert!(!manifest.components.has_agents);
     }
 }

@@ -85,6 +85,56 @@ fn translate_matcher_to_cursor(matcher: &str) -> String {
         .join("|")
 }
 
+/// Map Cursor camelCase hook event names back to canonical PascalCase names.
+/// Inverse of `event_name_to_cursor()`.
+pub fn event_name_from_cursor(cursor_name: &str) -> String {
+    match cursor_name {
+        "preToolUse" => "PreToolUse".to_string(),
+        "postToolUse" => "PostToolUse".to_string(),
+        "postToolUseFailure" => "PostToolUseFailure".to_string(),
+        "stop" => "Stop".to_string(),
+        "subagentStop" => "SubagentStop".to_string(),
+        "subagentStart" => "SubagentStart".to_string(),
+        "sessionStart" => "SessionStart".to_string(),
+        "sessionEnd" => "SessionEnd".to_string(),
+        "beforeShellExecution" => "BeforeShellExecution".to_string(),
+        "afterShellExecution" => "AfterShellExecution".to_string(),
+        "beforeReadFile" => "BeforeReadFile".to_string(),
+        "afterFileEdit" => "AfterFileEdit".to_string(),
+        "beforeSubmitPrompt" => "BeforeSubmitPrompt".to_string(),
+        "preCompact" => "PreCompact".to_string(),
+        "afterAgentResponse" => "AfterAgentResponse".to_string(),
+        "afterAgentThought" => "AfterAgentThought".to_string(),
+        "beforeMCPExecution" => "BeforeMCPExecution".to_string(),
+        "afterMCPExecution" => "AfterMCPExecution".to_string(),
+        other => {
+            // Fallback: capitalize first letter (best-effort for unknown events)
+            let mut chars = other.chars();
+            match chars.next() {
+                Some(c) => format!("{}{}", c.to_uppercase(), chars.as_str()),
+                None => String::new(),
+            }
+        }
+    }
+}
+
+/// Translate Cursor tool type names back to canonical (Claude Code) matcher names.
+/// Inverse of `translate_matcher_to_cursor()`: `Write` → `Edit`, `Shell` → `Bash`.
+/// Matchers can be pipe-separated (e.g., "Write|Shell"), so we translate each segment.
+pub fn translate_matcher_from_cursor(cursor_matcher: &str) -> String {
+    let mut seen = std::collections::HashSet::new();
+    cursor_matcher
+        .split('|')
+        .map(|segment| match segment.trim() {
+            "Write" => "Edit",
+            "Shell" => "Bash",
+            other => other,
+        })
+        .filter(|s| seen.insert(*s))
+        .collect::<Vec<_>>()
+        .join("|")
+}
+
 /// Translate command paths from Claude Code env vars to project-relative paths for Cursor.
 /// Cursor runs hooks with the project root as cwd, so relative paths work directly.
 fn translate_command_to_cursor(command: &str) -> String {
@@ -1488,5 +1538,83 @@ mod tests {
             actions.is_empty(),
             "Cursor plan_plugins_sync should return empty (placeholder)"
         );
+    }
+
+    // --- Reverse translation tests ---
+
+    #[test]
+    fn test_event_name_from_cursor_known_events() {
+        assert_eq!(event_name_from_cursor("preToolUse"), "PreToolUse");
+        assert_eq!(event_name_from_cursor("postToolUse"), "PostToolUse");
+        assert_eq!(event_name_from_cursor("postToolUseFailure"), "PostToolUseFailure");
+        assert_eq!(event_name_from_cursor("stop"), "Stop");
+        assert_eq!(event_name_from_cursor("subagentStop"), "SubagentStop");
+        assert_eq!(event_name_from_cursor("subagentStart"), "SubagentStart");
+        assert_eq!(event_name_from_cursor("sessionStart"), "SessionStart");
+        assert_eq!(event_name_from_cursor("sessionEnd"), "SessionEnd");
+        assert_eq!(event_name_from_cursor("beforeShellExecution"), "BeforeShellExecution");
+        assert_eq!(event_name_from_cursor("afterShellExecution"), "AfterShellExecution");
+        assert_eq!(event_name_from_cursor("beforeReadFile"), "BeforeReadFile");
+        assert_eq!(event_name_from_cursor("afterFileEdit"), "AfterFileEdit");
+        assert_eq!(event_name_from_cursor("beforeSubmitPrompt"), "BeforeSubmitPrompt");
+        assert_eq!(event_name_from_cursor("preCompact"), "PreCompact");
+        assert_eq!(event_name_from_cursor("afterAgentResponse"), "AfterAgentResponse");
+        assert_eq!(event_name_from_cursor("afterAgentThought"), "AfterAgentThought");
+        assert_eq!(event_name_from_cursor("beforeMCPExecution"), "BeforeMCPExecution");
+        assert_eq!(event_name_from_cursor("afterMCPExecution"), "AfterMCPExecution");
+    }
+
+    #[test]
+    fn test_event_name_from_cursor_roundtrip() {
+        // Every known forward mapping should round-trip through reverse
+        let canonical_events = [
+            "PreToolUse", "PostToolUse", "PostToolUseFailure", "Stop",
+            "SubagentStop", "SubagentStart", "SessionStart", "SessionEnd",
+            "BeforeShellExecution", "AfterShellExecution", "BeforeReadFile",
+            "AfterFileEdit", "BeforeSubmitPrompt", "PreCompact",
+            "AfterAgentResponse", "AfterAgentThought", "BeforeMCPExecution",
+            "AfterMCPExecution",
+        ];
+        for event in &canonical_events {
+            if let Some(cursor_name) = event_name_to_cursor(event) {
+                assert_eq!(
+                    &event_name_from_cursor(cursor_name),
+                    event,
+                    "round-trip failed for {event}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_event_name_from_cursor_unknown_capitalizes() {
+        assert_eq!(event_name_from_cursor("customEvent"), "CustomEvent");
+    }
+
+    #[test]
+    fn test_translate_matcher_from_cursor_basic() {
+        assert_eq!(translate_matcher_from_cursor("Write"), "Edit");
+        assert_eq!(translate_matcher_from_cursor("Shell"), "Bash");
+        assert_eq!(translate_matcher_from_cursor("Read"), "Read");
+    }
+
+    #[test]
+    fn test_translate_matcher_from_cursor_pipe_separated() {
+        assert_eq!(translate_matcher_from_cursor("Write|Shell"), "Edit|Bash");
+        assert_eq!(translate_matcher_from_cursor("Write|Read"), "Edit|Read");
+    }
+
+    #[test]
+    fn test_translate_matcher_roundtrip() {
+        // Forward then reverse should produce the original
+        let matchers = ["Edit", "Bash", "Edit|Bash", "Read", "Edit|Read|Bash"];
+        for matcher in &matchers {
+            let cursor = translate_matcher_to_cursor(matcher);
+            let back = translate_matcher_from_cursor(&cursor);
+            assert_eq!(
+                &back, matcher,
+                "round-trip failed for {matcher}"
+            );
+        }
     }
 }
