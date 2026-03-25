@@ -1,0 +1,46 @@
+{
+  "description": "AgentSync drift detection, edit validation, and config validation hooks",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/drift-check.sh",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/direct-edit-warn.sh",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/hooks-validate.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "The user is about to submit a prompt. If their prompt involves committing code (mentions 'commit', 'git commit', '/commit', creating a commit, etc.), first run `aisync check` to verify sync state. If .ai/ changes exist that haven't been synced to tool-native files, warn the user: 'AgentSync detected unsynced changes in .ai/ \u2014 run /aisync:sync first to propagate changes before committing.' If the prompt is not about committing, approve silently.",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}
