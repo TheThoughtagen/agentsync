@@ -58,7 +58,7 @@ The `[components]` section is auto-generated during import/export, not manually 
 
 New module: `crates/aisync-core/src/plugin_translator.rs`
 
-Coordinates import and export by delegating to existing engines. Contains no translation logic of its own.
+Coordinates import and export. The export path delegates to existing adapter translation methods. The import path contains new parsing logic for reading tool-native formats and converting them to canonical (e.g., parsing Claude Code `hooks.json` to `hooks.toml`, reverse-translating Cursor event names and matchers).
 
 ### Types
 
@@ -134,15 +134,16 @@ When `--from` is omitted, detect the source tool by marker files:
 ### Cursor → Canonical (hooks, MCP, rules)
 
 1. `rules/*.mdc` → strip `.mdc` frontmatter, write as `rules/*.md` with YAML frontmatter
-2. `hooks.json` → parse Cursor hook format, reverse-translate event names (camelCase → PascalCase) and matchers (`Write` → `Edit`, `Shell` → `Bash`) → write as `hooks.toml`
-3. `mcp.json` → parse with `McpEngine::parse_mcp_json()`, reverse env var format (`${env:VAR}` → `${VAR}`) → write as `mcp.toml`
+2. `hooks.json` → parse Cursor hook format, reverse-translate event names (camelCase → PascalCase) and matchers (`Write` → `Edit`, `Shell` → `Bash`), strip normalize shim prefix from commands → write as `hooks.toml`. **Requires new reverse functions:** `event_name_from_cursor()` and `translate_matcher_from_cursor()` (inverses of the existing `event_name_to_cursor()` and `translate_matcher_to_cursor()`).
+3. `mcp.json` → parse with `McpEngine::parse_mcp_json()`, reverse env var format (`${env:VAR}` → `${VAR}`) → write as `mcp.toml`. **Note:** The existing `env_from_cursor()` uses a naive string replace; implementation should use a proper regex to match the full `${env:VAR}` pattern.
 4. No commands, skills, or agents (Cursor doesn't have them) → skipped in report
 
-### OpenCode → Canonical (hooks, instructions)
+### OpenCode → Canonical (instructions only)
 
 1. `AGENTS.md` → extract as `instructions.md`
-2. Plugin stub `.js` → reverse-parse hook definitions → write as `hooks.toml`
-3. No commands, skills, agents, MCP, or rules → skipped in report
+2. No commands, skills, agents, MCP, or rules → skipped in report
+
+**Note:** OpenCode hook import is not supported. The generated JS plugin stubs are lossy — matcher data is discarded during export, and recovering structured hook definitions from arbitrary JavaScript would require a JS parser. OpenCode hooks are export-only.
 
 ### Import Report
 
@@ -245,14 +246,29 @@ Three new subcommands under `aisync plugin`:
 
 ---
 
+## Relationship to Plugin References
+
+The codebase has two distinct plugin concepts:
+
+- **Plugin references** (`.ai/plugins.toml`): Managed by `PluginEngine`. These are pointers to external plugins (`github:`, `npm:`, `path:`) synced to each tool's plugin config. They say "this project uses plugin X" without containing the plugin's content.
+- **Plugin content** (`.ai/plugins/<name>/`): Managed by `PluginTranslator`. These are the actual plugin files (commands, skills, hooks, etc.) in canonical format, exportable to each tool's native plugin structure.
+
+**Coexistence model:**
+- A plugin can exist as a reference only (external plugin, content managed elsewhere)
+- A plugin can exist as content only (canonical plugin, no external reference needed)
+- A plugin can exist as both (referenced externally AND have local canonical content)
+- When both exist for the same name, `aisync sync` handles them independently: references go through `plan_plugins_sync()`, content goes through `PluginTranslator::export()`. They do not conflict — references tell tools where to find plugins, content provides the plugin files directly.
+
+---
+
 ## Component Translation Matrix
 
 | Component | Claude Code | Cursor | OpenCode | Codex | Windsurf |
 |-----------|:-----------:|:------:|:--------:|:-----:|:--------:|
 | Instructions | ✓ import/export | ✓ import/export | ✓ import/export | — | — |
-| Hooks | ✓ import/export | ✓ import/export | ✓ import/export | — | — |
+| Hooks | ✓ import/export | ✓ import/export | ✗ export only | — | — |
 | MCP | ✓ import/export | ✓ import/export | — | — | — |
-| Rules | — | ✓ import/export | — | — | — |
+| Rules | ✓ import/export | ✓ import/export | — | — | — |
 | Commands | ✓ import/export | ✗ no equivalent | ✗ no equivalent | — | — |
 | Skills | ✓ import/export | ✗ no equivalent | ✗ no equivalent | — | — |
 | Agents | ✓ import/export | ✗ no equivalent | ✗ no equivalent | — | — |
