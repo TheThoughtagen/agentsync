@@ -22,7 +22,7 @@ timeout = 10
 
 ## Valid Events
 
-### Shared Events (all tools)
+### Shared Events (work in both Claude Code and Cursor via aisync translation)
 
 | Event | Description |
 |-------|-------------|
@@ -31,31 +31,32 @@ timeout = 10
 | `Stop` | Fires when the agent stops (completes a response). |
 | `SubagentStop` | Fires when a sub-agent stops. |
 
-### Claude Code Events
+### Claude Code Only (via aisync translation)
 
 | Event | Description |
 |-------|-------------|
 | `Notification` | Fires when a notification is sent. |
-| `SessionStart` | Fires when a new session begins. |
-| `SessionEnd` | Fires when a session ends. |
-| `UserPromptSubmit` | Fires when the user submits a prompt. |
-| `PreCompact` | Fires before context compaction. |
 
-### Cursor Events
+### Cursor Only (via aisync translation)
 
 | Event | Description |
 |-------|-------------|
 | `PostToolUseFailure` | Fires when a tool invocation fails. |
+| `SessionStart` | Fires when a new session begins. |
+| `SessionEnd` | Fires when a session ends. |
 | `BeforeShellExecution` | Fires before a shell command runs. |
 | `AfterShellExecution` | Fires after a shell command completes. |
 | `BeforeReadFile` | Fires before reading a file. |
 | `AfterFileEdit` | Fires after a file is edited. |
 | `BeforeSubmitPrompt` | Fires before a prompt is submitted. |
+| `PreCompact` | Fires before context compaction. |
 | `AfterAgentResponse` | Fires after the agent responds. |
 | `AfterAgentThought` | Fires after an agent thought step. |
 | `SubagentStart` | Fires when a sub-agent starts. |
 | `BeforeMCPExecution` | Fires before an MCP tool call. |
 | `AfterMCPExecution` | Fires after an MCP tool call completes. |
+
+> **Note:** Claude Code natively supports additional events (`SessionStart`, `SessionEnd`, `UserPromptSubmit`, `PreCompact`) that aisync does not yet translate. When writing hooks for these events in `.ai/hooks.toml`, aisync will currently skip them during Claude Code translation. To use these events, configure them directly in `.claude/settings.json` or via a Claude Code plugin's `hooks.json`.
 
 ## Matcher Syntax
 
@@ -82,7 +83,7 @@ timeout = 30
 ```
 
 ### `prompt` — LLM-driven hook
-Sends a prompt to the LLM for evaluation. **Claude Code only**, and only for these events: `PreToolUse`, `Stop`, `SubagentStop`, `UserPromptSubmit`.
+Sends a prompt to the LLM for evaluation. **Claude Code only**, and only for these events via aisync: `PreToolUse`, `Stop`, `SubagentStop`. Note that `UserPromptSubmit` prompt hooks work in native Claude Code `hooks.json` but not through aisync's translation layer.
 
 ```toml
 [[PreToolUse]]
@@ -99,7 +100,7 @@ When aisync syncs hooks to different tools, it translates the canonical format:
 
 - **Cursor** uses camelCase event names (e.g., `PreToolUse` becomes `preToolUse`)
 - **Tool name mapping**: Cursor uses different names for some tools:
-  - `Write` (Claude Code) maps to `Edit` (Cursor)
+  - `Edit` (Claude Code) maps to `Write` (Cursor)
   - `Bash` (Claude Code) maps to `Shell` (Cursor)
 
 Use `aisync hooks list` to see all hooks and their per-tool support status.
