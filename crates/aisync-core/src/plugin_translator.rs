@@ -1,7 +1,10 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use crate::adapters::cursor::{event_name_from_cursor, translate_matcher_from_cursor};
+use crate::adapters::cursor::{
+    event_name_from_cursor, event_name_to_cursor, translate_matcher_from_cursor,
+    translate_matcher_to_cursor, translate_command_to_cursor, NORMALIZE_SHIM_PATH,
+};
 use crate::error::{AisyncError, ConfigError};
 use crate::hooks::HookEngine;
 use crate::mcp::McpEngine;
@@ -571,10 +574,495 @@ impl PluginTranslator {
     /// Reads `plugin.toml` and the canonical component files, then generates
     /// tool-native output for each requested target tool.
     pub fn export(
-        _plugin_path: &Path,
-        _targets: &[ToolKind],
+        plugin_path: &Path,
+        targets: &[ToolKind],
+        project_root: &Path,
     ) -> Result<Vec<ExportReport>, AisyncError> {
-        todo!("export implementation in Task C")
+        let manifest = Self::load_manifest(plugin_path)?;
+        let mut reports = Vec::new();
+
+        for target in targets {
+            let report = match target {
+                ToolKind::ClaudeCode => Self::export_claude_code(plugin_path, &manifest, project_root)?,
+                ToolKind::Cursor => Self::export_cursor(plugin_path, &manifest, project_root)?,
+                ToolKind::OpenCode => Self::export_opencode(plugin_path, &manifest, project_root)?,
+                _ => {
+                    // Windsurf, Codex, Custom — not yet implemented
+                    let mut all_skipped = Vec::new();
+                    for kind in &[
+                        ComponentKind::Commands, ComponentKind::Skills, ComponentKind::Agents,
+                        ComponentKind::Hooks, ComponentKind::Mcp, ComponentKind::Rules,
+                        ComponentKind::Instructions,
+                    ] {
+                        all_skipped.push((kind.clone(), "adapter not yet implemented".to_string()));
+                    }
+                    ExportReport {
+                        tool: target.clone(),
+                        components_exported: Vec::new(),
+                        components_skipped: all_skipped,
+                    }
+                }
+            };
+            reports.push(report);
+        }
+
+        Ok(reports)
+    }
+
+    // ---------------------------------------------------------------
+    // Claude Code export
+    // ---------------------------------------------------------------
+
+    fn export_claude_code(
+        plugin_path: &Path,
+        manifest: &CanonicalPluginManifest,
+        project_root: &Path,
+    ) -> Result<ExportReport, AisyncError> {
+        let io_err = |e| AisyncError::Config(ConfigError::ReadFile(e));
+        let name = &manifest.metadata.name;
+        let output_dir = project_root.join("plugins").join(name);
+        let mut components_exported = Vec::new();
+        let components_skipped = Vec::new();
+
+        // 1. Generate .claude-plugin/plugin.json from metadata
+        let plugin_json_dir = output_dir.join(".claude-plugin");
+        std::fs::create_dir_all(&plugin_json_dir).map_err(io_err)?;
+
+        let mut plugin_json = serde_json::Map::new();
+        plugin_json.insert("name".into(), serde_json::Value::String(name.clone()));
+        if let Some(ref version) = manifest.metadata.version {
+            plugin_json.insert("version".into(), serde_json::Value::String(version.clone()));
+        }
+        if let Some(ref desc) = manifest.metadata.description {
+            plugin_json.insert("description".into(), serde_json::Value::String(desc.clone()));
+        }
+        let plugin_json_str = serde_json::to_string_pretty(&serde_json::Value::Object(plugin_json))
+            .map_err(|e| AisyncError::Config(ConfigError::ReadFile(std::io::Error::other(e.to_string()))))?;
+        let plugin_json_path = plugin_json_dir.join("plugin.json");
+        std::fs::write(&plugin_json_path, plugin_json_str).map_err(io_err)?;
+
+        // 2. Copy commands/*.md
+        if manifest.components.has_commands {
+            let commands_src = plugin_path.join("commands");
+            let commands_dst = output_dir.join("commands");
+            if commands_src.is_dir() {
+                std::fs::create_dir_all(&commands_dst).map_err(io_err)?;
+                let mut files = Vec::new();
+                if let Ok(entries) = std::fs::read_dir(&commands_src) {
+                    for entry in entries.filter_map(|e| e.ok()) {
+                        let path = entry.path();
+                        if path.extension().map_or(false, |ext| ext == "md") {
+                            let filename = path.file_name().unwrap();
+                            let dst = commands_dst.join(filename);
+                            std::fs::copy(&path, &dst).map_err(io_err)?;
+                            files.push(dst);
+                        }
+                    }
+                }
+                if !files.is_empty() {
+                    components_exported.push((ComponentKind::Commands, files));
+                }
+            }
+        }
+
+        // 3. Copy skills/*/SKILL.md
+        if manifest.components.has_skills {
+            let skills_src = plugin_path.join("skills");
+            let skills_dst = output_dir.join("skills");
+            if skills_src.is_dir() {
+                std::fs::create_dir_all(&skills_dst).map_err(io_err)?;
+                let mut files = Vec::new();
+                if let Ok(entries) = std::fs::read_dir(&skills_src) {
+                    for entry in entries.filter_map(|e| e.ok()) {
+                        let src_dir = entry.path();
+                        if src_dir.is_dir() && src_dir.join("SKILL.md").exists() {
+                            let dir_name = src_dir.file_name().unwrap();
+                            let dst_dir = skills_dst.join(dir_name);
+                            std::fs::create_dir_all(&dst_dir).map_err(io_err)?;
+                            let dst_file = dst_dir.join("SKILL.md");
+                            std::fs::copy(src_dir.join("SKILL.md"), &dst_file).map_err(io_err)?;
+                            files.push(dst_file);
+                        }
+                    }
+                }
+                if !files.is_empty() {
+                    components_exported.push((ComponentKind::Skills, files));
+                }
+            }
+        }
+
+        // 4. Copy agents/*.md
+        if manifest.components.has_agents {
+            let agents_src = plugin_path.join("agents");
+            let agents_dst = output_dir.join("agents");
+            if agents_src.is_dir() {
+                std::fs::create_dir_all(&agents_dst).map_err(io_err)?;
+                let mut files = Vec::new();
+                if let Ok(entries) = std::fs::read_dir(&agents_src) {
+                    for entry in entries.filter_map(|e| e.ok()) {
+                        let path = entry.path();
+                        if path.extension().map_or(false, |ext| ext == "md") {
+                            let filename = path.file_name().unwrap();
+                            let dst = agents_dst.join(filename);
+                            std::fs::copy(&path, &dst).map_err(io_err)?;
+                            files.push(dst);
+                        }
+                    }
+                }
+                if !files.is_empty() {
+                    components_exported.push((ComponentKind::Agents, files));
+                }
+            }
+        }
+
+        // 5. hooks.toml → hooks/hooks.json
+        if manifest.components.has_hooks {
+            let hooks_toml = plugin_path.join("hooks.toml");
+            if hooks_toml.exists() {
+                let hooks_content = std::fs::read_to_string(&hooks_toml).map_err(io_err)?;
+                let hooks_config: HooksConfig = toml::from_str(&hooks_content)
+                    .map_err(|e| AisyncError::Config(ConfigError::Parse(e)))?;
+
+                // Generate Claude Code hooks JSON using same format as ClaudeCodeAdapter::translate_hooks
+                const CLAUDE_CODE_EVENTS: &[&str] = &[
+                    "PreToolUse", "PostToolUse", "Notification", "Stop", "SubagentStop",
+                ];
+                let mut hooks_obj = serde_json::Map::new();
+                for (event, groups) in &hooks_config.events {
+                    if !CLAUDE_CODE_EVENTS.contains(&event.as_str()) {
+                        continue;
+                    }
+                    let groups_json: Vec<serde_json::Value> = groups
+                        .iter()
+                        .map(|g| {
+                            let mut obj = serde_json::Map::new();
+                            if let Some(matcher) = &g.matcher {
+                                obj.insert("matcher".into(), serde_json::Value::String(matcher.clone()));
+                            }
+                            let hooks_arr: Vec<serde_json::Value> = g
+                                .hooks
+                                .iter()
+                                .map(|h| {
+                                    let mut hook_obj = serde_json::Map::new();
+                                    hook_obj.insert("type".into(), serde_json::Value::String(h.hook_type.clone()));
+                                    hook_obj.insert("command".into(), serde_json::Value::String(h.command.clone()));
+                                    if let Some(timeout) = h.timeout {
+                                        hook_obj.insert("timeout".into(), serde_json::json!(timeout / 1000));
+                                    }
+                                    serde_json::Value::Object(hook_obj)
+                                })
+                                .collect();
+                            obj.insert("hooks".into(), serde_json::Value::Array(hooks_arr));
+                            serde_json::Value::Object(obj)
+                        })
+                        .collect();
+                    hooks_obj.insert(event.clone(), serde_json::Value::Array(groups_json));
+                }
+
+                let json = serde_json::json!({
+                    "description": format!("{} hooks", name),
+                    "hooks": hooks_obj
+                });
+                let hooks_json_str = serde_json::to_string_pretty(&json)
+                    .map_err(|e| AisyncError::Config(ConfigError::ReadFile(std::io::Error::other(e.to_string()))))?;
+                let hooks_dir = output_dir.join("hooks");
+                std::fs::create_dir_all(&hooks_dir).map_err(io_err)?;
+                let hooks_json_path = hooks_dir.join("hooks.json");
+                std::fs::write(&hooks_json_path, hooks_json_str).map_err(io_err)?;
+                components_exported.push((ComponentKind::Hooks, vec![hooks_json_path]));
+            }
+        }
+
+        // 6. mcp.toml → .mcp.json
+        if manifest.components.has_mcp {
+            let mcp_toml = plugin_path.join("mcp.toml");
+            if mcp_toml.exists() {
+                let mcp_content = std::fs::read_to_string(&mcp_toml).map_err(io_err)?;
+                let mcp_config: crate::types::McpConfig = toml::from_str(&mcp_content)
+                    .map_err(|e| AisyncError::Config(ConfigError::Parse(e)))?;
+
+                let json_str = McpEngine::generate_mcp_json(&mcp_config)?;
+                let mcp_json_path = output_dir.join(".mcp.json");
+                std::fs::write(&mcp_json_path, json_str).map_err(io_err)?;
+                components_exported.push((ComponentKind::Mcp, vec![mcp_json_path]));
+            }
+        }
+
+        Ok(ExportReport {
+            tool: ToolKind::ClaudeCode,
+            components_exported,
+            components_skipped,
+        })
+    }
+
+    // ---------------------------------------------------------------
+    // Cursor export
+    // ---------------------------------------------------------------
+
+    fn export_cursor(
+        plugin_path: &Path,
+        manifest: &CanonicalPluginManifest,
+        project_root: &Path,
+    ) -> Result<ExportReport, AisyncError> {
+        let io_err = |e| AisyncError::Config(ConfigError::ReadFile(e));
+        let name = &manifest.metadata.name;
+        let mut components_exported = Vec::new();
+        let mut components_skipped = Vec::new();
+
+        // 1. instructions.md → .cursor/rules/<plugin-name>.mdc
+        if manifest.components.has_instructions {
+            let instructions_path = plugin_path.join("instructions.md");
+            if instructions_path.exists() {
+                let content = std::fs::read_to_string(&instructions_path).map_err(io_err)?;
+                let rules_dir = project_root.join(".cursor/rules");
+                std::fs::create_dir_all(&rules_dir).map_err(io_err)?;
+
+                let mdc = format!(
+                    "---\ndescription: {} plugin instructions\nalwaysApply: true\n---\n\n{}",
+                    name, content
+                );
+                let mdc_path = rules_dir.join(format!("{}.mdc", name));
+                std::fs::write(&mdc_path, mdc).map_err(io_err)?;
+                components_exported.push((ComponentKind::Instructions, vec![mdc_path]));
+            }
+        }
+
+        // 2. rules/*.md → .cursor/rules/<plugin-name>-<rule-name>.mdc
+        if manifest.components.has_rules {
+            let rules_src = plugin_path.join("rules");
+            if rules_src.is_dir() {
+                let rules_dir = project_root.join(".cursor/rules");
+                std::fs::create_dir_all(&rules_dir).map_err(io_err)?;
+                let mut files = Vec::new();
+
+                if let Ok(entries) = std::fs::read_dir(&rules_src) {
+                    for entry in entries.filter_map(|e| e.ok()) {
+                        let path = entry.path();
+                        if path.extension().map_or(false, |ext| ext == "md") {
+                            let content = std::fs::read_to_string(&path).map_err(io_err)?;
+                            let stem = path.file_stem().unwrap_or_default().to_string_lossy();
+
+                            // Parse frontmatter from the canonical rule if present
+                            let (fields, body) = Self::parse_mdc_frontmatter(&content);
+                            let description = fields.get("description").cloned()
+                                .unwrap_or_else(|| format!("{} rule: {}", name, stem));
+                            let globs = fields.get("globs").cloned().unwrap_or_default();
+                            let always_apply = fields.get("always_apply")
+                                .map(|v| v == "true")
+                                .unwrap_or(true);
+
+                            let mut mdc = String::from("---\n");
+                            mdc.push_str(&format!("description: {}\n", description));
+                            if !globs.is_empty() {
+                                mdc.push_str(&format!("globs: \"{}\"\n", globs));
+                            }
+                            mdc.push_str(&format!("alwaysApply: {}\n", always_apply));
+                            mdc.push_str("---\n\n");
+                            mdc.push_str(&body);
+
+                            let mdc_path = rules_dir.join(format!("{}-{}.mdc", name, stem));
+                            std::fs::write(&mdc_path, mdc).map_err(io_err)?;
+                            files.push(mdc_path);
+                        }
+                    }
+                }
+                if !files.is_empty() {
+                    components_exported.push((ComponentKind::Rules, files));
+                }
+            }
+        }
+
+        // 3. hooks.toml → Cursor hooks JSON
+        if manifest.components.has_hooks {
+            let hooks_toml = plugin_path.join("hooks.toml");
+            if hooks_toml.exists() {
+                let hooks_content = std::fs::read_to_string(&hooks_toml).map_err(io_err)?;
+                let hooks_config: HooksConfig = toml::from_str(&hooks_content)
+                    .map_err(|e| AisyncError::Config(ConfigError::Parse(e)))?;
+
+                let mut hooks_obj = serde_json::Map::new();
+                for (event_name, groups) in &hooks_config.events {
+                    if let Some(cursor_name) = event_name_to_cursor(event_name) {
+                        let entries: Vec<serde_json::Value> = groups
+                            .iter()
+                            .flat_map(|group| {
+                                group.hooks.iter().map(move |h| {
+                                    let mut entry = serde_json::Map::new();
+                                    if h.hook_type == "prompt" {
+                                        entry.insert("type".into(), serde_json::Value::String("prompt".into()));
+                                        entry.insert("prompt".into(), serde_json::Value::String(h.command.clone()));
+                                    } else {
+                                        entry.insert("type".into(), serde_json::Value::String("command".into()));
+                                        let cursor_command = translate_command_to_cursor(&h.command);
+                                        let shimmed_command = format!("{} {}", NORMALIZE_SHIM_PATH, cursor_command);
+                                        entry.insert("command".into(), serde_json::Value::String(shimmed_command));
+                                    }
+                                    if let Some(timeout_ms) = h.timeout {
+                                        entry.insert(
+                                            "timeout".into(),
+                                            serde_json::Value::Number((timeout_ms / 1000).into()),
+                                        );
+                                    }
+                                    if let Some(ref matcher) = group.matcher {
+                                        let cursor_matcher = translate_matcher_to_cursor(matcher);
+                                        entry.insert("matcher".into(), serde_json::Value::String(cursor_matcher));
+                                    }
+                                    serde_json::Value::Object(entry)
+                                })
+                            })
+                            .collect();
+                        hooks_obj.insert(cursor_name.to_string(), serde_json::Value::Array(entries));
+                    }
+                }
+
+                let root = serde_json::json!({ "version": 1, "hooks": hooks_obj });
+                let hooks_json_str = serde_json::to_string_pretty(&root)
+                    .map_err(|e| AisyncError::Config(ConfigError::ReadFile(std::io::Error::other(e.to_string()))))?;
+                let cursor_dir = project_root.join(".cursor");
+                std::fs::create_dir_all(&cursor_dir).map_err(io_err)?;
+                let hooks_json_path = cursor_dir.join("hooks.json");
+                std::fs::write(&hooks_json_path, hooks_json_str).map_err(io_err)?;
+                components_exported.push((ComponentKind::Hooks, vec![hooks_json_path]));
+            }
+        }
+
+        // 4. mcp.toml → .cursor/mcp.json with env var translation
+        if manifest.components.has_mcp {
+            let mcp_toml = plugin_path.join("mcp.toml");
+            if mcp_toml.exists() {
+                let mcp_content = std::fs::read_to_string(&mcp_toml).map_err(io_err)?;
+                let mcp_config: crate::types::McpConfig = toml::from_str(&mcp_content)
+                    .map_err(|e| AisyncError::Config(ConfigError::Parse(e)))?;
+
+                let json_str = McpEngine::generate_mcp_json_for_tool(&mcp_config, &ToolKind::Cursor)?;
+                let cursor_dir = project_root.join(".cursor");
+                std::fs::create_dir_all(&cursor_dir).map_err(io_err)?;
+                let mcp_json_path = cursor_dir.join("mcp.json");
+                std::fs::write(&mcp_json_path, json_str).map_err(io_err)?;
+                components_exported.push((ComponentKind::Mcp, vec![mcp_json_path]));
+            }
+        }
+
+        // 5. Components with no Cursor equivalent
+        if manifest.components.has_commands {
+            components_skipped.push((ComponentKind::Commands, "no cursor equivalent".to_string()));
+        }
+        if manifest.components.has_skills {
+            components_skipped.push((ComponentKind::Skills, "no cursor equivalent".to_string()));
+        }
+        if manifest.components.has_agents {
+            components_skipped.push((ComponentKind::Agents, "no cursor equivalent".to_string()));
+        }
+
+        Ok(ExportReport {
+            tool: ToolKind::Cursor,
+            components_exported,
+            components_skipped,
+        })
+    }
+
+    // ---------------------------------------------------------------
+    // OpenCode export
+    // ---------------------------------------------------------------
+
+    fn export_opencode(
+        plugin_path: &Path,
+        manifest: &CanonicalPluginManifest,
+        project_root: &Path,
+    ) -> Result<ExportReport, AisyncError> {
+        let io_err = |e| AisyncError::Config(ConfigError::ReadFile(e));
+        let name = &manifest.metadata.name;
+        let mut components_exported = Vec::new();
+        let mut components_skipped = Vec::new();
+
+        // 1. instructions.md → AGENTS.md
+        if manifest.components.has_instructions {
+            let instructions_path = plugin_path.join("instructions.md");
+            if instructions_path.exists() {
+                let content = std::fs::read_to_string(&instructions_path).map_err(io_err)?;
+                let agents_path = project_root.join("AGENTS.md");
+                std::fs::write(&agents_path, &content).map_err(io_err)?;
+                components_exported.push((ComponentKind::Instructions, vec![agents_path]));
+            }
+        }
+
+        // 2. hooks.toml → .opencode/plugins/<name>.js stub
+        if manifest.components.has_hooks {
+            let hooks_toml = plugin_path.join("hooks.toml");
+            if hooks_toml.exists() {
+                let hooks_content = std::fs::read_to_string(&hooks_toml).map_err(io_err)?;
+                let hooks_config: HooksConfig = toml::from_str(&hooks_content)
+                    .map_err(|e| AisyncError::Config(ConfigError::Parse(e)))?;
+
+                // Generate OpenCode JS stub using same format as OpenCodeAdapter::translate_hooks
+                fn opencode_event_name(event: &str) -> Option<&'static str> {
+                    match event {
+                        "PreToolUse" => Some("tool.execute.before"),
+                        "PostToolUse" => Some("tool.execute.after"),
+                        "Stop" => Some("session.idle"),
+                        _ => None,
+                    }
+                }
+
+                let mut lines = vec![
+                    "// OpenCode plugin — generated by aisync sync. Do not edit.".to_string(),
+                    "// See: https://opencode.ai/docs/plugins/".to_string(),
+                    "export const AisyncHooks = async ({ $ }) => {".to_string(),
+                    "  return {".to_string(),
+                ];
+
+                for (event, groups) in &hooks_config.events {
+                    if let Some(oc_event) = opencode_event_name(event) {
+                        lines.push(format!("    \"{}\": async (input, output) => {{", oc_event));
+                        for group in groups {
+                            for hook in &group.hooks {
+                                let translated = hook.command
+                                    .replace("$CLAUDE_PROJECT_DIR/", "")
+                                    .replace("${CLAUDE_PROJECT_DIR}/", "");
+                                let escaped = translated.replace('\'', "'\\''");
+                                lines.push(format!("      await $`{escaped}`;"));
+                            }
+                        }
+                        lines.push("    },".to_string());
+                    } else {
+                        lines.push(format!("    // Unsupported: {} (no OpenCode equivalent)", event));
+                    }
+                }
+
+                lines.push("  };".to_string());
+                lines.push("};".to_string());
+
+                let js_content = lines.join("\n");
+                let plugins_dir = project_root.join(".opencode/plugins");
+                std::fs::create_dir_all(&plugins_dir).map_err(io_err)?;
+                let js_path = plugins_dir.join(format!("{}.js", name));
+                std::fs::write(&js_path, js_content).map_err(io_err)?;
+                components_exported.push((ComponentKind::Hooks, vec![js_path]));
+            }
+        }
+
+        // 3. Components with no OpenCode equivalent
+        if manifest.components.has_commands {
+            components_skipped.push((ComponentKind::Commands, "no opencode equivalent".to_string()));
+        }
+        if manifest.components.has_skills {
+            components_skipped.push((ComponentKind::Skills, "no opencode equivalent".to_string()));
+        }
+        if manifest.components.has_agents {
+            components_skipped.push((ComponentKind::Agents, "no opencode equivalent".to_string()));
+        }
+        if manifest.components.has_mcp {
+            components_skipped.push((ComponentKind::Mcp, "no opencode equivalent".to_string()));
+        }
+        if manifest.components.has_rules {
+            components_skipped.push((ComponentKind::Rules, "no opencode equivalent".to_string()));
+        }
+
+        Ok(ExportReport {
+            tool: ToolKind::OpenCode,
+            components_exported,
+            components_skipped,
+        })
     }
 
     /// Load a `plugin.toml` manifest from the given plugin directory.
@@ -1132,5 +1620,388 @@ has_rules = true
         let dir = TempDir::new().unwrap();
         let result = PluginTranslator::import(dir.path(), None);
         assert!(result.is_err());
+    }
+
+    // ---------------------------------------------------------------
+    // Export tests
+    // ---------------------------------------------------------------
+
+    /// Helper: create a canonical plugin fixture for export testing.
+    fn create_canonical_fixture(plugin_dir: &Path) {
+        // plugin.toml
+        let manifest = CanonicalPluginManifest {
+            metadata: PluginMetadata {
+                name: "test-plugin".to_string(),
+                version: Some("1.0.0".to_string()),
+                description: Some("A test plugin".to_string()),
+                source_tool: None,
+            },
+            components: PluginComponents {
+                has_instructions: true,
+                has_hooks: true,
+                has_mcp: true,
+                has_rules: true,
+                has_commands: true,
+                has_skills: true,
+                has_agents: true,
+            },
+        };
+        PluginTranslator::save_manifest(plugin_dir, &manifest).unwrap();
+
+        // instructions.md
+        std::fs::write(plugin_dir.join("instructions.md"), "# Plugin Instructions\nDo things.").unwrap();
+
+        // commands/
+        std::fs::create_dir_all(plugin_dir.join("commands")).unwrap();
+        std::fs::write(plugin_dir.join("commands/build.md"), "# Build\nRun the build.").unwrap();
+
+        // skills/
+        std::fs::create_dir_all(plugin_dir.join("skills/deploy")).unwrap();
+        std::fs::write(plugin_dir.join("skills/deploy/SKILL.md"), "# Deploy Skill\nDeploy things.").unwrap();
+
+        // agents/
+        std::fs::create_dir_all(plugin_dir.join("agents")).unwrap();
+        std::fs::write(plugin_dir.join("agents/reviewer.md"), "# Reviewer Agent\nReview code.").unwrap();
+
+        // hooks.toml
+        std::fs::write(
+            plugin_dir.join("hooks.toml"),
+            r#"[[PreToolUse]]
+matcher = "Edit"
+
+[[PreToolUse.hooks]]
+type = "command"
+command = "npm run lint"
+timeout = 10000
+
+[[PostToolUse]]
+
+[[PostToolUse.hooks]]
+type = "command"
+command = "cargo fmt"
+"#,
+        )
+        .unwrap();
+
+        // mcp.toml
+        std::fs::write(
+            plugin_dir.join("mcp.toml"),
+            r#"[servers.filesystem]
+command = "npx"
+args = ["-y", "@mcp/server-fs"]
+
+[servers.github]
+command = "npx"
+args = ["-y", "@mcp/server-github"]
+env = { GITHUB_TOKEN = "${GITHUB_TOKEN}" }
+"#,
+        )
+        .unwrap();
+
+        // rules/
+        std::fs::create_dir_all(plugin_dir.join("rules")).unwrap();
+        std::fs::write(
+            plugin_dir.join("rules/coding-style.md"),
+            "---\ndescription: Coding standards\nglobs: \"*.rs\"\nalways_apply: true\n---\n\nUse snake_case.",
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn test_export_claude_code_full() {
+        let dir = TempDir::new().unwrap();
+        let plugin_dir = dir.path().join("plugin");
+        std::fs::create_dir_all(&plugin_dir).unwrap();
+        let project_root = dir.path().join("project");
+        std::fs::create_dir_all(&project_root).unwrap();
+
+        create_canonical_fixture(&plugin_dir);
+
+        let reports = PluginTranslator::export(&plugin_dir, &[ToolKind::ClaudeCode], &project_root).unwrap();
+        assert_eq!(reports.len(), 1);
+        let report = &reports[0];
+        assert_eq!(report.tool, ToolKind::ClaudeCode);
+
+        // Check that key components are exported
+        let exported_kinds: Vec<_> = report.components_exported.iter().map(|(k, _)| k.clone()).collect();
+        assert!(exported_kinds.contains(&ComponentKind::Commands), "Commands should be exported: {:?}", exported_kinds);
+        assert!(exported_kinds.contains(&ComponentKind::Skills), "Skills should be exported: {:?}", exported_kinds);
+        assert!(exported_kinds.contains(&ComponentKind::Agents), "Agents should be exported: {:?}", exported_kinds);
+        assert!(exported_kinds.contains(&ComponentKind::Hooks), "Hooks should be exported: {:?}", exported_kinds);
+        assert!(exported_kinds.contains(&ComponentKind::Mcp), "Mcp should be exported: {:?}", exported_kinds);
+
+        // Verify output structure
+        let output_dir = project_root.join("plugins/test-plugin");
+        assert!(output_dir.join(".claude-plugin/plugin.json").exists(), "plugin.json should exist");
+        assert!(output_dir.join("commands/build.md").exists(), "build.md should exist");
+        assert!(output_dir.join("skills/deploy/SKILL.md").exists(), "SKILL.md should exist");
+        assert!(output_dir.join("agents/reviewer.md").exists(), "reviewer.md should exist");
+        assert!(output_dir.join("hooks/hooks.json").exists(), "hooks.json should exist");
+        assert!(output_dir.join(".mcp.json").exists(), ".mcp.json should exist");
+
+        // Verify plugin.json content
+        let plugin_json: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(output_dir.join(".claude-plugin/plugin.json")).unwrap()
+        ).unwrap();
+        assert_eq!(plugin_json["name"], "test-plugin");
+        assert_eq!(plugin_json["version"], "1.0.0");
+        assert_eq!(plugin_json["description"], "A test plugin");
+
+        // Verify hooks.json content
+        let hooks_json: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(output_dir.join("hooks/hooks.json")).unwrap()
+        ).unwrap();
+        assert!(hooks_json["hooks"]["PreToolUse"].is_array());
+        assert!(hooks_json["hooks"]["PostToolUse"].is_array());
+        assert_eq!(hooks_json["hooks"]["PreToolUse"][0]["matcher"], "Edit");
+
+        // Verify .mcp.json content
+        let mcp_json: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(output_dir.join(".mcp.json")).unwrap()
+        ).unwrap();
+        assert!(mcp_json["mcpServers"]["filesystem"].is_object());
+        assert!(mcp_json["mcpServers"]["github"].is_object());
+
+        // Verify file contents were copied correctly
+        let build_content = std::fs::read_to_string(output_dir.join("commands/build.md")).unwrap();
+        assert_eq!(build_content, "# Build\nRun the build.");
+    }
+
+    #[test]
+    fn test_export_cursor_full() {
+        let dir = TempDir::new().unwrap();
+        let plugin_dir = dir.path().join("plugin");
+        std::fs::create_dir_all(&plugin_dir).unwrap();
+        let project_root = dir.path().join("project");
+        std::fs::create_dir_all(&project_root).unwrap();
+
+        create_canonical_fixture(&plugin_dir);
+
+        let reports = PluginTranslator::export(&plugin_dir, &[ToolKind::Cursor], &project_root).unwrap();
+        assert_eq!(reports.len(), 1);
+        let report = &reports[0];
+        assert_eq!(report.tool, ToolKind::Cursor);
+
+        // Check exported components
+        let exported_kinds: Vec<_> = report.components_exported.iter().map(|(k, _)| k.clone()).collect();
+        assert!(exported_kinds.contains(&ComponentKind::Instructions), "Instructions should be exported: {:?}", exported_kinds);
+        assert!(exported_kinds.contains(&ComponentKind::Rules), "Rules should be exported: {:?}", exported_kinds);
+        assert!(exported_kinds.contains(&ComponentKind::Hooks), "Hooks should be exported: {:?}", exported_kinds);
+        assert!(exported_kinds.contains(&ComponentKind::Mcp), "Mcp should be exported: {:?}", exported_kinds);
+
+        // Verify .mdc files
+        let mdc_path = project_root.join(".cursor/rules/test-plugin.mdc");
+        assert!(mdc_path.exists(), "instructions .mdc should exist");
+        let mdc_content = std::fs::read_to_string(&mdc_path).unwrap();
+        assert!(mdc_content.contains("alwaysApply: true"));
+        assert!(mdc_content.contains("# Plugin Instructions"));
+
+        // Verify rule .mdc file
+        let rule_mdc = project_root.join(".cursor/rules/test-plugin-coding-style.mdc");
+        assert!(rule_mdc.exists(), "rule .mdc should exist");
+        let rule_content = std::fs::read_to_string(&rule_mdc).unwrap();
+        assert!(rule_content.contains("description: Coding standards"));
+        assert!(rule_content.contains("Use snake_case."));
+
+        // Verify hooks JSON with Cursor event names
+        let hooks_json: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(project_root.join(".cursor/hooks.json")).unwrap()
+        ).unwrap();
+        assert!(hooks_json["hooks"]["preToolUse"].is_array(), "should use camelCase event name");
+        assert!(hooks_json["hooks"]["postToolUse"].is_array());
+        // Verify matcher translation: Edit -> Write for Cursor
+        let pre_hook = &hooks_json["hooks"]["preToolUse"][0];
+        assert_eq!(pre_hook["matcher"], "Write", "Edit should be translated to Write for Cursor");
+
+        // Verify MCP JSON with env var translation
+        let mcp_json: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(project_root.join(".cursor/mcp.json")).unwrap()
+        ).unwrap();
+        assert_eq!(
+            mcp_json["mcpServers"]["github"]["env"]["GITHUB_TOKEN"],
+            "${env:GITHUB_TOKEN}",
+            "env vars should be translated to Cursor format"
+        );
+
+        // Verify skipped components
+        let skipped_kinds: Vec<_> = report.components_skipped.iter().map(|(k, _)| k.clone()).collect();
+        assert!(skipped_kinds.contains(&ComponentKind::Commands), "Commands should be skipped");
+        assert!(skipped_kinds.contains(&ComponentKind::Skills), "Skills should be skipped");
+        assert!(skipped_kinds.contains(&ComponentKind::Agents), "Agents should be skipped");
+    }
+
+    #[test]
+    fn test_export_opencode_full() {
+        let dir = TempDir::new().unwrap();
+        let plugin_dir = dir.path().join("plugin");
+        std::fs::create_dir_all(&plugin_dir).unwrap();
+        let project_root = dir.path().join("project");
+        std::fs::create_dir_all(&project_root).unwrap();
+
+        create_canonical_fixture(&plugin_dir);
+
+        let reports = PluginTranslator::export(&plugin_dir, &[ToolKind::OpenCode], &project_root).unwrap();
+        assert_eq!(reports.len(), 1);
+        let report = &reports[0];
+        assert_eq!(report.tool, ToolKind::OpenCode);
+
+        // Verify AGENTS.md
+        let agents_md = project_root.join("AGENTS.md");
+        assert!(agents_md.exists(), "AGENTS.md should exist");
+        let content = std::fs::read_to_string(&agents_md).unwrap();
+        assert_eq!(content, "# Plugin Instructions\nDo things.");
+
+        // Verify JS stub
+        let js_path = project_root.join(".opencode/plugins/test-plugin.js");
+        assert!(js_path.exists(), "JS stub should exist");
+        let js_content = std::fs::read_to_string(&js_path).unwrap();
+        assert!(js_content.contains("export const AisyncHooks"), "should use ESM format");
+        assert!(js_content.contains("tool.execute.before"), "should contain translated PreToolUse event");
+        assert!(js_content.contains("tool.execute.after"), "should contain translated PostToolUse event");
+        assert!(js_content.contains("npm run lint"), "should contain hook command");
+
+        // Verify skipped components
+        let skipped_kinds: Vec<_> = report.components_skipped.iter().map(|(k, _)| k.clone()).collect();
+        assert!(skipped_kinds.contains(&ComponentKind::Commands), "Commands should be skipped");
+        assert!(skipped_kinds.contains(&ComponentKind::Skills), "Skills should be skipped");
+        assert!(skipped_kinds.contains(&ComponentKind::Agents), "Agents should be skipped");
+        assert!(skipped_kinds.contains(&ComponentKind::Mcp), "Mcp should be skipped");
+        assert!(skipped_kinds.contains(&ComponentKind::Rules), "Rules should be skipped");
+    }
+
+    #[test]
+    fn test_export_skip_reporting() {
+        let dir = TempDir::new().unwrap();
+        let plugin_dir = dir.path().join("plugin");
+        std::fs::create_dir_all(&plugin_dir).unwrap();
+        let project_root = dir.path().join("project");
+        std::fs::create_dir_all(&project_root).unwrap();
+
+        create_canonical_fixture(&plugin_dir);
+
+        let reports = PluginTranslator::export(&plugin_dir, &[ToolKind::Cursor], &project_root).unwrap();
+        let report = &reports[0];
+
+        // Commands, skills, agents should be in skipped
+        let skipped_kinds: Vec<_> = report.components_skipped.iter().map(|(k, _)| k.clone()).collect();
+        assert!(skipped_kinds.contains(&ComponentKind::Commands));
+        assert!(skipped_kinds.contains(&ComponentKind::Skills));
+        assert!(skipped_kinds.contains(&ComponentKind::Agents));
+        let cmd_skip = report.components_skipped.iter().find(|(k, _)| *k == ComponentKind::Commands).unwrap();
+        assert!(
+            cmd_skip.1.contains("no cursor equivalent"),
+            "skip reason should explain why: {}",
+            cmd_skip.1
+        );
+    }
+
+    #[test]
+    fn test_export_round_trip_claude_code() {
+        let dir = TempDir::new().unwrap();
+
+        // Step 1: Create a Claude Code plugin fixture and import it
+        let source_dir = dir.path().join("source");
+        std::fs::create_dir_all(&source_dir).unwrap();
+        create_claude_code_fixture(&source_dir);
+
+        let import_report = PluginTranslator::import(&source_dir, Some(ToolKind::ClaudeCode)).unwrap();
+        assert_eq!(import_report.name, "my-cc-plugin");
+
+        // Step 2: Export back to Claude Code
+        let project_root = dir.path().join("output");
+        std::fs::create_dir_all(&project_root).unwrap();
+
+        let reports = PluginTranslator::export(&source_dir, &[ToolKind::ClaudeCode], &project_root).unwrap();
+        assert_eq!(reports.len(), 1);
+        let report = &reports[0];
+        assert_eq!(report.tool, ToolKind::ClaudeCode);
+
+        // Step 3: Verify key files match
+        let output_dir = project_root.join("plugins/my-cc-plugin");
+
+        // plugin.json
+        let plugin_json: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(output_dir.join(".claude-plugin/plugin.json")).unwrap()
+        ).unwrap();
+        assert_eq!(plugin_json["name"], "my-cc-plugin");
+        assert_eq!(plugin_json["version"], "1.0.0");
+
+        // commands
+        assert!(output_dir.join("commands/build.md").exists());
+        let build_content = std::fs::read_to_string(output_dir.join("commands/build.md")).unwrap();
+        assert_eq!(build_content, "# Build\nRun the build.");
+
+        // hooks
+        let hooks_json: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(output_dir.join("hooks/hooks.json")).unwrap()
+        ).unwrap();
+        assert!(hooks_json["hooks"]["PreToolUse"].is_array());
+        assert!(hooks_json["hooks"]["PostToolUse"].is_array());
+
+        // mcp
+        let mcp_json: serde_json::Value = serde_json::from_str(
+            &std::fs::read_to_string(output_dir.join(".mcp.json")).unwrap()
+        ).unwrap();
+        assert!(mcp_json["mcpServers"]["filesystem"].is_object());
+    }
+
+    #[test]
+    fn test_export_windsurf_codex_returns_all_skipped() {
+        let dir = TempDir::new().unwrap();
+        let plugin_dir = dir.path().join("plugin");
+        std::fs::create_dir_all(&plugin_dir).unwrap();
+        let project_root = dir.path().join("project");
+        std::fs::create_dir_all(&project_root).unwrap();
+
+        create_canonical_fixture(&plugin_dir);
+
+        let reports = PluginTranslator::export(
+            &plugin_dir,
+            &[ToolKind::Windsurf, ToolKind::Codex],
+            &project_root,
+        ).unwrap();
+
+        assert_eq!(reports.len(), 2);
+        for report in &reports {
+            assert!(report.components_exported.is_empty(), "no components should be exported for {:?}", report.tool);
+            assert!(!report.components_skipped.is_empty(), "should have skipped components for {:?}", report.tool);
+            for (_, reason) in &report.components_skipped {
+                assert!(
+                    reason.contains("adapter not yet implemented"),
+                    "skip reason should mention adapter not yet implemented: {reason}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_export_multiple_targets() {
+        let dir = TempDir::new().unwrap();
+        let plugin_dir = dir.path().join("plugin");
+        std::fs::create_dir_all(&plugin_dir).unwrap();
+        let project_root = dir.path().join("project");
+        std::fs::create_dir_all(&project_root).unwrap();
+
+        create_canonical_fixture(&plugin_dir);
+
+        let reports = PluginTranslator::export(
+            &plugin_dir,
+            &[ToolKind::ClaudeCode, ToolKind::Cursor, ToolKind::OpenCode],
+            &project_root,
+        ).unwrap();
+
+        assert_eq!(reports.len(), 3);
+        assert_eq!(reports[0].tool, ToolKind::ClaudeCode);
+        assert_eq!(reports[1].tool, ToolKind::Cursor);
+        assert_eq!(reports[2].tool, ToolKind::OpenCode);
+
+        // Each should have some exported components
+        for report in &reports {
+            assert!(
+                !report.components_exported.is_empty(),
+                "tool {:?} should have exported components",
+                report.tool
+            );
+        }
     }
 }

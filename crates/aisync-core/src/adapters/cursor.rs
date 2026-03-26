@@ -43,7 +43,7 @@ fn generate_cursor_rule_content(meta: &RuleMetadata, body: &str) -> String {
 
 /// Map PascalCase canonical hook event names to Cursor camelCase names.
 /// Returns None for events that Cursor doesn't support (e.g., "Notification").
-fn event_name_to_cursor(event: &str) -> Option<&'static str> {
+pub fn event_name_to_cursor(event: &str) -> Option<&'static str> {
     match event {
         "PreToolUse" => Some("preToolUse"),
         "PostToolUse" => Some("postToolUse"),
@@ -71,7 +71,7 @@ fn event_name_to_cursor(event: &str) -> Option<&'static str> {
 /// Translate canonical (Claude Code) matcher names to Cursor tool type names.
 /// Claude Code uses Edit/Bash; Cursor uses Write/Shell.
 /// Matchers can be pipe-separated (e.g., "Edit|Write"), so we translate each segment.
-fn translate_matcher_to_cursor(matcher: &str) -> String {
+pub fn translate_matcher_to_cursor(matcher: &str) -> String {
     let mut seen = std::collections::HashSet::new();
     matcher
         .split('|')
@@ -137,7 +137,7 @@ pub fn translate_matcher_from_cursor(cursor_matcher: &str) -> String {
 
 /// Translate command paths from Claude Code env vars to project-relative paths for Cursor.
 /// Cursor runs hooks with the project root as cwd, so relative paths work directly.
-fn translate_command_to_cursor(command: &str) -> String {
+pub fn translate_command_to_cursor(command: &str) -> String {
     command
         .replace("$CLAUDE_PROJECT_DIR/", "")
         .replace("${CLAUDE_PROJECT_DIR}/", "")
