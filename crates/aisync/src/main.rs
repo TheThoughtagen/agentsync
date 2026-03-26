@@ -43,6 +43,11 @@ enum Commands {
         #[command(subcommand)]
         action: HooksAction,
     },
+    /// Import, export, and list canonical plugins
+    Plugin {
+        #[command(subcommand)]
+        action: PluginAction,
+    },
     /// Add detected but unconfigured tools to your project
     #[command(name = "add-tool")]
     AddTool {
@@ -95,6 +100,34 @@ pub enum HooksAction {
     Translate,
 }
 
+#[derive(Subcommand)]
+pub enum PluginAction {
+    /// Import a tool-native plugin into canonical format
+    Import {
+        /// Path to the tool-native plugin directory
+        path: String,
+        /// Source tool (claude-code, cursor, opencode). Auto-detected if omitted.
+        #[arg(long)]
+        from: Option<String>,
+        /// Override the plugin name
+        #[arg(long)]
+        name: Option<String>,
+    },
+    /// Export a canonical plugin to tool-native format(s)
+    Export {
+        /// Canonical plugin name (directory name under .ai/plugins/)
+        name: String,
+        /// Target tool (claude-code, cursor, opencode)
+        #[arg(long)]
+        to: Option<String>,
+        /// Export to all configured tools
+        #[arg(long)]
+        all: bool,
+    },
+    /// List all canonical plugins
+    List,
+}
+
 fn main() {
     let cli = Cli::parse();
     let result = match &cli.command {
@@ -103,6 +136,7 @@ fn main() {
         Commands::Status { json } => commands::status::run_status(*json, cli.verbose),
         Commands::Memory { action } => commands::memory::run_memory(action, cli.verbose),
         Commands::Hooks { action } => commands::hooks::run_hooks(action, cli.verbose),
+        Commands::Plugin { action } => commands::plugin::run_plugin(action, cli.verbose),
         Commands::AddTool { tool } => commands::add_tool::run_add_tool(tool.as_deref(), cli.verbose),
         Commands::Watch => commands::watch::run_watch(cli.verbose),
         Commands::Diff => commands::diff::run_diff(cli.verbose),

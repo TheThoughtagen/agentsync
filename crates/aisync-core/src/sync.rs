@@ -265,9 +265,67 @@ impl SyncEngine {
             });
         }
 
+        // Export canonical plugins to each enabled tool
+        Self::sync_canonical_plugins(project_root, &mut results);
+
         Self::deduplicate_actions(&mut results);
 
         Ok(SyncReport { results })
+    }
+
+    /// Scan `.ai/plugins/` for canonical plugin directories and export each
+    /// plugin to each enabled tool, appending `CreateFile` actions to the
+    /// corresponding `ToolSyncResult`.
+    fn sync_canonical_plugins(project_root: &Path, results: &mut [ToolSyncResult]) {
+        let plugins_dir = project_root.join(".ai/plugins");
+        if !plugins_dir.is_dir() {
+            return;
+        }
+
+        let plugin_dirs: Vec<PathBuf> = match std::fs::read_dir(&plugins_dir) {
+            Ok(entries) => entries
+                .filter_map(|e| e.ok())
+                .filter(|e| e.path().is_dir() && e.path().join("plugin.toml").exists())
+                .map(|e| e.path())
+                .collect(),
+            Err(_) => return,
+        };
+
+        if plugin_dirs.is_empty() {
+            return;
+        }
+
+        // Collect enabled tool kinds from existing results
+        let enabled_tools: Vec<ToolKind> = results.iter().map(|r| r.tool.clone()).collect();
+
+        for plugin_path in &plugin_dirs {
+            let export_reports =
+                match crate::plugin_translator::PluginTranslator::export(
+                    plugin_path,
+                    &enabled_tools,
+                    project_root,
+                ) {
+                    Ok(reports) => reports,
+                    Err(_) => continue, // skip plugins that fail to export
+                };
+
+            for report in export_reports {
+                // Find the matching ToolSyncResult and append actions
+                if let Some(tool_result) = results.iter_mut().find(|r| r.tool == report.tool) {
+                    for (_comp, paths) in &report.components_exported {
+                        for path in paths {
+                            // Read the file content that was exported
+                            if let Ok(content) = std::fs::read_to_string(path) {
+                                tool_result.actions.push(SyncAction::CreateFile {
+                                    path: path.clone(),
+                                    content,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// Deduplicate sync actions that target the same output path.
@@ -2264,6 +2322,88 @@ source = "npm:test-plugin"
             merged["plugins"]["aisync"]["source"],
             "github:whiskeyhouse/agentsync",
             "plugins.aisync.source should match"
+        );
+    }
+
+    #[test]
+    fn test_sync_canonical_plugins_no_plugins_dir() {
+        // When .ai/plugins/ does not exist, sync_canonical_plugins is a no-op
+        let dir = TempDir::new().unwrap();
+        let mut results = vec![ToolSyncResult {
+            tool: ToolKind::ClaudeCode,
+            actions: vec![],
+            error: None,
+        }];
+        SyncEngine::sync_canonical_plugins(dir.path(), &mut results);
+        assert!(
+            results[0].actions.is_empty(),
+            "should have no actions when no plugins dir exists"
+        );
+    }
+
+    #[test]
+    fn test_sync_canonical_plugins_empty_plugins_dir() {
+        // When .ai/plugins/ exists but is empty, sync_canonical_plugins is a no-op
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir_all(dir.path().join(".ai/plugins")).unwrap();
+        let mut results = vec![ToolSyncResult {
+            tool: ToolKind::ClaudeCode,
+            actions: vec![],
+            error: None,
+        }];
+        SyncEngine::sync_canonical_plugins(dir.path(), &mut results);
+        assert!(
+            results[0].actions.is_empty(),
+            "should have no actions when plugins dir is empty"
+        );
+    }
+
+    #[test]
+    fn test_sync_canonical_plugins_picks_up_plugin() {
+        // Create a minimal canonical plugin and verify sync picks it up
+        let dir = TempDir::new().unwrap();
+        let plugin_dir = dir.path().join(".ai/plugins/test-plugin");
+        std::fs::create_dir_all(&plugin_dir).unwrap();
+
+        // Write a minimal plugin.toml
+        let manifest = r#"
+[metadata]
+name = "test-plugin"
+version = "1.0.0"
+description = "A test plugin"
+
+[components]
+has_instructions = true
+"#;
+        std::fs::write(plugin_dir.join("plugin.toml"), manifest).unwrap();
+
+        // Write an instructions.md for the plugin to export
+        std::fs::write(
+            plugin_dir.join("instructions.md"),
+            "# Test plugin instructions",
+        )
+        .unwrap();
+
+        let mut results = vec![
+            ToolSyncResult {
+                tool: ToolKind::ClaudeCode,
+                actions: vec![],
+                error: None,
+            },
+            ToolSyncResult {
+                tool: ToolKind::Cursor,
+                actions: vec![],
+                error: None,
+            },
+        ];
+
+        SyncEngine::sync_canonical_plugins(dir.path(), &mut results);
+
+        // At least one tool should have gotten actions from the plugin export
+        let total_actions: usize = results.iter().map(|r| r.actions.len()).sum();
+        assert!(
+            total_actions > 0,
+            "sync_canonical_plugins should produce actions for canonical plugins with instructions"
         );
     }
 }

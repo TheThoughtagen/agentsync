@@ -4,6 +4,7 @@ pub mod diff;
 pub mod hooks;
 pub mod init;
 pub mod memory;
+pub mod plugin;
 pub mod status;
 pub mod sync;
 pub mod watch;

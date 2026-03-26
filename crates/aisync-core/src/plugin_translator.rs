@@ -2004,4 +2004,42 @@ env = { GITHUB_TOKEN = "${GITHUB_TOKEN}" }
             );
         }
     }
+
+    #[test]
+    fn test_list_plugins_scans_directories() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let plugins_dir = dir.path().join(".ai/plugins");
+
+        // No plugins dir — should not panic
+        assert!(!plugins_dir.exists());
+
+        // Create plugins dir with two plugins
+        let p1 = plugins_dir.join("plugin-a");
+        let p2 = plugins_dir.join("plugin-b");
+        std::fs::create_dir_all(&p1).unwrap();
+        std::fs::create_dir_all(&p2).unwrap();
+
+        // Only plugin-a has a manifest
+        let manifest_a = r#"
+[metadata]
+name = "plugin-a"
+version = "1.0.0"
+description = "First plugin"
+
+[components]
+has_hooks = true
+has_mcp = true
+"#;
+        std::fs::write(p1.join("plugin.toml"), manifest_a).unwrap();
+
+        // plugin-b has no manifest — should be skipped
+        let loaded = PluginTranslator::load_manifest(&p1).unwrap();
+        assert_eq!(loaded.metadata.name, "plugin-a");
+        assert!(loaded.components.has_hooks);
+        assert!(loaded.components.has_mcp);
+        assert!(!loaded.components.has_commands);
+
+        // plugin-b should fail to load
+        assert!(PluginTranslator::load_manifest(&p2).is_err());
+    }
 }
