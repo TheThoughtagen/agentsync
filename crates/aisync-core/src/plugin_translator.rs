@@ -747,7 +747,7 @@ impl PluginTranslator {
                                     hook_obj.insert("type".into(), serde_json::Value::String(h.hook_type.clone()));
                                     hook_obj.insert("command".into(), serde_json::Value::String(h.command.clone()));
                                     if let Some(timeout) = h.timeout {
-                                        hook_obj.insert("timeout".into(), serde_json::json!(timeout / 1000));
+                                        hook_obj.insert("timeout".into(), serde_json::json!(timeout));
                                     }
                                     serde_json::Value::Object(hook_obj)
                                 })
@@ -900,7 +900,7 @@ impl PluginTranslator {
                                     if let Some(timeout_ms) = h.timeout {
                                         entry.insert(
                                             "timeout".into(),
-                                            serde_json::Value::Number((timeout_ms / 1000).into()),
+                                            serde_json::Value::Number(timeout_ms.into()),
                                         );
                                     }
                                     if let Some(ref matcher) = group.matcher {

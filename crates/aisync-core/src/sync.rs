@@ -1484,7 +1484,7 @@ mod tests {
         );
 
         // Check AGENTS.md has memory references
-        let agents_content = std::fs::read_to_string(dir.path().join("AGENTS.md"));
+        let _agents_content = std::fs::read_to_string(dir.path().join("AGENTS.md"));
         // AGENTS.md is a symlink, but managed section updates write to the resolved path
         // For OpenCode memory, UpdateMemoryReferences targets AGENTS.md
     }
